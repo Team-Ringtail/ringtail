@@ -1,0 +1,4 @@
+Make a Benchmark
+Make the harness boilerplate
+Make the explicit tools we want to use
+Do more research on what models to use / how to use them (motivation: Composer trained w a ton of Cursor native data so using this may be kinda OOD = bad performance but idk)
