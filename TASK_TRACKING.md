@@ -22,27 +22,28 @@ See [todo.md](todo.md) for the full project TODO and project structure.
 
 **Goal:** Implement the core agent loop that takes a function, optimizes it iteratively, and validates correctness and performance.
 
-### Lance — Loop orchestration
+### Lance — Loop shell, data models, and I/O
 
+- [ ] Implement `src/models/types.jac` — shared data models (function input, result, metrics) used by both sides
 - [ ] Implement `src/core/optimization_loop.jac`
-  - [ ] Determine function to optimize (entry point, input parsing)
-  - [ ] Orchestrate the full loop: think → write → test → profile → compare → iterate
-  - [ ] Compare profiler result to estimated limit and decide whether to loop
-  - [ ] Define termination / convergence criteria
-- [ ] Implement `src/models/types.jac` — shared data models used across the loop
-- [ ] Wire `src/utils/code_parser.jac` and `src/utils/metrics.jac` as needed
+  - [ ] Entry point: accept target function and optimization criteria
+  - [ ] Outer loop skeleton: call into GM's analyze/write steps, then call profiler/tester
+  - [ ] Termination / convergence logic: decide when to stop iterating
+  - [ ] Return and format final optimized result
+- [ ] Wire `src/utils/code_parser.jac` (parse input function) and `src/utils/metrics.jac` (aggregate metrics)
 
-### GM — Agent and LLM integration
+### GM — Analysis and transformation pipeline
 
-- [ ] Implement `src/agents/optimizer_agent.jac` with byllm integration
-  - [ ] Think/prep phase: agent analyzes function and estimates best optimization approach
-  - [ ] Write phase: agent generates optimized code from analysis
-  - [ ] Hook into `optimization_loop.jac` think and write steps
-- [ ] Define and document the agent's input/output interface so Lance can integrate it into the loop
+- [ ] Implement `src/agents/optimizer_agent.jac` (no byllm for now — stub or heuristic-based)
+  - [ ] Think/prep phase: analyze the input function and produce an optimization plan/estimate
+  - [ ] Write phase: apply or generate the optimized code based on the plan
+  - [ ] Compare phase: evaluate profiler output against the estimated target, return continue/done signal
+- [ ] Define and document the `optimizer_agent` interface (inputs/outputs) so Lance can wire it into the loop shell
 
 **Notes / blockers:**
-- Profiler and tester (Colin) are dependencies — coordinate on interfaces early
-- GM should define the agent interface before Lance wires the loop so both sides stay in sync
+- byllm integration is deferred — GM should implement think/write/compare with stubs or simple heuristics first
+- Profiler and tester (Colin) are dependencies — coordinate on the result/metrics interface early
+- Lance should not start wiring the loop until GM has a working interface definition
 
 ---
 
