@@ -22,21 +22,27 @@ See [todo.md](todo.md) for the full project TODO and project structure.
 
 **Goal:** Implement the core agent loop that takes a function, optimizes it iteratively, and validates correctness and performance.
 
-### Tasks
+### Lance — Loop orchestration
 
 - [ ] Implement `src/core/optimization_loop.jac`
-  - [ ] Determine function to optimize
-  - [ ] Agent think/prep phase (estimate best optimization)
-  - [ ] Agent write code phase
-  - [ ] Unit test and profile
-  - [ ] Compare result to estimated limit
-  - [ ] Loop back if not satisfactory
-- [ ] Implement `src/agents/optimizer_agent.jac` with byllm integration
-- [ ] Implement `src/models/types.jac` — shared data models used by the loop
+  - [ ] Determine function to optimize (entry point, input parsing)
+  - [ ] Orchestrate the full loop: think → write → test → profile → compare → iterate
+  - [ ] Compare profiler result to estimated limit and decide whether to loop
+  - [ ] Define termination / convergence criteria
+- [ ] Implement `src/models/types.jac` — shared data models used across the loop
 - [ ] Wire `src/utils/code_parser.jac` and `src/utils/metrics.jac` as needed
+
+### GM — Agent and LLM integration
+
+- [ ] Implement `src/agents/optimizer_agent.jac` with byllm integration
+  - [ ] Think/prep phase: agent analyzes function and estimates best optimization approach
+  - [ ] Write phase: agent generates optimized code from analysis
+  - [ ] Hook into `optimization_loop.jac` think and write steps
+- [ ] Define and document the agent's input/output interface so Lance can integrate it into the loop
 
 **Notes / blockers:**
 - Profiler and tester (Colin) are dependencies — coordinate on interfaces early
+- GM should define the agent interface before Lance wires the loop so both sides stay in sync
 
 ---
 
