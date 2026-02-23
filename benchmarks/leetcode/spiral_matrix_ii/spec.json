@@ -1,0 +1,9 @@
+{
+  "slug": "spiral_matrix_ii",
+  "leetcode_id": 59,
+  "title": "Spiral Matrix II",
+  "difficulty": "medium",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(1)",
+  "entry_function": "generate_matrix"
+}

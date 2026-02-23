@@ -1,0 +1,9 @@
+{
+  "slug": "reverse_bits",
+  "leetcode_id": 190,
+  "title": "Reverse Bits",
+  "difficulty": "easy",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "reverse_bits"
+}

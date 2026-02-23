@@ -1,0 +1,9 @@
+{
+  "slug": "longest_palindromic_substring",
+  "leetcode_id": 5,
+  "title": "Longest Palindromic Substring",
+  "difficulty": "medium",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(1)",
+  "entry_function": "longest_palindrome"
+}

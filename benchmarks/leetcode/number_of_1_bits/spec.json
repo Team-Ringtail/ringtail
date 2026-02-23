@@ -1,0 +1,9 @@
+{
+  "slug": "number_of_1_bits",
+  "leetcode_id": 191,
+  "title": "Number of 1 Bits",
+  "difficulty": "easy",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "hamming_weight"
+}

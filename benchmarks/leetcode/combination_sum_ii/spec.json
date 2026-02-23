@@ -1,0 +1,9 @@
+{
+  "slug": "combination_sum_ii",
+  "leetcode_id": 40,
+  "title": "Combination Sum II",
+  "difficulty": "medium",
+  "expected_time": "O(2^n)",
+  "expected_space": "O(n)",
+  "entry_function": "combination_sum2"
+}

@@ -1,0 +1,9 @@
+{
+  "slug": "string_to_integer_atoi",
+  "leetcode_id": 8,
+  "title": "String to Integer (atoi)",
+  "difficulty": "medium",
+  "expected_time": "O(n)",
+  "expected_space": "O(1)",
+  "entry_function": "my_atoi"
+}

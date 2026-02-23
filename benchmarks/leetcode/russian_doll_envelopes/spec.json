@@ -1,0 +1,9 @@
+{
+  "slug": "russian_doll_envelopes",
+  "leetcode_id": 354,
+  "title": "Russian Doll Envelopes",
+  "difficulty": "hard",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(n)",
+  "entry_function": "max_envelopes"
+}

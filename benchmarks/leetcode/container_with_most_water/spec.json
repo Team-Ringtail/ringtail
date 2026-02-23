@@ -1,0 +1,9 @@
+{
+  "slug": "container_with_most_water",
+  "leetcode_id": 11,
+  "title": "Container With Most Water",
+  "difficulty": "medium",
+  "expected_time": "O(n)",
+  "expected_space": "O(1)",
+  "entry_function": "max_area"
+}

@@ -1,0 +1,9 @@
+{
+  "slug": "sqrt_x",
+  "leetcode_id": 69,
+  "title": "Sqrt(x)",
+  "difficulty": "easy",
+  "expected_time": "O(log x)",
+  "expected_space": "O(1)",
+  "entry_function": "my_sqrt"
+}

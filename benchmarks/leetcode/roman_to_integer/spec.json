@@ -1,0 +1,9 @@
+{
+  "slug": "roman_to_integer",
+  "leetcode_id": 13,
+  "title": "Roman to Integer",
+  "difficulty": "easy",
+  "expected_time": "O(n)",
+  "expected_space": "O(1)",
+  "entry_function": "roman_to_int"
+}

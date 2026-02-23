@@ -1,0 +1,9 @@
+{
+  "slug": "rectangle_area",
+  "leetcode_id": 223,
+  "title": "Rectangle Area",
+  "difficulty": "medium",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "compute_area"
+}

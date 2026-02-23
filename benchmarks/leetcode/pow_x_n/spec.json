@@ -1,0 +1,9 @@
+{
+  "slug": "pow_x_n",
+  "leetcode_id": 50,
+  "title": "Pow(x, n)",
+  "difficulty": "medium",
+  "expected_time": "O(log n)",
+  "expected_space": "O(log n)",
+  "entry_function": "my_pow"
+}

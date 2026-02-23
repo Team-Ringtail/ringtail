@@ -1,0 +1,9 @@
+{
+  "slug": "divide_two_integers",
+  "leetcode_id": 29,
+  "title": "Divide Two Integers",
+  "difficulty": "medium",
+  "expected_time": "O(log n)",
+  "expected_space": "O(1)",
+  "entry_function": "divide"
+}

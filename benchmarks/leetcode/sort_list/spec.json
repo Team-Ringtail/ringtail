@@ -1,0 +1,9 @@
+{
+  "slug": "sort_list",
+  "leetcode_id": 148,
+  "title": "Sort List",
+  "difficulty": "medium",
+  "expected_time": "O(n log n)",
+  "expected_space": "O(log n)",
+  "entry_function": "sort_list"
+}

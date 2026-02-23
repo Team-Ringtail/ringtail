@@ -1,0 +1,9 @@
+{
+  "slug": "permutation_sequence",
+  "leetcode_id": 60,
+  "title": "Permutation Sequence",
+  "difficulty": "hard",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(n)",
+  "entry_function": "get_permutation"
+}

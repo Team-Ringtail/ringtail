@@ -1,0 +1,9 @@
+{
+  "slug": "longest_increasing_subsequence",
+  "leetcode_id": 300,
+  "title": "Longest Increasing Subsequence",
+  "difficulty": "medium",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(n)",
+  "entry_function": "length_of_lis"
+}

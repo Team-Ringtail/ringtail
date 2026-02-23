@@ -1,0 +1,9 @@
+{
+  "slug": "four_sum",
+  "leetcode_id": 18,
+  "title": "4Sum",
+  "difficulty": "medium",
+  "expected_time": "O(n^3)",
+  "expected_space": "O(1)",
+  "entry_function": "four_sum"
+}

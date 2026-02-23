@@ -1,0 +1,9 @@
+{
+  "slug": "subsets",
+  "leetcode_id": 78,
+  "title": "Subsets",
+  "difficulty": "medium",
+  "expected_time": "O(2^n)",
+  "expected_space": "O(2^n)",
+  "entry_function": "subsets"
+}

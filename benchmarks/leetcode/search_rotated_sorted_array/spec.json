@@ -1,0 +1,9 @@
+{
+  "slug": "search_rotated_sorted_array",
+  "leetcode_id": 33,
+  "title": "Search in Rotated Sorted Array",
+  "difficulty": "medium",
+  "expected_time": "O(log n)",
+  "expected_space": "O(1)",
+  "entry_function": "search"
+}

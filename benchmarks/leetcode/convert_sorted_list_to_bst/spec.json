@@ -1,0 +1,9 @@
+{
+  "slug": "convert_sorted_list_to_bst",
+  "leetcode_id": 109,
+  "title": "Convert Sorted List to Binary Search Tree",
+  "difficulty": "medium",
+  "expected_time": "O(n log n)",
+  "expected_space": "O(log n)",
+  "entry_function": "sorted_list_to_bst"
+}

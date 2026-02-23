@@ -1,0 +1,9 @@
+{
+  "slug": "remove_nth_from_end",
+  "leetcode_id": 19,
+  "title": "Remove Nth Node From End of List",
+  "difficulty": "medium",
+  "expected_time": "O(n)",
+  "expected_space": "O(1)",
+  "entry_function": "remove_nth_from_end"
+}

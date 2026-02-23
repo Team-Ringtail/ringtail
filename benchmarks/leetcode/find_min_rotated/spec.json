@@ -1,0 +1,9 @@
+{
+  "slug": "find_min_rotated",
+  "leetcode_id": 153,
+  "title": "Find Minimum in Rotated Sorted Array",
+  "difficulty": "medium",
+  "expected_time": "O(log n)",
+  "expected_space": "O(1)",
+  "entry_function": "find_min"
+}

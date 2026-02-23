@@ -1,0 +1,9 @@
+{
+  "slug": "burst_balloons",
+  "leetcode_id": 312,
+  "title": "Burst Balloons",
+  "difficulty": "hard",
+  "expected_time": "O(n^3)",
+  "expected_space": "O(n^2)",
+  "entry_function": "max_coins"
+}

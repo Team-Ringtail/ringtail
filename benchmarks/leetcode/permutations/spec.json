@@ -1,0 +1,9 @@
+{
+  "slug": "permutations",
+  "leetcode_id": 46,
+  "title": "Permutations",
+  "difficulty": "medium",
+  "expected_time": "O(n!)",
+  "expected_space": "O(n)",
+  "entry_function": "permute"
+}

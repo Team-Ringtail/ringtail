@@ -1,0 +1,9 @@
+{
+  "slug": "valid_sudoku",
+  "leetcode_id": 36,
+  "title": "Valid Sudoku",
+  "difficulty": "medium",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "is_valid_sudoku"
+}

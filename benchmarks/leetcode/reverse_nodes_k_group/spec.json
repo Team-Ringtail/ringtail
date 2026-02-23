@@ -1,0 +1,9 @@
+{
+  "slug": "reverse_nodes_k_group",
+  "leetcode_id": 25,
+  "title": "Reverse Nodes in k-Group",
+  "difficulty": "hard",
+  "expected_time": "O(n)",
+  "expected_space": "O(1)",
+  "entry_function": "reverse_k_group"
+}

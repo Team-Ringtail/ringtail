@@ -66,6 +66,15 @@ See [todo.md](todo.md) for the full project TODO and project structure.
 **Notes / blockers:**
 - Depends on optimization loop and profiler being partially functional to run full benchmarks
 
+### Next steps (in order)
+
+1. **Record your problem subset** — Add the problems you’ve chosen to `benchmarks/leetcode/PROBLEMS.md` (or the table in `benchmarks/leetcode/README.md`) so the set is fixed and reproducible.
+2. **Define one problem end-to-end** — Use the existing example `two_sum`: reference solution, pytest-based tests, and a small spec (id, difficulty, expected complexity). This is the template for every other problem.
+3. **Run the harness on one benchmark** — From repo root: `python benchmarks/run_benchmark.py two_sum` (or equivalent). Confirm it runs the reference solution, reports pass/fail and timing, and exits 0.
+4. **Implement metrics comparison** — Implement `benchmarks/metrics/comparison.jac` (or a small Python helper) to compare before/after metrics (correctness, time, memory) so the optimization loop can decide “better/same/worse”.
+5. **Add more problems** — For each problem in your subset, add a folder under `benchmarks/leetcode/<slug>/` with the same shape as `two_sum`, then run the full benchmark suite.
+6. **Integrate with the loop** — Once the optimization loop and profiler exist, wire the harness so the loop can run a benchmark before/after optimization and use the comparison result.
+
 ---
 
 ## CLI / Interfaces
