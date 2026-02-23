@@ -1,66 +1,5 @@
-"""
-Optimizer Agent — analysis and transformation pipeline (no byllm; stubs/heuristics).
-
-Interface for optimization_loop.jac (spawn walker with has-params; read report for result):
-
-  1. think_and_prep
-     - Inputs: source_code: str, criteria: dict (optional, e.g. performance_weight, ...)
-     - Report: plan dict with keys:
-       - estimated_time_sec: float
-       - estimated_memory_mb: float
-       - steps: list[str]
-       - num_lines, num_loops: int
-       - criteria: dict (echo)
-
-  2. write_optimized_code
-     - Inputs: source_code: str, plan: dict (from think_and_prep)
-     - Report: optimized code string
-
-  3. compare
-     - Inputs: profiler_metrics: dict (e.g. execution_time_sec, memory_mb), plan: dict
-     - Report: { "signal": "continue" | "done", "reason": str }
-"""
-
-# ---- Think/Prep: analyze input function and produce an optimization plan ----
-walker think_and_prep {
-    has source_code: str;
-    has criteria: dict = {};  # e.g. performance_weight, code_quality_weight, functionality_weight
-
-    with entry {
-        # Heuristic analysis (no LLM): infer structure and estimate targets
-        plan = _analyze_and_plan(source_code, criteria);
-        report plan;
-    }
-}
-
-# ---- Write: apply or generate optimized code based on the plan ----
-walker write_optimized_code {
-    has source_code: str;
-    has plan: dict;
-
-    with entry {
-        optimized = _apply_plan_to_code(source_code, plan);
-        report optimized;
-    }
-}
-
-# ---- Compare: evaluate profiler output vs estimated target; return continue/done ----
-walker compare {
-    has profiler_metrics: dict;  # e.g. { "execution_time_sec": float, "memory_mb": float }
-    has plan: dict;             # from think_and_prep (has estimated_time_sec, estimated_memory_mb, etc.)
-
-    with entry {
-        result = _evaluate_against_plan(profiler_metrics, plan);
-        report result;
-    }
-}
-
-# ---- Stub/heuristic helpers (private) ----
-
 def _analyze_and_plan(source_code: str, criteria: dict) -> dict {
-    """
-    Analyze code with simple heuristics; produce a plan with estimated targets.
-    """
+    # Analyze code with simple heuristics; produce a plan with estimated targets.
     lines = source_code.split("\n");
     num_lines = len(lines);
     code_lower = source_code.lower();
@@ -144,4 +83,32 @@ def _count_substring(s: str, sub: str) -> int {
         }
     }
     return count;
+}
+
+
+def think_and_prep(
+    source_code: str,
+    criteria: dict,
+    function_call: str,
+    test_cases: list
+) -> dict {
+    # Currently ignores function_call and test_cases; they are included so
+    # future versions of the planner can incorporate them into the plan.
+    return _analyze_and_plan(source_code, criteria);
+}
+
+
+def write_optimized_code(
+    source_code: str,
+    plan: dict
+) -> str {
+    return _apply_plan_to_code(source_code, plan);
+}
+
+
+def compare(
+    profiler_metrics: dict,
+    plan: dict
+) -> dict {
+    return _evaluate_against_plan(profiler_metrics, plan);
 }
