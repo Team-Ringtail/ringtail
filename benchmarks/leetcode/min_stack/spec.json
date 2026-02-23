@@ -1,0 +1,9 @@
+{
+  "slug": "min_stack",
+  "leetcode_id": 155,
+  "title": "Min Stack",
+  "difficulty": "easy",
+  "expected_time": "O(1)",
+  "expected_space": "O(n)",
+  "entry_function": "MinStack"
+}

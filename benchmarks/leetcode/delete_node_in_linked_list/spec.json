@@ -1,0 +1,9 @@
+{
+  "slug": "delete_node_in_linked_list",
+  "leetcode_id": 237,
+  "title": "Delete Node in a Linked List",
+  "difficulty": "easy",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "delete_node"
+}

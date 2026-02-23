@@ -1,0 +1,9 @@
+{
+  "slug": "count_smaller_after_self",
+  "leetcode_id": 315,
+  "title": "Count of Smaller Numbers After Self",
+  "difficulty": "hard",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(n)",
+  "entry_function": "count_smaller"
+}

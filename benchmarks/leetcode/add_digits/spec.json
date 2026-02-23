@@ -1,0 +1,9 @@
+{
+  "slug": "add_digits",
+  "leetcode_id": 258,
+  "title": "Add Digits",
+  "difficulty": "easy",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "add_digits"
+}

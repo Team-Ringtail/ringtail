@@ -1,0 +1,9 @@
+{
+  "slug": "swap_nodes_in_pairs",
+  "leetcode_id": 24,
+  "title": "Swap Nodes in Pairs",
+  "difficulty": "medium",
+  "expected_time": "O(n)",
+  "expected_space": "O(1)",
+  "entry_function": "swap_pairs"
+}

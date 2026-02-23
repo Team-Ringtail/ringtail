@@ -1,0 +1,9 @@
+{
+  "slug": "merge_intervals",
+  "leetcode_id": 56,
+  "title": "Merge Intervals",
+  "difficulty": "medium",
+  "expected_time": "O(n log n)",
+  "expected_space": "O(n)",
+  "entry_function": "merge"
+}

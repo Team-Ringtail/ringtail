@@ -1,0 +1,9 @@
+{
+  "slug": "reverse_integer",
+  "leetcode_id": 7,
+  "title": "Reverse Integer",
+  "difficulty": "easy",
+  "expected_time": "O(log n)",
+  "expected_space": "O(1)",
+  "entry_function": "reverse"
+}

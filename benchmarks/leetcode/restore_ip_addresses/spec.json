@@ -1,0 +1,9 @@
+{
+  "slug": "restore_ip_addresses",
+  "leetcode_id": 93,
+  "title": "Restore IP Addresses",
+  "difficulty": "medium",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "restore_ip_addresses"
+}

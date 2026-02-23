@@ -1,0 +1,9 @@
+{
+  "slug": "find_peak_element",
+  "leetcode_id": 162,
+  "title": "Find Peak Element",
+  "difficulty": "medium",
+  "expected_time": "O(log n)",
+  "expected_space": "O(1)",
+  "entry_function": "find_peak_element"
+}

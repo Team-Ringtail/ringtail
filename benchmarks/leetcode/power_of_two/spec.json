@@ -1,0 +1,9 @@
+{
+  "slug": "power_of_two",
+  "leetcode_id": 231,
+  "title": "Power of Two",
+  "difficulty": "easy",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "is_power_of_two"
+}

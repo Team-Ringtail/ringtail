@@ -1,0 +1,9 @@
+{
+  "slug": "search_range",
+  "leetcode_id": 34,
+  "title": "Find First and Last Position of Element in Sorted Array",
+  "difficulty": "medium",
+  "expected_time": "O(n)",
+  "expected_space": "O(1)",
+  "entry_function": "search_range"
+}

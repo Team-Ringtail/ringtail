@@ -1,0 +1,9 @@
+{
+  "slug": "largest_number",
+  "leetcode_id": 179,
+  "title": "Largest Number",
+  "difficulty": "medium",
+  "expected_time": "O(n log n)",
+  "expected_space": "O(n)",
+  "entry_function": "largest_number"
+}

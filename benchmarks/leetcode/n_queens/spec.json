@@ -1,0 +1,9 @@
+{
+  "slug": "n_queens",
+  "leetcode_id": 51,
+  "title": "N-Queens",
+  "difficulty": "hard",
+  "expected_time": "O(n!)",
+  "expected_space": "O(n^2)",
+  "entry_function": "solve_n_queens"
+}

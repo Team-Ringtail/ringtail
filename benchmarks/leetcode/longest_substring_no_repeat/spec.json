@@ -1,0 +1,9 @@
+{
+  "slug": "longest_substring_no_repeat",
+  "leetcode_id": 3,
+  "title": "Longest Substring Without Repeating Characters",
+  "difficulty": "medium",
+  "expected_time": "O(n)",
+  "expected_space": "O(min(n,k))",
+  "entry_function": "length_of_longest_substring"
+}

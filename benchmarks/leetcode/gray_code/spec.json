@@ -1,0 +1,9 @@
+{
+  "slug": "gray_code",
+  "leetcode_id": 89,
+  "title": "Gray Code",
+  "difficulty": "medium",
+  "expected_time": "O(2^n)",
+  "expected_space": "O(1)",
+  "entry_function": "gray_code"
+}

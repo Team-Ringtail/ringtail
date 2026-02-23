@@ -1,0 +1,9 @@
+{
+  "slug": "search_insert_position",
+  "leetcode_id": 35,
+  "title": "Search Insert Position",
+  "difficulty": "easy",
+  "expected_time": "O(log n)",
+  "expected_space": "O(1)",
+  "entry_function": "search_insert"
+}

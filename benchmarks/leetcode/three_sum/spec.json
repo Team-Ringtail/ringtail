@@ -1,0 +1,9 @@
+{
+  "slug": "three_sum",
+  "leetcode_id": 15,
+  "title": "3Sum",
+  "difficulty": "medium",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(1)",
+  "entry_function": "three_sum"
+}

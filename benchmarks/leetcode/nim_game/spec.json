@@ -1,0 +1,9 @@
+{
+  "slug": "nim_game",
+  "leetcode_id": 292,
+  "title": "Nim Game",
+  "difficulty": "easy",
+  "expected_time": "O(1)",
+  "expected_space": "O(1)",
+  "entry_function": "can_win_nim"
+}

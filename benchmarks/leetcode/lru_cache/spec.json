@@ -1,0 +1,9 @@
+{
+  "slug": "lru_cache",
+  "leetcode_id": 146,
+  "title": "LRU Cache",
+  "difficulty": "medium",
+  "expected_time": "O(1)",
+  "expected_space": "O(capacity)",
+  "entry_function": "LRUCache"
+}

@@ -1,0 +1,9 @@
+{
+  "slug": "skyline_problem",
+  "leetcode_id": 218,
+  "title": "The Skyline Problem",
+  "difficulty": "hard",
+  "expected_time": "O(n log n)",
+  "expected_space": "O(n)",
+  "entry_function": "get_skyline"
+}

@@ -1,0 +1,9 @@
+{
+  "slug": "pascals_triangle",
+  "leetcode_id": 118,
+  "title": "Pascal's Triangle",
+  "difficulty": "easy",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(1)",
+  "entry_function": "generate"
+}

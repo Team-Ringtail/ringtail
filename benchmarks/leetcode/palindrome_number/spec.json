@@ -1,0 +1,9 @@
+{
+  "slug": "palindrome_number",
+  "leetcode_id": 9,
+  "title": "Palindrome Number",
+  "difficulty": "easy",
+  "expected_time": "O(log n)",
+  "expected_space": "O(1)",
+  "entry_function": "is_palindrome"
+}

@@ -1,0 +1,9 @@
+{
+  "slug": "additive_number",
+  "leetcode_id": 306,
+  "title": "Additive Number",
+  "difficulty": "medium",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(n)",
+  "entry_function": "is_additive_number"
+}

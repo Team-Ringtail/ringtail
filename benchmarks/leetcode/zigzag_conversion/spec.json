@@ -1,0 +1,9 @@
+{
+  "slug": "zigzag_conversion",
+  "leetcode_id": 6,
+  "title": "Zigzag Conversion",
+  "difficulty": "medium",
+  "expected_time": "O(n)",
+  "expected_space": "O(n)",
+  "entry_function": "convert"
+}

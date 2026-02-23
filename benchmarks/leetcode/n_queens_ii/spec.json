@@ -1,0 +1,9 @@
+{
+  "slug": "n_queens_ii",
+  "leetcode_id": 52,
+  "title": "N-Queens II",
+  "difficulty": "hard",
+  "expected_time": "O(n!)",
+  "expected_space": "O(n)",
+  "entry_function": "total_n_queens"
+}

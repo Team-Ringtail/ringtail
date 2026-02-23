@@ -1,0 +1,9 @@
+{
+  "slug": "three_sum_closest",
+  "leetcode_id": 16,
+  "title": "3Sum Closest",
+  "difficulty": "medium",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(1)",
+  "entry_function": "three_sum_closest"
+}

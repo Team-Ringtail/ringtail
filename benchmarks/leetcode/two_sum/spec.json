@@ -1,0 +1,9 @@
+{
+  "slug": "two_sum",
+  "leetcode_id": 1,
+  "title": "Two Sum",
+  "difficulty": "easy",
+  "expected_time": "O(n)",
+  "expected_space": "O(n)",
+  "entry_function": "two_sum"
+}

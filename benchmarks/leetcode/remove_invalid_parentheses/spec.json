@@ -1,0 +1,9 @@
+{
+  "slug": "remove_invalid_parentheses",
+  "leetcode_id": 301,
+  "title": "Remove Invalid Parentheses",
+  "difficulty": "hard",
+  "expected_time": "O(2^n)",
+  "expected_space": "O(n)",
+  "entry_function": "remove_invalid_parentheses"
+}

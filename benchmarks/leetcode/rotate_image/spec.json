@@ -1,0 +1,9 @@
+{
+  "slug": "rotate_image",
+  "leetcode_id": 48,
+  "title": "Rotate Image",
+  "difficulty": "medium",
+  "expected_time": "O(n^2)",
+  "expected_space": "O(1)",
+  "entry_function": "rotate"
+}

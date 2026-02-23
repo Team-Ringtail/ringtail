@@ -1,0 +1,9 @@
+{
+  "slug": "kth_smallest_sorted_matrix",
+  "leetcode_id": 378,
+  "title": "Kth Smallest Element in a Sorted Matrix",
+  "difficulty": "medium",
+  "expected_time": "O(n^2 log n)",
+  "expected_space": "O(n)",
+  "entry_function": "kth_smallest"
+}
