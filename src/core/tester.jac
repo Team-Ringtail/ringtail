@@ -3,12 +3,14 @@ Unit testing utilities.
 
 Runs a pytest-compatible test file against submitted Python solution code
 in an isolated subprocess. Returns structured pass/fail results as a dict.
+Optionally measures line coverage via coverage.py.
 """
 
 import subprocess;
 import tempfile;
 import os;
 import re;
+import json;
 import sys;
 
 
@@ -146,6 +148,122 @@ def run_tests(
     } finally {
         for fname in ["solution.py", "test_solution.py",
                        "__pycache__", ".pytest_cache"] {
+            p = os.path.join(tmp_dir, fname);
+            if os.path.isfile(p) {
+                os.remove(p);
+            } elif os.path.isdir(p) {
+                _rmtree(p);
+            }
+        }
+        try {
+            os.rmdir(tmp_dir);
+        } except OSError {
+            ;
+        }
+    }
+}
+
+
+"""Parse coverage.json produced by coverage.py for the solution file."""
+def _parse_coverage_json(coverage_path: str) -> dict {
+    try {
+        with open(coverage_path, "r") as f {
+            data = json.load(f);
+        }
+    } except (FileNotFoundError, json.JSONDecodeError) {
+        return {"coverage_percent": 0.0, "covered_lines": [], "missing_lines": []};
+    }
+
+    files = data.get("files", {});
+    # Find solution.py entry (key may be absolute or relative)
+    sol_data = None;
+    for key in files {
+        if "solution.py" in key {
+            sol_data = files[key];
+            break;
+        }
+    }
+    if sol_data is None {
+        return {"coverage_percent": 0.0, "covered_lines": [], "missing_lines": []};
+    }
+
+    summary = sol_data.get("summary", {});
+    pct = summary.get("percent_covered", 0.0);
+    executed = sol_data.get("executed_lines", []);
+    missing = sol_data.get("missing_lines", []);
+
+    return {
+        "coverage_percent": pct,
+        "covered_lines": executed,
+        "missing_lines": missing
+    };
+}
+
+
+"""Run pytest tests with coverage measurement via pytest-cov.
+
+    Single subprocess call: ``pytest --cov=. --cov-report=json:coverage.json``.
+
+    :param code: Python source code containing the solution.
+    :param test_code: pytest-compatible test file content (should import from solution).
+    :param timeout_seconds: Max wall-clock seconds before the subprocess is killed.
+    :returns: dict with test results plus coverage_percent, covered_lines, missing_lines.
+"""
+def run_tests_with_coverage(
+    code: str,
+    test_code: str,
+    timeout_seconds: int = 60
+) -> dict {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_covtest_");
+    solution_path = os.path.join(tmp_dir, "solution.py");
+    test_path = os.path.join(tmp_dir, "test_solution.py");
+    coverage_json_path = os.path.join(tmp_dir, "coverage.json");
+
+    try {
+        with open(solution_path, "w") as f {
+            f.write(code);
+        }
+        with open(test_path, "w") as f {
+            f.write(test_code);
+        }
+
+        # Single subprocess: pytest-cov handles coverage + test execution
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "test_solution.py",
+             "--cov=.", "--cov-report=json:coverage.json",
+             "--cov-config=/dev/null",
+             "--tb=line", "-q", "--no-header"],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            cwd=tmp_dir
+        );
+
+        test_result = _parse_pytest_output(result.stdout, result.stderr, result.returncode);
+
+        cov = _parse_coverage_json(coverage_json_path);
+        test_result["coverage_percent"] = cov["coverage_percent"];
+        test_result["covered_lines"] = cov["covered_lines"];
+        test_result["missing_lines"] = cov["missing_lines"];
+
+        return test_result;
+    } except subprocess.TimeoutExpired {
+        return {
+            "passed": False, "total": 0, "passed_count": 0,
+            "failed_count": 0, "failures": [],
+            "error": f"Tests timed out after {timeout_seconds}s",
+            "coverage_percent": 0.0, "covered_lines": [], "missing_lines": []
+        };
+    } except Exception as e {
+        return {
+            "passed": False, "total": 0, "passed_count": 0,
+            "failed_count": 0, "failures": [],
+            "error": str(e),
+            "coverage_percent": 0.0, "covered_lines": [], "missing_lines": []
+        };
+    } finally {
+        for fname in ["solution.py", "test_solution.py", "coverage.json",
+                       ".coverage", "__pycache__", ".pytest_cache"] {
             p = os.path.join(tmp_dir, fname);
             if os.path.isfile(p) {
                 os.remove(p);

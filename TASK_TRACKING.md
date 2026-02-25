@@ -107,19 +107,70 @@ See [todo.md](todo.md) for the full project TODO and project structure.
 
 **Owner:** Colin
 
-**Goal:** Implement the profiling and unit testing utilities that the optimization loop relies on to evaluate whether an optimized solution is correct and performant.
+**Goal:** Implement production-grade profiling and testing utilities with statistical rigor, deep per-line analysis, automated test generation, and isolated sandbox execution.
 
-### Tasks
+### Phase 1: Statistical Profiling Hardening — DONE
 
-- [ ] Implement `src/core/profiler.jac`
-  - [ ] Measure execution time
-  - [ ] Measure memory usage
-  - [ ] Return structured metrics compatible with `src/utils/metrics.jac`
-- [ ] Implement `src/core/tester.jac`
-  - [ ] Run unit tests against optimized code
-  - [ ] Return pass/fail with error details
-  - [ ] Support test case injection from benchmark harness
-- [ ] Unit tests for profiler and tester (`tests/unit/`)
+- [x] Warmup iterations to eliminate cold-start bias
+- [x] IQR-based outlier filtering
+- [x] Stdev, mean, 95% confidence intervals in profiler output
+- [x] Welch's t-test significance testing in `compare_metrics`
+
+### Phase 2: Deep Profiling (Scalene) — DONE
+
+- [x] `src/core/deep_profiler.py` — per-line CPU + memory via Scalene subprocess
+- [x] `LineProfile` and `DetailedProfile` dataclasses in `src/models/types.py`
+- [x] Hotspot extraction (top N lines by CPU %)
+
+### Phase 3: Code Complexity Analysis — DONE
+
+- [x] `src/utils/complexity.py` — AST-based cyclomatic complexity
+- [x] Max nesting depth, LOC, function count
+- [x] Populates `Metrics.code_complexity` in the optimization loop
+
+### Phase 4: Coverage-Integrated Testing — DONE
+
+- [x] `run_tests_with_coverage` in `src/core/tester.jac`
+- [x] `coverage.py` integration for line coverage percentage
+- [x] Populates `Metrics.test_coverage` in the optimization loop
+
+### Phase 5: Property-Based Testing (Hypothesis) — DONE
+
+- [x] `src/core/property_tester.py` — auto-generate tests from type annotations
+- [x] Reference comparison mode: assert `optimized == original` across all inputs
+- [x] Strategy mapping for standard Python types
+
+### Phase 6: Blaxel Sandbox Execution — DONE
+
+- [x] `src/core/sandbox_runner.py` — `ExecutionBackend` abstraction
+- [x] `LocalBackend` (subprocess) and `BlaxelBackend` (microVM)
+- [x] `config/blaxel_config.py` — reads from env vars (Infisical)
+- [ ] Infisical setup for `BL_API_KEY` (Colin — in progress)
+
+### Phase 7: Data Model and Metrics Updates — DONE
+
+- [x] `ProfileResult`, `LineProfile`, `DetailedProfile` dataclasses
+- [x] `calculate_score` uses real complexity + coverage, baseline-relative perf scoring
+- [x] Memory penalty in scoring
+
+### Phase 8: Optimization Loop Wiring — DONE
+
+- [x] Baseline complexity measurement
+- [x] `run_tests_with_coverage` replaces `run_tests` in the loop
+- [x] Property-based testing against original code each iteration
+- [x] Statistical significance gate in convergence logic
+
+### Phase 9: Tests — DONE
+
+- [x] `test_statistical_profiler.py` — warmup, stdev, CI, outlier fields
+- [x] `test_complexity.py` — cyclomatic complexity on various code shapes
+- [x] `test_deep_profiler.py` — Scalene JSON parsing, error handling
+- [x] `test_coverage_tester.py` — coverage fields, partial coverage, timeouts
+- [x] `test_property_tester.py` — strategy generation, reference comparison, buggy detection
+- [x] `test_sandbox_runner.py` — LocalBackend, Blaxel env check
+- [x] Updated `test_profiler.jac`, `test_tester.jac`, `test_metrics.py`, `test_types.py`
 
 **Notes / blockers:**
-- These are blocking for the optimization loop — prioritize getting a working interface defined even if the full implementation follows later
+- Infisical secret management setup is in progress (Colin)
+- Scalene requires `pip install scalene` in the test/CI environment
+- Deep profiler (Scalene) is optional; the loop works without it using the statistical profiler
