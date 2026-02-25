@@ -171,6 +171,14 @@ def profile_code(
             );
         }
 
+        if result.returncode != 0 {
+            parsed = _parse_benchmark_json(json_path, memory_path);
+            stderr_hint = result.stderr.strip() or result.stdout.strip();
+            parsed["error"] = f"pytest exited with code {result.returncode}: {stderr_hint}";
+            parsed["success"] = False;
+            return parsed;
+        }
+
         return _parse_benchmark_json(json_path, memory_path);
     } except subprocess.TimeoutExpired {
         return _make_error(f"Timed out after {timeout_seconds}s");
