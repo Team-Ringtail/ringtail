@@ -1,14 +1,13 @@
-"""Shared data models for the Ringtail optimization system."""
-
-import from typing { Optional, List, Any }
-
+"""
+Shared data models for the Ringtail optimization system.
+"""
 
 obj Metrics {
     has execution_time: float;
     has memory_usage: float;
-    has cpu_usage: Optional[float] = None;
-    has code_complexity: Optional[int] = None;
-    has test_coverage: Optional[float] = None;
+    has cpu_usage: float | None = None;
+    has code_complexity: int | None = None;
+    has test_coverage: float | None = None;
 }
 
 
@@ -48,19 +47,36 @@ obj DetailedProfile {
 }
 
 
+obj TestCase {
+    has call: str;
+    has name: str | None = None;
+    has expected: any | None = None;
+    has raises: str | None = None;
+}
+
+
 obj FunctionInput {
     has source_code: str;
-    has function_name: str;
+    has function_call: str;
+    has function_name: str | None = None;
     has language: str = "python";
-    has test_cases: Optional[list] = None;
+    has test_cases: list | None = None;  # list[TestCase] when used structurally
+    has analysis_mode: str | None = None;
+    has extra: dict | None = None;
 }
 
 
 obj OptimizationPlan {
-    has analysis: str;
-    has optimization_strategy: str;
-    has estimated_improvement: float;
-    has target_metrics: Optional[Metrics] = None;
+    has estimated_time_sec: float;
+    has estimated_memory_mb: float;
+    has steps: list = [];  # list[str]
+    has num_lines: int = 0;
+    has num_loops: int = 0;
+    has criteria: dict = {};
+    has language: str | None = None;
+    has function_metadata: dict | None = None;
+    has test_cases: list | None = None;  # list[TestCase]
+    has analysis_agent: str | None = None;
 }
 
 
@@ -77,4 +93,8 @@ obj OptimizationResult {
     has metrics: Metrics;
     has test_passed: bool;
     has improvement_ratio: float;
+    has baseline_metrics: Metrics | None = None;
+    has termination_reason: str | None = None;
+    has converged: bool | None = None;
+    has error: str | None = None;
 }

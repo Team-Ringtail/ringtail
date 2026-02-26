@@ -37,8 +37,8 @@ def _make_error(msg: str) -> DetailedProfile {
 }
 
 
+"""Parse Scalene's JSON output into a DetailedProfile."""
 def _parse_scalene_json(data: dict, solution_filename: str) -> DetailedProfile {
-    """Parse Scalene's JSON output into a DetailedProfile."""
     files_data = data.get("files", {});
 
     target_key = None;
@@ -114,13 +114,13 @@ def _parse_scalene_json(data: dict, solution_filename: str) -> DetailedProfile {
 }
 
 
+"""Run Scalene on a Python function and return per-line profiling data."""
 def deep_profile(
     code: str,
     function_call: str,
     num_iterations: int = 5,
     timeout_seconds: int = 60
 ) -> DetailedProfile {
-    """Run Scalene on a Python function and return per-line profiling data."""
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_deep_");
     solution_path = os.path.join(tmp_dir, "solution.py");
     wrapper_path = os.path.join(tmp_dir, "_wrapper.py");

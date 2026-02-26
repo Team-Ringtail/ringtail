@@ -2,24 +2,23 @@
 
 import ast;
 
-glob _HAS_RADON: bool = True;
+"""Compute complexity metrics for Python source code using radon.
 
-try {
-    import from radon.complexity { cc_visit, cc_rank }
-    import from radon.metrics { mi_visit }
-    import from radon.raw { analyze }
-} except ImportError {
-    _HAS_RADON = False;
-}
-
-
+Returns dict with cyclomatic_complexity, max_complexity, complexity_rank,
+maintainability_index, loc, num_functions, and error.
+"""
 def compute_complexity(source_code: str) -> dict {
-    """Compute complexity metrics for Python source code using radon.
 
-    Returns dict with cyclomatic_complexity, max_complexity, complexity_rank,
-    maintainability_index, loc, num_functions, and error.
-    """
-    if not _HAS_RADON {
+    has_radon = True;
+    try {
+        import from radon.complexity { cc_visit, cc_rank }
+        import from radon.metrics { mi_visit }
+        import from radon.raw { analyze }
+    } except ImportError {
+        has_radon = False;
+    }
+
+    if not has_radon {
         return _fallback(source_code);
     }
 
@@ -59,11 +58,17 @@ def compute_complexity(source_code: str) -> dict {
         loc = len([l for l in source_code.splitlines() if l.strip() and not l.strip().startswith("#")]);
     }
 
+    mi_value = 0.0;
+    if mi is not None {
+        # Approximate rounding to 2 decimal places without using round()
+        mi_value = float(int(float(mi) * 100.0)) / 100.0;
+    }
+
     return {
         "cyclomatic_complexity": round(avg_cc),
         "max_complexity": max_cc,
         "complexity_rank": rank,
-        "maintainability_index": round(mi, 2) if isinstance(mi, float) else 0.0,
+        "maintainability_index": mi_value,
         "loc": loc,
         "num_functions": num_functions,
         "error": ""
@@ -71,8 +76,8 @@ def compute_complexity(source_code: str) -> dict {
 }
 
 
+"""Minimal fallback when radon is not installed."""
 def _fallback(source_code: str) -> dict {
-    """Minimal fallback when radon is not installed."""
     try {
         tree = ast.parse(source_code);
     } except SyntaxError as e {

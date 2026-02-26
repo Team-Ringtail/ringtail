@@ -1,0 +1,3 @@
+"""
+Ringtail - Shared models (types)
+"""

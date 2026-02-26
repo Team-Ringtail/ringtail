@@ -23,7 +23,8 @@ This is a code optimization harness using Jaseci to orchestrate AI agents. Goal:
 - When unsure: check https://docs.jaseci.org - don't guess
 
 ## Testing instructions
-- Run unit tests: `pytest tests/` or `python -m pytest tests/`
+- Run Jac unit tests: `jac test tests/unit/`
+- (Legacy) Python tests: If you add any `.py` tests later, run `pytest tests/` or `python -m pytest tests/`
 - Profile performance: `python -m cProfile script.py`
 - **All optimizations must pass original unit tests** - correctness is non-negotiable
 - Measure before and after every optimization - never optimize without profiling first
@@ -40,6 +41,14 @@ This is a code optimization harness using Jaseci to orchestrate AI agents. Goal:
 - Use cheaper models for iteration, expensive models only for final runs
 - If a feature requires 100+ LLM calls, stop and find a way to reduce that
 - Track and log all API usage
+
+## API keys and Infisical
+- We use [Infisical](https://app.infisical.com/) to manage API keys. Keys are injected into the process as environment variables (e.g. via Infisical CLI or Kubernetes integration).
+- **Never hardcode API keys** in Jac or Python. All LLM/API code must read credentials from the environment only.
+- Standard env var names (used by the optimizer agent and byllm when enabled):
+  - `RINGTAIL_OPENAI_API_KEY` — OpenAI API key
+  - `RINGTAIL_ANTHROPIC_API_KEY` — Anthropic API key
+- In production, run the app with env vars set by Infisical; the optimizer agent's LLM path (e.g. `_think_and_prep_llm`) should use `os.environ.get("RINGTAIL_OPENAI_API_KEY")` or the byllm default env vars that Infisical can populate.
 
 ---
 
