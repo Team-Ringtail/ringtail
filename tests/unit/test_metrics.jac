@@ -37,7 +37,14 @@ test "aggregate_metrics empty list returns defaults" {
 test "compare_metrics improvement when faster and less memory" {
     baseline = Metrics(execution_time=4.0, memory_usage=20.0);
     current = Metrics(execution_time=2.0, memory_usage=10.0);
-    result = compare_metrics(baseline, current);
+    result = compare_metrics(
+        baseline,
+        current,
+        0.0,
+        0.0,
+        0,
+        0
+    );
 
     assert result["improvement_ratio"] == 2.0;
     assert result["time_improvement"] > 0;
@@ -48,7 +55,14 @@ test "compare_metrics improvement when faster and less memory" {
 test "compare_metrics no improvement when more memory" {
     baseline = Metrics(execution_time=2.0, memory_usage=10.0);
     current = Metrics(execution_time=1.0, memory_usage=20.0);
-    result = compare_metrics(baseline, current);
+    result = compare_metrics(
+        baseline,
+        current,
+        0.0,
+        0.0,
+        0,
+        0
+    );
 
     assert result["improvement_ratio"] > 1.0;
     assert result["is_better"] is False;
@@ -57,7 +71,14 @@ test "compare_metrics no improvement when more memory" {
 test "compare_metrics handles zero baseline" {
     baseline = Metrics(execution_time=0.0, memory_usage=0.0);
     current = Metrics(execution_time=1.0, memory_usage=10.0);
-    result = compare_metrics(baseline, current);
+    result = compare_metrics(
+        baseline,
+        current,
+        0.0,
+        0.0,
+        0,
+        0
+    );
 
     assert result["improvement_ratio"] == 1.0;
     assert result["time_improvement"] == 0.0;

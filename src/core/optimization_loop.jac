@@ -3,17 +3,21 @@ Core optimization loop implementation.
 
 This walker orchestrates the optimization process by:
 1. Parsing the input function
-2. Iteratively calling optimizer_agent, profiler, and tester
-3. Evaluating convergence and terminating when appropriate
+2. Computing baseline metrics (profile + complexity + coverage)
+3. Iteratively calling optimizer_agent, profiler, and tester
+4. Evaluating convergence with statistical significance checks
 """
 
 import from config.optimization_criteria { OptimizationCriteria };
 import from config.agent_config { AgentConfig };
 import from src.utils.code_parser { parse_function };
 import from src.utils.metrics { compare_metrics, aggregate_metrics, calculate_score };
-import from src.models.types { Metrics };
+import from src.utils.complexity { compute_complexity };
+import from src.models.types { FunctionInput, OptimizationResult, Metrics, OptimizationPlan, ConvergenceStatus };
 import from src.core.tester { run_tests };
+import from src.core.tester { run_tests_with_coverage };
 import from src.core.profiler { profile_code };
+import from src.core.property_tester { run_property_tests };
 import from src.agents.optimizer_agent { think_and_prep, write_optimized_code, compare };
 
 
@@ -170,10 +174,22 @@ def _run_optimize(
         };
     }
 
-    baseline_metrics_obj = _metrics_from_profile(baseline_profile);
+    # Complexity: cyclomatic + nesting depth
+    baseline_complexity = compute_complexity(source_code);
+    print(
+        "Baseline complexity: CC=" + str(baseline_complexity.get("cyclomatic_complexity", "?"))
+        + " depth=" + str(baseline_complexity.get("max_nesting_depth", "?"))
+    );
+
+    # Stdev from baseline for significance testing later
+    baseline_stdev_sec = float(baseline_profile.get("stdev_ms", 0.0)) / 1000.0;
+    baseline_n = int(baseline_profile.get("rounds", 0));
+
+    baseline_metrics_obj = _metrics_from_profile(baseline_profile, baseline_complexity);
     baseline_metrics = _metrics_to_dict(baseline_metrics_obj);
 
     current_source_code = source_code;
+    original_source_code = source_code;
     final_stop_reason = "";
     final_converged = False;
     iteration = 0;
@@ -213,16 +229,15 @@ def _run_optimize(
         merged_cases = _merge_test_cases(test_cases, plan);
         test_code = _pytest_from_test_cases(function_name, merged_cases, function_call);
 
-        # Run tests on optimized code
-        test_results = run_tests(
+        # Run tests on optimized code with coverage
+        test_results = run_tests_with_coverage(
             optimized_code,
             test_code
         );
-        
-        # If tests fail, stop iteration (but don't break immediately - let termination logic handle it)
+
+        # If tests fail, stop iteration (or continue, based on config)
         if not test_results["passed"] {
             print("Tests failed: " + str(test_results.get("error", "")));
-            # Create result for this failed iteration
             result = {
                 "optimized_code": optimized_code,
                 "iteration_number": iteration,
@@ -241,7 +256,37 @@ def _run_optimize(
                 continue;
             }
         }
-        
+
+        coverage_pct = float(test_results.get("coverage_percent", -1.0));
+
+        # Property-based correctness: compare against original implementation
+        prop_results = run_property_tests(
+            optimized_code,
+            function_name,
+            reference_code=original_source_code,
+            max_examples=50
+        );
+        if not prop_results.get("passed", True) {
+            print("Property tests failed: " + str(prop_results.get("failures", [])));
+            result = {
+                "optimized_code": optimized_code,
+                "iteration_number": iteration,
+                "metrics": baseline_metrics,
+                "test_passed": False,
+                "improvement_ratio": 0.0,
+                "error": "Property-based test failure"
+            };
+            results = results + [result];
+
+            if stop_on_test_failure {
+                final_stop_reason = "Property-based test failure";
+                final_converged = False;
+                break;
+            } else {
+                continue;
+            }
+        }
+
         # Profile optimized code
         profile = profile_code(
             optimized_code,
@@ -264,13 +309,25 @@ def _run_optimize(
             break;
         }
 
-        current_metrics_obj = _metrics_from_profile(profile);
+        iter_complexity = compute_complexity(optimized_code);
+        current_stdev_sec = float(profile.get("stdev_ms", 0.0)) / 1000.0;
+        current_n = int(profile.get("rounds", 0));
+
+        current_metrics_obj = _metrics_from_profile(
+            profile,
+            iter_complexity,
+            coverage_pct
+        );
         current_metrics = _metrics_to_dict(current_metrics_obj);
 
-        # Compare metrics using Python utility
+        # Compare metrics using statistical comparison utility
         comparison = compare_metrics(
             baseline_metrics_obj,
-            current_metrics_obj
+            current_metrics_obj,
+            baseline_stdev_sec,
+            current_stdev_sec,
+            baseline_n,
+            current_n
         );
         
         # Ask optimizer agent whether to continue based on profiler metrics vs plan
@@ -294,7 +351,9 @@ def _run_optimize(
             "iteration_number": iteration,
             "metrics": current_metrics,
             "test_passed": True,
-            "improvement_ratio": comparison["improvement_ratio"]
+            "improvement_ratio": comparison["improvement_ratio"],
+            "is_significant": comparison.get("is_significant", False),
+            "confidence": comparison.get("confidence", 0.0)
         };
         results = results + [result];
         
@@ -314,12 +373,16 @@ def _run_optimize(
             stop_reason = convergence_status["reason"];
         }
         
-        # Stop if no improvement for N consecutive iterations
-        if comparison["improvement_ratio"] < min_improvement_ratio {
+        # Stop if no (significant) improvement for N consecutive iterations
+        is_real_improvement = (
+            comparison["improvement_ratio"] >= min_improvement_ratio
+            and comparison.get("is_significant", False)
+        );
+        if not is_real_improvement {
             no_improvement_count = no_improvement_count + 1;
             if no_improvement_count >= max_no_improvement_iters {
                 should_stop = True;
-                stop_reason = "No improvement for " + str(no_improvement_count) + " consecutive iterations";
+                stop_reason = "No significant improvement for " + str(no_improvement_count) + " consecutive iterations";
             }
         } else {
             no_improvement_count = 0;  # Reset counter on improvement
@@ -342,6 +405,7 @@ def _run_optimize(
             "test_cases": function_input.get("test_cases", None),
             "extra": function_input.get("extra", None)
         };
+        current_source_code = optimized_code;
     }
     
     # Format and return final result
@@ -381,14 +445,27 @@ def _criteria_to_dict(criteria: OptimizationCriteria | None) -> dict {
 }
 
 
-def _metrics_from_profile(profile: dict) -> Metrics {
+def _metrics_from_profile(profile: dict, complexity: dict = {}, coverage_pct: float = -1.0) -> Metrics {
     exec_ms = float(profile.get("median_ms", 0.0));
     mem_kb = float(profile.get("peak_memory_kb", 0.0));
     exec_sec = exec_ms / 1000.0;
     mem_mb = mem_kb / 1024.0;
+
+    cc = None;
+    if complexity and complexity.get("cyclomatic_complexity", 0) > 0 {
+        cc = complexity.get("cyclomatic_complexity", None);
+    }
+
+    tc = None;
+    if coverage_pct >= 0 {
+        tc = coverage_pct;
+    }
+
     return Metrics(
         execution_time=exec_sec,
-        memory_usage=mem_mb
+        memory_usage=mem_mb,
+        code_complexity=cc,
+        test_coverage=tc
     );
 }
 

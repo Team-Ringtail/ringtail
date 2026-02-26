@@ -1,31 +1,5 @@
 """
 Shared data models for the Ringtail optimization system.
-
-Metrics is an obj type used by the loop and metrics utilities.
-FunctionInput, OptimizationPlan, ConvergenceStatus, OptimizationResult are
-used as dict contracts (JSON-friendly) across the optimization loop and agents.
-
-Dict contracts (documentation):
-
-  FunctionInput (dict):
-    - source_code: str (required)
-    - function_call: str (required)
-    - function_name: str (optional; derived by parse_function if empty)
-    - language: str (default "python")
-    - test_cases: list[dict] | None (optional). Each case: name?, call, expected?, raises?
-
-  OptimizationPlan (dict, produced by think_and_prep):
-    - estimated_time_sec: float, estimated_memory_mb: float, steps: list[str]
-    - num_lines: int, num_loops: int, criteria: dict
-    - language?: str, function_metadata?: dict, test_cases?: list[dict], analysis_agent?: str
-
-  ConvergenceStatus (dict):
-    - should_continue: bool, reason: str, converged: bool
-
-  OptimizationResult (dict, per-iteration and final):
-    - optimized_code: str, iteration_number: int, metrics: dict (Metrics shape)
-    - test_passed: bool, improvement_ratio: float, error?: str
-    - Final result may also include: baseline_metrics, termination_reason, converged
 """
 
 obj Metrics {
@@ -34,6 +8,42 @@ obj Metrics {
     has cpu_usage: float | None = None;
     has code_complexity: int | None = None;
     has test_coverage: float | None = None;
+}
+
+
+obj ProfileResult {
+    has median_ms: float;
+    has mean_ms: float;
+    has min_ms: float;
+    has max_ms: float;
+    has stdev_ms: float;
+    has iqr_ms: float = 0.0;
+    has q1_ms: float = 0.0;
+    has q3_ms: float = 0.0;
+    has peak_memory_kb: float = 0.0;
+    has rounds: int = 0;
+    has outliers: str = "";
+    has success: bool = True;
+    has error: str = "";
+}
+
+
+obj LineProfile {
+    has lineno: int;
+    has cpu_percent: float;
+    has memory_mb: float;
+    has python_fraction: float;
+}
+
+
+obj DetailedProfile {
+    has line_profiles: list = [];
+    has hotspots: list = [];
+    has python_vs_native_ratio: float = 1.0;
+    has total_cpu_seconds: float = 0.0;
+    has total_memory_mb: float = 0.0;
+    has success: bool = True;
+    has error: str = "";
 }
 
 
