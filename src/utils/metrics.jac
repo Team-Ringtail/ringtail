@@ -173,7 +173,7 @@ def calculate_score(
 
     # Functionality: coverage percentage
     if metrics.test_coverage is not None {
-        func_score = metrics.test_coverage / 100.0;
+        func_score = float(metrics.test_coverage) / 100.0;
         if func_score > 1.0 { func_score = 1.0; }
     } else {
         func_score = 0.5;
