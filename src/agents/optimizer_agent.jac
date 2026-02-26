@@ -1,5 +1,25 @@
+"""
+Optimizer Agent — Jac implementation.
+
+This module mirrors the Python reference in `optimizer_agent_ref.py` and
+exposes a stable contract used by the optimization loop:
+
+  - think_and_prep(source_code, criteria, function_call, test_cases, analysis_mode?, llm_model?) -> dict
+      Returns an optimization plan dict. Dispatches to heuristic or LLM based on
+      analysis_mode (e.g. "heuristic" | "llm") or llm_model (non-empty = use LLM).
+
+  - write_optimized_code(source_code: str, plan: dict) -> str
+      Returns the new code string only (no side effects).
+
+  - compare(profiler_metrics: dict, plan: dict) -> dict
+      Returns {"signal": "continue" | "done", "reason": str} based on metrics
+      vs. the plan (no hard dependency on loop policy).
+"""
+
+"""Analyze code with simple heuristics; produce a plan with estimated targets."""
+
+
 def _analyze_and_plan(source_code: str, criteria: dict) -> dict {
-    # Analyze code with simple heuristics; produce a plan with estimated targets.
     lines = source_code.split("\n");
     num_lines = len(lines);
     code_lower = source_code.lower();
@@ -37,10 +57,8 @@ def _analyze_and_plan(source_code: str, criteria: dict) -> dict {
     };
 }
 
+"""Apply plan to code (stub: minimal transformation so loop can test wiring)."""
 def _apply_plan_to_code(source_code: str, plan: dict) -> str {
-    """
-    Apply plan to code (stub: minimal transformation so loop can test wiring).
-    """
     steps = plan.get("steps", []);
     if len(steps) == 0 {
         return source_code + "\n# [optimizer stub] no steps\n";
@@ -50,10 +68,10 @@ def _apply_plan_to_code(source_code: str, plan: dict) -> str {
     return header + source_code;
 }
 
+"""
+Compare profiler output to plan estimates; return continue or done with reason.
+"""
 def _evaluate_against_plan(profiler_metrics: dict, plan: dict) -> dict {
-    """
-    Compare profiler output to plan estimates; return continue or done with reason.
-    """
     actual_time = float(profiler_metrics.get("execution_time_sec", 999999.0));
     target_time = float(plan.get("estimated_time_sec", 0.0));
     # Allow 10% slack: done if within 1.1x of target
@@ -69,8 +87,8 @@ def _evaluate_against_plan(profiler_metrics: dict, plan: dict) -> dict {
     }
 }
 
+"""Count non-overlapping occurrences of sub in s."""
 def _count_substring(s: str, sub: str) -> int {
-    """Count non-overlapping occurrences of sub in s."""
     count = 0;
     start = 0;
     sub_len = len(sub);
@@ -85,19 +103,32 @@ def _count_substring(s: str, sub: str) -> int {
     return count;
 }
 
+"""Future: LLM-backed analysis. API keys MUST be read from env only (see AGENTS.md)."""
+def _think_and_prep_llm(source_code: str, criteria: dict, function_call: str, test_cases: list) -> dict {
+    # Use os.environ.get("RINGTAIL_OPENAI_API_KEY") / RINGTAIL_ANTHROPIC_API_KEY
+    # with Infisical-injected env. No hardcoded secrets.
+    # For now delegate to heuristic so the loop contract is unchanged.
+    # TODO: Implement LLM-backed analysis.
+    return _analyze_and_plan(source_code, criteria);
+}
 
+"""Think/prep phase: analyze input function and produce an optimization plan/estimate."""
 def think_and_prep(
     source_code: str,
     criteria: dict,
     function_call: str,
-    test_cases: list
+    test_cases: list,
+    analysis_mode: str | None = None,
+    llm_model: str | None = None
 ) -> dict {
-    # Currently ignores function_call and test_cases; they are included so
-    # future versions of the planner can incorporate them into the plan.
+    use_llm = (llm_model is not None and llm_model != "") or (analysis_mode is not None and analysis_mode == "llm");
+    if use_llm {
+        return _think_and_prep_llm(source_code, criteria, function_call, test_cases);
+    }
     return _analyze_and_plan(source_code, criteria);
 }
 
-
+"""Write phase: apply or generate the optimized code based on the plan."""
 def write_optimized_code(
     source_code: str,
     plan: dict
@@ -105,7 +136,7 @@ def write_optimized_code(
     return _apply_plan_to_code(source_code, plan);
 }
 
-
+"""Compare phase: evaluate profiler output against the estimated target, return continue/done signal."""
 def compare(
     profiler_metrics: dict,
     plan: dict
