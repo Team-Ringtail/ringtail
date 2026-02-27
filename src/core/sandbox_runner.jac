@@ -13,9 +13,8 @@ import asyncio;
 import from typing { Any, Dict, Optional }
 
 
+"""Abstract interface for running a Python script with supporting files."""
 class ExecutionBackend {
-    """Abstract interface for running a Python script with supporting files."""
-
     def run_script(
         self: ExecutionBackend,
         script_name: str,
@@ -26,9 +25,8 @@ class ExecutionBackend {
 }
 
 
+"""Runs scripts in a local subprocess + temp directory."""
 class LocalBackend(ExecutionBackend) {
-    """Runs scripts in a local subprocess + temp directory."""
-
     def run_script(
         self: LocalBackend,
         script_name: str,
@@ -91,13 +89,12 @@ class LocalBackend(ExecutionBackend) {
 }
 
 
+"""Runs scripts inside Blaxel sandbox microVMs.
+
+Requires the blaxel SDK (pip install blaxel) and a valid
+API key environment variable (managed via Infisical).
+"""
 class BlaxelBackend(ExecutionBackend) {
-    """Runs scripts inside Blaxel sandbox microVMs.
-
-    Requires the blaxel SDK (pip install blaxel) and a valid
-    API key environment variable (managed via Infisical).
-    """
-
     has workspace: str;
     has image: str = "python:3.12-slim";
     has memory_mb: int = 2048;
@@ -134,7 +131,7 @@ class BlaxelBackend(ExecutionBackend) {
         pip_deps: list
     ) -> dict {
         try {
-            import from blaxel.core { SandboxInstance }
+            from blaxel.core import SandboxInstance;
         } except ImportError {
             return {
                 "stdout": "",
@@ -163,17 +160,30 @@ class BlaxelBackend(ExecutionBackend) {
 
             if pip_deps {
                 await sandbox.process.exec(
-                    {"command": "pip install --quiet " + " ".join(pip_deps)}
+                    {"command": "pip install --quiet " + " ".join(pip_deps),
+                     "wait_for_completion": True,
+                     "timeout": 120000}
                 );
             }
 
             process = await sandbox.process.exec(
-                {"command": "cd /workspace && python %s" % script_name}
+                {"command": "cd /workspace && python %s" % script_name,
+                 "working_dir": "/workspace",
+                 "wait_for_completion": True,
+                 "timeout": timeout * 1000}
             );
 
             stdout = getattr(process, "stdout", "") or "";
             stderr = getattr(process, "stderr", "") or "";
-            returncode = getattr(process, "exit_code", -1);
+            logs_obj = getattr(process, "logs", None);
+            if logs_obj {
+                stdout = getattr(logs_obj, "stdout", stdout) or stdout;
+                stderr = getattr(logs_obj, "stderr", stderr) or stderr;
+            }
+            returncode = getattr(process, "exit_code", None);
+            if returncode is None {
+                returncode = getattr(process, "exitCode", -1);
+            }
 
             return {
                 "stdout": stdout,
@@ -194,8 +204,8 @@ class BlaxelBackend(ExecutionBackend) {
 }
 
 
+"""Check all common env var names for the Blaxel API key."""
 def _resolve_api_key() -> str {
-    """Check all common env var names for the Blaxel API key."""
     return (
         os.environ.get("blaxel_api_key", "")
         or os.environ.get("BLAXEL_API_KEY", "")
@@ -204,13 +214,14 @@ def _resolve_api_key() -> str {
 }
 
 
+"""Factory: return BlaxelBackend if configured, else LocalBackend."""
 def get_backend(config: dict = None) -> ExecutionBackend {
-    """Factory: return BlaxelBackend if configured, else LocalBackend."""
-    if config is None {
-        config = {};
+    cfg = config;
+    if cfg is None {
+        cfg = {};
     }
 
-    backend_type = config.get("backend", "local");
+    backend_type = cfg.get("backend", "local");
 
     if backend_type == "blaxel" {
         api_key = _resolve_api_key();
@@ -221,10 +232,10 @@ def get_backend(config: dict = None) -> ExecutionBackend {
             );
         }
         return BlaxelBackend(
-            workspace=config.get("workspace", ""),
-            image=config.get("image", "python:3.12-slim"),
-            memory_mb=config.get("memory_mb", 2048),
-            region=config.get("region")
+            workspace=cfg.get("workspace", ""),
+            image=cfg.get("image", "sandbox/ringtail-python:yjetxvb6idjq"),
+            memory_mb=cfg.get("memory_mb", 2048),
+            region=cfg.get("region")
         );
     }
 
@@ -232,8 +243,8 @@ def get_backend(config: dict = None) -> ExecutionBackend {
 }
 
 
+"""Remove a temp directory tree."""
 def _cleanup_dir(path: str) -> None {
-    """Remove a temp directory tree."""
     for (dirpath, dirs, files) in os.walk(path, topdown=False) {
         for f in files {
             try {

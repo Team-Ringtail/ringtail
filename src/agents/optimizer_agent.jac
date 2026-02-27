@@ -8,13 +8,17 @@ exposes a stable contract used by the optimization loop:
       Returns an optimization plan dict. Dispatches to heuristic or LLM based on
       analysis_mode (e.g. "heuristic" | "llm") or llm_model (non-empty = use LLM).
 
-  - write_optimized_code(source_code: str, plan: dict) -> str
+  - write_optimized_code(source_code: str, plan: dict, llm_model?: str) -> str
       Returns the new code string only (no side effects).
 
   - compare(profiler_metrics: dict, plan: dict) -> dict
       Returns {"signal": "continue" | "done", "reason": str} based on metrics
       vs. the plan (no hard dependency on loop policy).
 """
+
+import os;
+import sys;
+import traceback;
 
 """Analyze code with simple heuristics; produce a plan with estimated targets."""
 
@@ -103,13 +107,38 @@ def _count_substring(s: str, sub: str) -> int {
     return count;
 }
 
-"""Future: LLM-backed analysis. API keys MUST be read from env only (see AGENTS.md)."""
-def _think_and_prep_llm(source_code: str, criteria: dict, function_call: str, test_cases: list) -> dict {
-    # Use os.environ.get("RINGTAIL_OPENAI_API_KEY") / RINGTAIL_ANTHROPIC_API_KEY
-    # with Infisical-injected env. No hardcoded secrets.
-    # For now delegate to heuristic so the loop contract is unchanged.
-    # TODO: Implement LLM-backed analysis.
-    return _analyze_and_plan(source_code, criteria);
+"""LLM-backed analysis via Anthropic Claude. Falls back to heuristic on error."""
+def _think_and_prep_llm(source_code: str, criteria: dict, function_call: str, test_cases: list, llm_model: str | None = None) -> dict {
+    api_key = os.environ.get("RINGTAIL_ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "");
+    if not api_key {
+        print("[optimizer_agent] RINGTAIL_ANTHROPIC_API_KEY not set — falling back to heuristic");
+        return _analyze_and_plan(source_code, criteria);
+    }
+
+    try {
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))));
+        if repo_root not in sys.path {
+            sys.path.insert(0, repo_root);
+        }
+        import importlib;
+        llm_mod = importlib.import_module("src.utils.llm_client");
+        kwargs = {};
+        if llm_model is not None and llm_model != "" {
+            kwargs["model"] = llm_model;
+        }
+        plan = llm_mod.analyze_and_plan(
+            source_code,
+            criteria,
+            function_call,
+            test_cases,
+            **kwargs
+        );
+        return plan;
+    } except Exception as e {
+        print("[optimizer_agent] LLM call failed, falling back to heuristic: " + str(e));
+        traceback.print_exc();
+        return _analyze_and_plan(source_code, criteria);
+    }
 }
 
 """Think/prep phase: analyze input function and produce an optimization plan/estimate."""
@@ -123,16 +152,42 @@ def think_and_prep(
 ) -> dict {
     use_llm = (llm_model is not None and llm_model != "") or (analysis_mode is not None and analysis_mode == "llm");
     if use_llm {
-        return _think_and_prep_llm(source_code, criteria, function_call, test_cases);
+        return _think_and_prep_llm(source_code, criteria, function_call, test_cases, llm_model);
     }
     return _analyze_and_plan(source_code, criteria);
 }
 
-"""Write phase: apply or generate the optimized code based on the plan."""
+"""Write phase: apply or generate the optimized code based on the plan.
+
+Uses the Anthropic LLM if the plan came from an LLM analysis (detected by
+the presence of an 'analysis' key). Falls back to heuristic stub otherwise.
+"""
 def write_optimized_code(
     source_code: str,
-    plan: dict
+    plan: dict,
+    llm_model: str | None = None
 ) -> str {
+    has_llm_plan = plan.get("analysis", None) is not None;
+    api_key = os.environ.get("RINGTAIL_ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "");
+
+    if has_llm_plan and api_key {
+        try {
+            repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))));
+            if repo_root not in sys.path {
+                sys.path.insert(0, repo_root);
+            }
+            import importlib;
+            llm_mod = importlib.import_module("src.utils.llm_client");
+            kwargs = {};
+            if llm_model is not None and llm_model != "" {
+                kwargs["model"] = llm_model;
+            }
+            return llm_mod.generate_optimized_code(source_code, plan, **kwargs);
+        } except Exception as e {
+            print("[optimizer_agent] LLM code gen failed, falling back to heuristic: " + str(e));
+            traceback.print_exc();
+        }
+    }
     return _apply_plan_to_code(source_code, plan);
 }
 
