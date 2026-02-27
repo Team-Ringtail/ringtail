@@ -8,7 +8,7 @@ exposes a stable contract used by the optimization loop:
       Returns an optimization plan dict. Dispatches to heuristic or LLM based on
       analysis_mode (e.g. "heuristic" | "llm") or llm_model (non-empty = use LLM).
 
-  - write_optimized_code(source_code: str, plan: dict) -> str
+  - write_optimized_code(source_code: str, plan: dict, llm_model?: str) -> str
       Returns the new code string only (no side effects).
 
   - compare(profiler_metrics: dict, plan: dict) -> dict
@@ -108,7 +108,7 @@ def _count_substring(s: str, sub: str) -> int {
 }
 
 """LLM-backed analysis via Anthropic Claude. Falls back to heuristic on error."""
-def _think_and_prep_llm(source_code: str, criteria: dict, function_call: str, test_cases: list) -> dict {
+def _think_and_prep_llm(source_code: str, criteria: dict, function_call: str, test_cases: list, llm_model: str | None = None) -> dict {
     api_key = os.environ.get("RINGTAIL_ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "");
     if not api_key {
         print("[optimizer_agent] RINGTAIL_ANTHROPIC_API_KEY not set — falling back to heuristic");
@@ -122,11 +122,16 @@ def _think_and_prep_llm(source_code: str, criteria: dict, function_call: str, te
         }
         import importlib;
         llm_mod = importlib.import_module("src.utils.llm_client");
+        kwargs = {};
+        if llm_model is not None and llm_model != "" {
+            kwargs["model"] = llm_model;
+        }
         plan = llm_mod.analyze_and_plan(
             source_code,
             criteria,
             function_call,
-            test_cases
+            test_cases,
+            **kwargs
         );
         return plan;
     } except Exception as e {
@@ -147,7 +152,7 @@ def think_and_prep(
 ) -> dict {
     use_llm = (llm_model is not None and llm_model != "") or (analysis_mode is not None and analysis_mode == "llm");
     if use_llm {
-        return _think_and_prep_llm(source_code, criteria, function_call, test_cases);
+        return _think_and_prep_llm(source_code, criteria, function_call, test_cases, llm_model);
     }
     return _analyze_and_plan(source_code, criteria);
 }
@@ -159,7 +164,8 @@ the presence of an 'analysis' key). Falls back to heuristic stub otherwise.
 """
 def write_optimized_code(
     source_code: str,
-    plan: dict
+    plan: dict,
+    llm_model: str | None = None
 ) -> str {
     has_llm_plan = plan.get("analysis", None) is not None;
     api_key = os.environ.get("RINGTAIL_ANTHROPIC_API_KEY", "") or os.environ.get("ANTHROPIC_API_KEY", "");
@@ -172,7 +178,11 @@ def write_optimized_code(
             }
             import importlib;
             llm_mod = importlib.import_module("src.utils.llm_client");
-            return llm_mod.generate_optimized_code(source_code, plan);
+            kwargs = {};
+            if llm_model is not None and llm_model != "" {
+                kwargs["model"] = llm_model;
+            }
+            return llm_mod.generate_optimized_code(source_code, plan, **kwargs);
         } except Exception as e {
             print("[optimizer_agent] LLM code gen failed, falling back to heuristic: " + str(e));
             traceback.print_exc();
