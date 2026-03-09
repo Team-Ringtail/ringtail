@@ -15,8 +15,8 @@ import tempfile;
 import from typing { Any, Dict, List, Optional }
 
 
+"""Parse a function's parameters and type annotations from source."""
 def _extract_params(source_code: str, function_name: str) -> list {
-    """Parse a function's parameters and type annotations from source."""
     try {
         tree = ast.parse(source_code);
     } except SyntaxError {
@@ -44,13 +44,13 @@ def _extract_params(source_code: str, function_name: str) -> list {
 }
 
 
+"""Build a pytest file using Hypothesis from_type() for strategy inference."""
 def _generate_test_file(
     function_name: str,
     params: list,
     has_reference: bool,
     max_examples: int
 ) -> str {
-    """Build a pytest file using Hypothesis from_type() for strategy inference."""
     lines = [
         "from hypothesis import given, strategies as st, settings, assume",
         "from hypothesis.strategies import from_type",
@@ -112,7 +112,12 @@ def _generate_test_file(
     return "\n".join(lines);
 }
 
+"""Run Hypothesis property-based tests on a Python function.
 
+Uses from_type() to auto-infer strategies from type annotations.
+When reference_code is provided, asserts the optimized version
+produces identical output for all generated inputs.
+"""
 def run_property_tests(
     code: str,
     function_name: str,
@@ -120,12 +125,6 @@ def run_property_tests(
     max_examples: int = 100,
     timeout_seconds: int = 60
 ) -> dict {
-    """Run Hypothesis property-based tests on a Python function.
-
-    Uses from_type() to auto-infer strategies from type annotations.
-    When reference_code is provided, asserts the optimized version
-    produces identical output for all generated inputs.
-    """
     empty_result = {
         "passed": False,
         "total": 0,
@@ -193,10 +192,18 @@ def run_property_tests(
 
         return _parse_output(result.stdout, result.stderr, result.returncode, max_examples);
 
-    } except subprocess.TimeoutExpired {
-        empty_result["error"] = "Property tests timed out after %ds" % timeout_seconds;
+    } except subprocess.TimeoutExpired as e {
+        # Include captured output in the error message to aid debugging.
+        # TimeoutExpired on subprocess.run exposes `output` and `stderr` attributes.
+        out = getattr(e, "output", "") or "";
+        err = getattr(e, "stderr", "") or "";
+        empty_result["error"] = (
+            "Property tests timed out after %ds; stdout=%r stderr=%r"
+            % (timeout_seconds, out, err)
+        );
         return empty_result;
     } except Exception as e {
+        # Surface full exception string for easier diagnosis.
         empty_result["error"] = str(e);
         return empty_result;
     } finally {
@@ -216,9 +223,8 @@ def run_property_tests(
     }
 }
 
-
+"""Parse pytest output from property test run."""
 def _parse_output(stdout: str, stderr: str, returncode: int, max_examples: int) -> dict {
-    """Parse pytest output from property test run."""
     failures = [];
     passed_count = 0;
     failed_count = 0;
@@ -267,8 +273,8 @@ def _parse_output(stdout: str, stderr: str, returncode: int, max_examples: int) 
 }
 
 
+"""Remove directory tree without shutil."""
 def _rmtree_safe(path: str) -> None {
-    """Remove directory tree without shutil."""
     for (dirpath, dirs, files) in os.walk(path, topdown=False) {
         for f in files {
             os.remove(os.path.join(dirpath, f));
