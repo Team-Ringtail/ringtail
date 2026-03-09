@@ -65,16 +65,16 @@ ringtail/
 - [x] Set up .gitignore and README.md
 
 ### Phase 2: Core Optimization Loop
-- [ ] Implement `src/core/optimization_loop.jac` with main agent loop:
-  - [ ] Determine function to optimize
-  - [ ] Agent think/prep phase (estimate best optimization)
-  - [ ] Agent write code phase
-  - [ ] Unit test and profile
-  - [ ] Compare to estimated limit
-  - [ ] Loop back if not satisfactory
-- [ ] Create `src/agents/optimizer_agent.jac` with byllm integration
-- [ ] Create `src/core/profiler.jac` for code profiling
-- [ ] Create `src/core/tester.jac` for unit testing
+- [x] Implement `src/core/optimization_loop.jac` with main agent loop:
+  - [x] Determine function to optimize (via `FunctionInput` and `parse_function`)
+  - [x] Agent think/prep phase (`think_and_prep`)
+  - [x] Agent write code phase (`write_optimized_code` stubbed but wired)
+  - [x] Unit test and profile for baseline and optimized code
+  - [x] Compare to baseline with statistical tests (`compare_metrics`)
+  - [x] Loop with convergence and stopping logic
+- [x] Create `src/agents/optimizer_agent.jac` with heuristic implementation and LLM integration points
+- [x] Create `src/core/profiler.jac` for code profiling
+- [x] Create `src/core/tester.jac` for unit testing and coverage
 
 ### Phase 3: User Interfaces
 - [ ] CLI interface (`interfaces/cli/cli.jac`)
@@ -93,10 +93,55 @@ ringtail/
 - [ ] Set up GitHub repository benchmarks
 
 ### Phase 5: Testing & Documentation
-- [ ] Unit tests for core components
-- [ ] Integration tests
+- [x] Unit tests for core components (`src/utils/metrics.jac`, `src/utils/code_parser.jac`, `src/models/types.jac`)
+- [x] Integration tests for optimization loop (`tests/unit/test_optimization_loop.jac`)
+- [ ] Additional integration tests for failure modes and edge cases
 - [ ] Complete README with usage examples
 - [ ] API documentation
+
+---
+
+## Next Steps (Prioritized)
+
+### 1. LLM‑Driven Optimization Path
+
+- [ ] Implement `_think_and_prep_llm` in `optimizer_agent.jac`:
+  - [ ] Read API keys from environment (`RINGTAIL_OPENAI_API_KEY`, `RINGTAIL_ANTHROPIC_API_KEY`).
+  - [ ] Send source code, parsed metadata, criteria, and existing tests to the LLM.
+  - [ ] Return a structured `OptimizationPlan` with concrete steps and optional new test cases.
+- [ ] Upgrade `write_optimized_code` so that, when an `llm_model` is set:
+  - [ ] It calls the LLM to rewrite the code according to the plan.
+  - [ ] It preserves the public API and uses tests/property tests as the safety net.
+
+### 2. Named Profiles and Config Presets
+
+- [ ] Define a small set of `AgentConfig` / `OptimizationCriteria` presets:
+  - [ ] `"fast-iter"`: fewer iterations, cheaper models.
+  - [ ] `"quality-first"`: more iterations, stricter thresholds, higher‑quality models.
+- [ ] Wire `criteria_name` and `config_name` in `run_optimization` to look up these profiles.
+
+### 3. Observability and Run Logs
+
+- [ ] Extend run logging (Jac + Python) to record per‑iteration:
+  - [ ] Metrics and improvement ratios.
+  - [ ] Agent `signal` and `reason`.
+  - [ ] Chosen profile and LLM model.
+  - [ ] Test coverage and property‑test status.
+- [ ] Optionally emit a JSONL trace per run for offline analysis/benchmarking.
+
+### 4. Deep Diagnostics and Multi‑Agent Analysis
+
+- [ ] Expose `deep_profile` through CLI/web for on‑demand hotspot analysis.
+- [ ] Add a dedicated analysis agent that:
+  - [ ] Consumes deep profile, complexity, and coverage data.
+  - [ ] Suggests algorithmic changes or refactors beyond simple micro‑optimizations.
+
+### 5. Interfaces and Benchmarks
+
+- [ ] Flesh out CLI, web, decorator, and GitHub interfaces as described above.
+- [ ] Stand up benchmark harness and a small curated suite of LeetCode/GitHub targets to compare:
+  - [ ] Single strong LLM vs multi‑agent workflow.
+  - [ ] Different optimization criteria/config profiles.
 
 ## Key Features to Implement
 

@@ -243,41 +243,16 @@ In the future, `criteria_name` and `config_name` will select different **named p
 
 ---
 
-## Next Steps (Focused)
+## Current State Summary
 
-### 1. Make `write_optimized_code` LLM‑driven
-
-- Implement `_think_and_prep_llm`:
-  - Use environment variables (via Infisical) for credentials.
-  - Send the function code, parsed metadata, criteria, and existing tests to an LLM.
-  - Return a structured `OptimizationPlan` with concrete steps and optional new tests.
-- Update `write_optimized_code` so that, when an `llm_model` is set:
-  - It calls the LLM with the original code + plan.
-  - Returns an actual rewritten code string that preserves the public API.
-  - Relies on the existing tester/profiler loop (including property tests) to validate changes.
-
-### 2. Define practical named profiles
-
-- Add a small set of `AgentConfig` / `OptimizationCriteria` profiles:
-  - Example:
-    - `"fast-iter"`: fewer iterations, lower LLM cost.
-    - `"quality-first"`: more iterations, higher model quality, higher thresholds.
-- Wire `criteria_name` and `config_name` in `run_optimization` to look up these profiles.
-
-### 3. Improve observability
-
-- Record per‑iteration:
-  - Metrics and improvement ratios.
-  - Agent `signal` and `reason`.
-  - Profile name and LLM model used.
-  - Test coverage and property‑test status.
-- Optionally, emit a JSONL trace per run for debugging and benchmarking.
-
-### 4. Deep diagnostics and multi‑agent analysis
-
-- Expose `deep_profile` in higher‑level interfaces (CLI, web) for on‑demand hotspot analysis.
-- Consider a dedicated **analysis agent** that:
-  - Consumes deep‑profiling, complexity, and coverage data.
-  - Suggests targeted refactorings or algorithm swaps beyond raw speedups.
-- Keep the architecture simple: the loop orchestrates, optimizer/analysis agents propose changes, and tests/profilers keep everything honest.
+- The **core optimization loop** (`run_optimization` / `_run_optimize`) is fully implemented and wired to:
+  - Profile baseline code, compute complexity, and derive structured `Metrics`.
+  - Call the optimizer agent (`think_and_prep`, `write_optimized_code`, `compare`) each iteration.
+  - Generate pytest test code from structured test cases and run both unit tests with coverage and property‑based tests.
+  - Perform statistical comparison of baseline vs optimized runs and apply convergence logic based on `AgentConfig` and the agent’s signal.
+- The **metrics utilities**, **parser**, **complexity analyzer**, **tester**, **profiler**, and **type models** are implemented and covered by Jac unit tests.
+- The **optimizer agent** currently uses a heuristic/stubbed implementation:
+  - `think_and_prep` can route to a future LLM‑backed path but today primarily returns heuristic plans.
+  - `write_optimized_code` does not yet perform real code rewriting; it is safe/stubbed so the loop and tests can exercise the plumbing.
+- LLM integration points and environment‑based key management are in place by design, but real LLM calls are intentionally not wired up yet to control cost during early development.
 
