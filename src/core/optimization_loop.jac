@@ -222,7 +222,8 @@ def _run_optimize(
         # Agent write phase
         optimized_code = write_optimized_code(
             current_source_code,
-            plan
+            plan,
+            llm_model
         );
         
         # Generate pytest from structured test cases (user + plan)

@@ -1,0 +1,10 @@
+name = "ringtail-python"
+type = "sandbox"
+description = "Python 3.12 sandbox for Ringtail code optimization benchmarks"
+
+[runtime]
+generation = "mk3"
+memory = 2048
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
