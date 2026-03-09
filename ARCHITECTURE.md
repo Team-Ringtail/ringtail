@@ -65,7 +65,7 @@ The core idea: **let an LLM (or other agents) do the optimization work, while Ri
 
 - **`run_optimization(input, criteria_name?, config_name?) -> dict`**
   - Public entrypoint.
-  - Creates an `OptimizationCriteria` and `AgentConfig` (today effectively using a `"default"` profile, but accepting names for future profile selection).
+  - Creates an `OptimizationCriteria` and selects an `AgentConfig` profile via `config_name` (default `"default"`), using `config.get_agent_config`.
   - Calls `_run_optimize(input, criteria, config)` and returns its final `OptimizationResult`‑shaped dict.
   - **Design decision**: keep this function small and stable so callers don’t need to know about internals.
 
@@ -122,13 +122,13 @@ Public functions:
 - **`think_and_prep(source_code, criteria, function_call, test_cases, analysis_mode?, llm_model?) -> dict`**
   - Chooses between:
     - Heuristic analysis (`_analyze_and_plan`).
-    - Future: LLM analysis (`_think_and_prep_llm`) when `analysis_mode == "llm"` or `llm_model` is set.
+    - LLM-backed analysis (`_think_and_prep_llm`) when `analysis_mode == "llm"` or `llm_model` is set, implemented via `src/utils/llm_client.jac::analyze_and_plan`.
   - Returns the plan: targets, steps, and optionally extra tests.
 
-- **`write_optimized_code(source_code, plan) -> str`**
+- **`write_optimized_code(source_code, plan, llm_model?) -> str`**
   - **Purpose**: apply the plan and return new code.
-  - Today: only prepends a comment summarizing the plan (stub) so the loop wiring can be exercised safely.
-  - **Intended direction**: call out to an **LLM to rewrite the code**, using the plan (and future analysis agents) as context.
+  - When the plan contains an `analysis` field (indicating an LLM-originated plan), calls `src/utils/llm_client.jac::generate_optimized_code` to rewrite the code.
+  - Otherwise, or on any LLM failure, falls back to a safe heuristic stub that prepends a comment summarizing the plan.
 
 - **`compare(profiler_metrics, plan) -> dict`**
   - Looks at actual performance vs target (time, etc.).
@@ -214,6 +214,9 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
     - `max_iterations`, `max_no_improvement_iters`.
     - `stop_on_test_failure`, `min_improvement_ratio`.
     - `llm_model`, `temperature`.
+  - Named profiles are created via `config.get_agent_config(name)`:
+    - `"default"`: heuristic-only (no LLM model configured).
+    - `"anthropic-sonnet"`: enables LLM-backed planning and codegen with a Claude Sonnet model and conservative iteration limits.
 
 - **`OptimizationCriteria`**
   - What we value:
@@ -221,25 +224,22 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
     - `code_quality_weight`
     - `functionality_weight`
 
-In the future, `criteria_name` and `config_name` will select different **named profiles**:
-
-- Example:
-  - `"cheap-llm"` → few iterations, smaller model, relaxed thresholds.
-  - `"deep-optimization"` → more iterations, stronger model, stricter thresholds.
-
 ---
 
-## LLM Integration and API Keys
+## LLM Integration, Tests, and API Keys
 
 - **Goal**: most of the “optimization work” (planning and rewriting) should be done by an LLM.
 - **Where LLMs plug in**:
-  - `_think_and_prep_llm` in `optimizer_agent.jac` (planning).
-  - `write_optimized_code` (rewriting) when an LLM is configured.
+  - `_think_and_prep_llm` in `optimizer_agent.jac` (planning), which calls `src/utils/llm_client.jac::analyze_and_plan`.
+  - `write_optimized_code` (rewriting), which calls `src/utils/llm_client.jac::generate_optimized_code` when an LLM is configured.
 - **Key management**:
   - No secrets in code; keys come from environment variables, typically populated by Infisical:
     - `RINGTAIL_OPENAI_API_KEY`
     - `RINGTAIL_ANTHROPIC_API_KEY`
   - This is documented in `AGENTS.md`.
+- **Test layout for LLM usage**:
+  - Default Jac tests: `jac test tests/unit/` — fast, deterministic, and do not require any LLM or external services.
+  - Optional LLM-backed tests live under `tests/optimization/with_llm/` and exercise planning, codegen, and end-to-end optimization with real LLM calls when run explicitly by developers.
 
 ---
 

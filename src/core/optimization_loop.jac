@@ -9,7 +9,7 @@ This walker orchestrates the optimization process by:
 """
 
 import from config.optimization_criteria { OptimizationCriteria };
-import from config.agent_config { AgentConfig };
+import from config.agent_config { AgentConfig, get_agent_config };
 import from src.utils.code_parser { parse_function };
 import from src.utils.metrics { compare_metrics, aggregate_metrics, calculate_score };
 import from src.utils.complexity { compute_complexity };
@@ -20,6 +20,48 @@ import from src.core.profiler { profile_code };
 import from src.core.property_tester { run_property_tests };
 import from src.agents.optimizer_agent { think_and_prep, write_optimized_code, compare };
 
+import importlib;
+import from typing { Any };
+
+
+# TODO: Port `src/utils/run_log.py` to Jac and remove this Python bridge.
+def _maybe_create_run_log(function_input: dict, function_name: str) -> Any {
+    try {
+        enabled = function_input.get("enable_run_log", True);
+        if enabled is None {
+            enabled = True;
+        }
+        if not bool(enabled) {
+            return None;
+        }
+
+        mod = importlib.import_module("src.utils.run_log");
+        RunLog = getattr(mod, "RunLog", None);
+        if RunLog is None {
+            return None;
+        }
+
+        run_name = function_input.get("run_name", None);
+        if run_name is None or str(run_name) == "" {
+            if function_name is None or function_name == "" {
+                run_name = "optimize";
+            } else {
+                run_name = "optimize-" + str(function_name);
+            }
+        }
+        return RunLog(str(run_name));
+    } except Exception as e {
+        print("[run_log] disabled (bridge failed): " + str(e));
+        return None;
+    }
+}
+
+def _safe_log(callable: Any) -> None {
+    # Best-effort logging: never let logging failures affect optimization.
+    # TODO: Once RunLog is ported to Jac, replace this with typed logging calls.
+    try { callable(); } except Exception { ; }
+}
+
 
 """Run the full optimization loop for a given function description.
 
@@ -29,6 +71,8 @@ Args:
         - function_name: str
         - function_call: str (expression used by the profiler)
         - test_cases: optional list of structured test case dicts
+        - analysis_mode: optional str controlling agent behavior
+          ("heuristic" | "llm"), forwarded to the optimizer agent
     criteria_name: optional named OptimizationCriteria profile (default: "default")
     config_name: optional named AgentConfig profile (default: "default")
 
@@ -40,15 +84,17 @@ def:pub run_optimization(
     criteria_name: str | None = None,
     config_name: str | None = None
 ) -> dict {
-    # Construct default criteria/config nodes (future: load named profiles)
+    # Construct criteria/config nodes (profile selection via names)
     criteria = OptimizationCriteria();
-    config = AgentConfig();
     if criteria_name is not None {
         criteria.name = criteria_name;
     }
-    if config_name is not None {
-        config.name = config_name;
+
+    config_profile_name = config_name;
+    if config_profile_name is None {
+        config_profile_name = "default";
     }
+    config = get_agent_config(config_profile_name);
 
     # Call core logic directly instead of going through a walker spawn.
     return _run_optimize(input, criteria, config);
@@ -116,11 +162,28 @@ def _run_optimize(
         function_name = function_input.get("function_name", "");
     }
 
-    print("Starting optimization for function: " + function_name);
+    run_log = _maybe_create_run_log(function_input, function_name);
+
+    try {
+        if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "run_metadata",
+                    function_name=function_name,
+                    language=language,
+                    criteria_name=(criteria.name if criteria is not None else None),
+                    config_name=(config.name if config is not None else None),
+                    analysis_mode=function_input.get("analysis_mode", None)
+                ));
+        }
+
+        print("Starting optimization for function: " + function_name);
 
     # Validate required profiling input
     if "function_call" not in function_input or function_input["function_call"] is None {
         print("function_input must include 'function_call' for profiling.");
+        if run_log is not None {
+            _safe_log(lambda: run_log.error("Missing required 'function_call' for profiling"));
+        }
         zero_metrics = {
             "execution_time": 0.0,
             "memory_usage": 0.0,
@@ -154,6 +217,14 @@ def _run_optimize(
     );
     if not baseline_profile.get("success", False) {
         print("Baseline profiling failed: " + str(baseline_profile.get("error", "")));
+        if run_log is not None {
+            _safe_log(lambda: run_log.error(
+                    "Baseline profiling failed",
+                    error=str(baseline_profile.get("error", "")),
+                    median_ms=baseline_profile.get("median_ms", 0.0),
+                    stdev_ms=baseline_profile.get("stdev_ms", 0.0)
+                ));
+        }
         zero_metrics = {
             "execution_time": 0.0,
             "memory_usage": 0.0,
@@ -180,6 +251,16 @@ def _run_optimize(
         "Baseline complexity: CC=" + str(baseline_complexity.get("cyclomatic_complexity", "?"))
         + " depth=" + str(baseline_complexity.get("max_nesting_depth", "?"))
     );
+    if run_log is not None {
+        _safe_log(lambda: run_log.event(
+                "baseline_metrics",
+                median_ms=float(baseline_profile.get("median_ms", 0.0)),
+                stdev_ms=float(baseline_profile.get("stdev_ms", 0.0)),
+                peak_memory_kb=float(baseline_profile.get("peak_memory_kb", 0.0)),
+                cyclomatic_complexity=baseline_complexity.get("cyclomatic_complexity", None),
+                max_nesting_depth=baseline_complexity.get("max_nesting_depth", None)
+            ));
+    }
 
     # Stdev from baseline for significance testing later
     baseline_stdev_sec = float(baseline_profile.get("stdev_ms", 0.0)) / 1000.0;
@@ -195,6 +276,8 @@ def _run_optimize(
     iteration = 0;
     no_improvement_count = 0;
     results = [];
+    best_passing_result = None;
+    last_feedback = None;
 
     # Precompute criteria dict once
     criteria_dict = _criteria_to_dict(criteria);
@@ -203,6 +286,9 @@ def _run_optimize(
     while iteration < max_iterations {
         iteration = iteration + 1;
         print("Iteration " + str(iteration) + " of " + str(max_iterations));
+        if run_log is not None {
+            _safe_log(lambda: run_log.event("iteration_start", iteration=iteration));
+        }
         
         # Agent think/prep phase (dispatch by analysis_mode or config.llm_model)
         analysis_mode = function_input.get("analysis_mode", None);
@@ -216,14 +302,18 @@ def _run_optimize(
             function_call,
             test_cases,
             analysis_mode,
-            llm_model
+            llm_model,
+            last_feedback,
+            run_log
         );
+        last_feedback = None;
         
         # Agent write phase
         optimized_code = write_optimized_code(
             current_source_code,
             plan,
-            llm_model
+            llm_model,
+            run_log
         );
         
         # Generate pytest from structured test cases (user + plan)
@@ -235,10 +325,30 @@ def _run_optimize(
             optimized_code,
             test_code
         );
+        if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "tests",
+                    iteration=iteration,
+                    passed=bool(test_results.get("passed", False)),
+                    total=int(test_results.get("total", 0)),
+                    passed_count=int(test_results.get("passed_count", 0)),
+                    failed_count=int(test_results.get("failed_count", 0)),
+                    coverage_percent=float(test_results.get("coverage_percent", -1.0))
+                ));
+        }
 
         # If tests fail, stop iteration (or continue, based on config)
         if not test_results["passed"] {
             print("Tests failed: " + str(test_results.get("error", "")));
+            if run_log is not None {
+                _safe_log(lambda: run_log.error("Tests failed", iteration=iteration, error=str(test_results.get("error", ""))));
+            }
+            feedback = {
+                "type": "unit_test_failure",
+                "error": str(test_results.get("error", "")),
+                "previous_code": optimized_code,
+                "function_name": function_name
+            };
             result = {
                 "optimized_code": optimized_code,
                 "iteration_number": iteration,
@@ -253,6 +363,7 @@ def _run_optimize(
                 final_converged = False;
                 break;
             } else {
+                last_feedback = feedback;
                 # Continue to next iteration without updating baseline or current_source_code
                 continue;
             }
@@ -269,6 +380,21 @@ def _run_optimize(
         );
         if not prop_results.get("passed", True) {
             print("Property tests failed: " + str(prop_results.get("failures", [])));
+            if run_log is not None {
+                _safe_log(lambda: run_log.error(
+                        "Property tests failed",
+                        iteration=iteration,
+                        failures=prop_results.get("failures", []),
+                        error=str(prop_results.get("error", ""))
+                    ));
+            }
+            feedback = {
+                "type": "property_test_failure",
+                "failures": prop_results.get("failures", []),
+                "error": prop_results.get("error", ""),
+                "previous_code": optimized_code,
+                "function_name": function_name
+            };
             result = {
                 "optimized_code": optimized_code,
                 "iteration_number": iteration,
@@ -284,6 +410,7 @@ def _run_optimize(
                 final_converged = False;
                 break;
             } else {
+                last_feedback = feedback;
                 continue;
             }
         }
@@ -293,9 +420,23 @@ def _run_optimize(
             optimized_code,
             function_call
         );
+        if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "profile",
+                    iteration=iteration,
+                    success=bool(profile.get("success", False)),
+                    median_ms=float(profile.get("median_ms", 0.0)),
+                    stdev_ms=float(profile.get("stdev_ms", 0.0)),
+                    peak_memory_kb=float(profile.get("peak_memory_kb", 0.0)),
+                    error=str(profile.get("error", ""))
+                ));
+        }
         if not profile.get("success", False) {
             print("Profiling failed on iteration " + str(iteration) + ": " + str(profile.get("error", "")));
             # Treat as no improvement and stop
+            if run_log is not None {
+                _safe_log(lambda: run_log.error("Profiling failed", iteration=iteration, error=str(profile.get("error", ""))));
+            }
             result = {
                 "optimized_code": optimized_code,
                 "iteration_number": iteration,
@@ -357,6 +498,17 @@ def _run_optimize(
             "confidence": comparison.get("confidence", 0.0)
         };
         results = results + [result];
+        best_passing_result = result;
+        if run_log is not None {
+            _safe_log(lambda: run_log.optimization_step(
+                    iteration=iteration,
+                    improvement_ratio=float(comparison.get("improvement_ratio", 0.0)),
+                    is_significant=bool(comparison.get("is_significant", False)),
+                    confidence=float(comparison.get("confidence", 0.0)),
+                    agent_signal=str(signal),
+                    agent_reason=str(reason)
+                ));
+        }
         
         # Check termination conditions (driven by config and agent decision)
         should_stop = False;
@@ -412,6 +564,12 @@ def _run_optimize(
     # Format and return final result
     if len(results) > 0 {
         final_result = dict(results[len(results) - 1]);
+        if best_passing_result is not None {
+            final_result = dict(best_passing_result);
+        } elif current_source_code is not None and current_source_code != "" {
+            # Prefer returning last known-good code when all iterations failed.
+            final_result["optimized_code"] = current_source_code;
+        }
         final_result["baseline_metrics"] = baseline_metrics;
         final_result["termination_reason"] = final_stop_reason;
         final_result["converged"] = final_converged;
@@ -431,6 +589,11 @@ def _run_optimize(
         "converged": False,
         "error": "No iterations completed"
     };
+    } finally {
+        if run_log is not None {
+            _safe_log(lambda: run_log.close());
+        }
+    }
 }
 
 

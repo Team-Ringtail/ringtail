@@ -45,10 +45,10 @@ This is a code optimization harness using Jaseci to orchestrate AI agents. Goal:
 ## API keys and Infisical
 - We use [Infisical](https://app.infisical.com/) to manage API keys. Keys are injected into the process as environment variables (e.g. via Infisical CLI or Kubernetes integration).
 - **Never hardcode API keys** in Jac or Python. All LLM/API code must read credentials from the environment only.
-- Standard env var names (used by the optimizer agent and byllm when enabled):
+- Standard env var names (used by the optimizer agent and LLM client):
   - `RINGTAIL_OPENAI_API_KEY` — OpenAI API key
   - `RINGTAIL_ANTHROPIC_API_KEY` — Anthropic API key
-- In production, run the app with env vars set by Infisical; the optimizer agent's LLM path (e.g. `_think_and_prep_llm`) should use `os.environ.get("RINGTAIL_OPENAI_API_KEY")` or the byllm default env vars that Infisical can populate.
+- The Jac LLM client lives in `src/utils/llm_client.jac` and reads keys from these env vars. The optimizer agent calls into this client for both planning and code generation when an appropriate `AgentConfig` profile (e.g. `"anthropic-sonnet"`) or `analysis_mode="llm"` is selected.
 
 ---
 
