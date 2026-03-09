@@ -226,17 +226,46 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
 
 ---
 
+### 6. Interfaces and Benchmarks
+
+- **CLI (`interfaces/cli/cli.jac`)**
+  - Currently a stub `walker optimize_function` that will become the Jac entrypoint for local optimization runs.
+  - Planned responsibilities:
+    - Read a function (or file) from disk/stdin.
+    - Construct a `FunctionInput` dict.
+    - Call `run_optimization` and print a summarized result.
+
+- **LeetCode benchmarks (`benchmarks/`)**
+  - `benchmarks/run_benchmark.py`:
+    - Discovers problems under `benchmarks/leetcode/*`.
+    - Runs their pytest suites, optionally against an alternative solution via `BENCHMARK_SOLUTION`.
+    - Outputs JSON with per‑problem pass/fail and timing.
+  - `benchmarks/optimize_and_bench.py`:
+    - Uses `RunLog` and the Python `llm_client` to:
+      - Call Anthropic Claude (`analyze_and_plan`, `generate_optimized_code`) on each LeetCode solution.
+      - Run tests locally or in a Blaxel sandbox.
+      - Time baseline vs optimized implementations and compute speedups.
+    - Emits a structured JSONL log per run in `logs/`.
+
+---
+
 ## LLM Integration, Tests, and API Keys
 
-- **Goal**: most of the “optimization work” (planning and rewriting) should be done by an LLM.
-- **Where LLMs plug in**:
-  - `_think_and_prep_llm` in `optimizer_agent.jac` (planning), which calls `src/utils/llm_client.jac::analyze_and_plan`.
-  - `write_optimized_code` (rewriting), which calls `src/utils/llm_client.jac::generate_optimized_code` when an LLM is configured.
+- **Goal**: most of the “optimization work” (planning and rewriting) should be done by an LLM, with heuristics as a safe fallback.
+- **Where LLMs plug in (current implementation)**:
+  - `_think_and_prep_llm` in `optimizer_agent.jac` (planning):
+    - Calls `src/utils/llm_client.jac::analyze_and_plan` when `analysis_mode == "llm"` or `AgentConfig.llm_model` is set (e.g. `"anthropic-sonnet"`).
+    - Falls back to a heuristic plan on any LLM error, while logging the failure via `RunLog` when available.
+  - `write_optimized_code` in `optimizer_agent.jac` (rewriting):
+    - Calls `src/utils/llm_client.jac::generate_optimized_code` when the plan includes an `analysis` field (LLM-originated plan).
+    - Falls back to a stub `_apply_plan_to_code` that prepends a comment when LLM codegen fails or when the plan is heuristic.
+  - Python benchmarking pipeline (`benchmarks/optimize_and_bench.py`):
+    - Uses `src/utils/llm_client.py` directly for LeetCode problems, with full logging to `RunLog`.
 - **Key management**:
   - No secrets in code; keys come from environment variables, typically populated by Infisical:
     - `RINGTAIL_OPENAI_API_KEY`
     - `RINGTAIL_ANTHROPIC_API_KEY`
-  - This is documented in `AGENTS.md`.
+  - This is documented in `AGENTS.md` and enforced by `src/utils/llm_client.{jac,py}`.
 - **Test layout for LLM usage**:
   - Default Jac tests: `jac test tests/unit/` — fast, deterministic, and do not require any LLM or external services.
   - Optional LLM-backed tests live under `tests/optimization/with_llm/` and exercise planning, codegen, and end-to-end optimization with real LLM calls when run explicitly by developers.
@@ -250,9 +279,9 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
   - Call the optimizer agent (`think_and_prep`, `write_optimized_code`, `compare`) each iteration.
   - Generate pytest test code from structured test cases and run both unit tests with coverage and property‑based tests.
   - Perform statistical comparison of baseline vs optimized runs and apply convergence logic based on `AgentConfig` and the agent’s signal.
-- The **metrics utilities**, **parser**, **complexity analyzer**, **tester**, **profiler**, and **type models** are implemented and covered by Jac unit tests.
-- The **optimizer agent** currently uses a heuristic/stubbed implementation:
-  - `think_and_prep` can route to a future LLM‑backed path but today primarily returns heuristic plans.
-  - `write_optimized_code` does not yet perform real code rewriting; it is safe/stubbed so the loop and tests can exercise the plumbing.
-- LLM integration points and environment‑based key management are in place by design, but real LLM calls are intentionally not wired up yet to control cost during early development.
+- The **metrics utilities**, **parser**, **complexity analyzer**, **tester**, **profiler**, **deep profiler**, property‑based tester, and **type models** are implemented and covered by Jac unit tests.
+- The **optimizer agent** supports both heuristic and LLM-backed workflows:
+  - Heuristic mode is the default (`AgentConfig` `"default"` with no `llm_model`), used in unit tests to avoid external dependencies.
+  - LLM mode is enabled by profiles such as `"anthropic-sonnet"`, which configure `llm_model` and rely on `llm_client` for planning and codegen, with robust fallbacks when LLM calls fail.
+- A **Python benchmarking pipeline** (`benchmarks/run_benchmark.py`, `benchmarks/optimize_and_bench.py`) plus a suite of **LeetCode benchmarks** are in place to compare baseline vs LLM‑optimized solutions, log runs to JSONL under `logs/`, and quantify speedups.
 
