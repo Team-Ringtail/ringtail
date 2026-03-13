@@ -44,19 +44,110 @@ def _extract_params(source_code: str, function_name: str) -> list {
 }
 
 
+def _extract_import_lines(source_code: str) -> list {
+    try {
+        tree = ast.parse(source_code);
+    } except SyntaxError {
+        return [];
+    }
+
+    imports = [];
+    for node in tree.body {
+        if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom) {
+            if hasattr(ast, "unparse") {
+                import_line = ast.unparse(node);
+                if not import_line.startswith("from __future__") {
+                    imports.append(import_line);
+                }
+            }
+        }
+    }
+    return imports;
+}
+
+
+def _has_function_definition(source_code: str, function_name: str) -> bool {
+    try {
+        tree = ast.parse(source_code);
+    } except SyntaxError {
+        return False;
+    }
+
+    for node in ast.walk(tree) {
+        if isinstance(node, ast.FunctionDef) and node.name == function_name {
+            return True;
+        }
+    }
+    return False;
+}
+
+
 """Build a pytest file using Hypothesis from_type() for strategy inference."""
 def _generate_test_file(
     function_name: str,
     params: list,
+    import_lines: list,
     has_reference: bool,
     max_examples: int
 ) -> str {
     lines = [
-        "from hypothesis import given, strategies as st, settings, assume",
+        "from hypothesis import given, strategies as st, settings",
         "from hypothesis.strategies import from_type",
+        "from typing import *",
+        "import typing",
         "import math",
         ""
     ];
+
+    for import_line in import_lines {
+        if import_line != "" {
+            lines.append(import_line);
+        }
+    }
+    if len(import_lines) > 0 {
+        lines.append("");
+    }
+
+    lines.append("def _fallback_strategy():");
+    lines.append("    return st.integers(min_value=-1000, max_value=1000)");
+    lines.append("");
+    lines.append("def _normalized_annotation(annotation_text):");
+    lines.append("    if annotation_text is None:");
+    lines.append("        return ''");
+    lines.append("    return str(annotation_text).replace('typing.', '').strip()");
+    lines.append("");
+    lines.append("def _safe_strategy(annotation_text):");
+    lines.append("    normalized = _normalized_annotation(annotation_text)");
+    lines.append("    if normalized == '':");
+    lines.append("        return _fallback_strategy()");
+    lines.append("    if normalized == 'int':");
+    lines.append("        return st.integers(min_value=-20, max_value=20)");
+    lines.append("    if normalized == 'float':");
+    lines.append("        return st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False)");
+    lines.append("    if normalized == 'bool':");
+    lines.append("        return st.booleans()");
+    lines.append("    if normalized == 'str':");
+    lines.append("        return st.text(max_size=20)");
+    lines.append("    if normalized.startswith('Optional[') and normalized.endswith(']'):");
+    lines.append("        inner = normalized[len('Optional['):-1]");
+    lines.append("        return st.one_of(st.none(), _safe_strategy(inner))");
+    lines.append("    if normalized.startswith('list[') and normalized.endswith(']'):");
+    lines.append("        inner = normalized[len('list['):-1]");
+    lines.append("        return st.lists(_safe_strategy(inner), max_size=8)");
+    lines.append("    if normalized.startswith('List[') and normalized.endswith(']'):");
+    lines.append("        inner = normalized[len('List['):-1]");
+    lines.append("        return st.lists(_safe_strategy(inner), max_size=8)");
+    lines.append("    if normalized.startswith('set[') and normalized.endswith(']'):");
+    lines.append("        inner = normalized[len('set['):-1]");
+    lines.append("        return st.sets(_safe_strategy(inner), max_size=8)");
+    lines.append("    if normalized.startswith('Set[') and normalized.endswith(']'):");
+    lines.append("        inner = normalized[len('Set['):-1]");
+    lines.append("        return st.sets(_safe_strategy(inner), max_size=8)");
+    lines.append("    try:");
+    lines.append("        return from_type(eval(annotation_text, globals(), locals()))");
+    lines.append("    except Exception:");
+    lines.append("        return _fallback_strategy()");
+    lines.append("");
 
     if has_reference {
         lines.append("from solution import %s as optimized_fn" % function_name);
@@ -71,20 +162,18 @@ def _generate_test_file(
     param_names = [];
     for p in params {
         ann = p["annotation"];
-        if ann is not None {
-            strategy = "from_type(%s)" % ann;
-        } else {
-            strategy = "st.integers(min_value=-1000, max_value=1000)";
-        }
+        strategy = "_safe_strategy(%r)" % ann;
         strategy_args.append("%s=%s" % (p["name"], strategy));
         param_names.append(p["name"]);
     }
 
-    given_decorator = "@given(%s)" % ", ".join(strategy_args);
     settings_decorator = "@settings(max_examples=%d, deadline=None)" % max_examples;
 
-    lines.append(settings_decorator);
-    lines.append(given_decorator);
+    if len(strategy_args) > 0 {
+        given_decorator = "@given(%s)" % ", ".join(strategy_args);
+        lines.append(settings_decorator);
+        lines.append(given_decorator);
+    }
     lines.append("def test_no_crash(%s):" % ", ".join(param_names));
     if has_reference {
         lines.append("    optimized_fn(%s)" % ", ".join(param_names));
@@ -94,8 +183,11 @@ def _generate_test_file(
     lines.append("");
 
     if has_reference {
-        lines.append(settings_decorator);
-        lines.append(given_decorator);
+        if len(strategy_args) > 0 {
+            given_decorator = "@given(%s)" % ", ".join(strategy_args);
+            lines.append(settings_decorator);
+            lines.append(given_decorator);
+        }
         lines.append("def test_matches_reference(%s):" % ", ".join(param_names));
         lines.append("    result_opt = optimized_fn(%s)" % ", ".join(param_names));
         lines.append("    result_ref = reference_fn(%s)" % ", ".join(param_names));
@@ -136,14 +228,16 @@ def run_property_tests(
     };
 
     params = _extract_params(code, function_name);
-    if not params {
+    function_found = _has_function_definition(code, function_name);
+    if not function_found {
         try {
             tree = ast.parse(code);
             for node in ast.walk(tree) {
                 if isinstance(node, ast.FunctionDef) {
                     params = _extract_params(code, node.name);
-                    if params {
+                    if _has_function_definition(code, node.name) {
                         function_name = node.name;
+                        function_found = True;
                         break;
                     }
                 }
@@ -153,13 +247,14 @@ def run_property_tests(
         }
     }
 
-    if not params {
+    if not function_found {
         empty_result["error"] = "Could not extract parameters from function";
         return empty_result;
     }
 
     has_reference = reference_code is not None;
-    test_src = _generate_test_file(function_name, params, has_reference, max_examples);
+    import_lines = _extract_import_lines(code);
+    test_src = _generate_test_file(function_name, params, import_lines, has_reference, max_examples);
 
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_proptest_");
     solution_path = os.path.join(tmp_dir, "solution.py");
@@ -228,6 +323,7 @@ def _parse_output(stdout: str, stderr: str, returncode: int, max_examples: int) 
     failures = [];
     passed_count = 0;
     failed_count = 0;
+    falsifying_example = "";
 
     for line in stdout.splitlines() {
         fail_match = re.match(r"FAILED\s+\S+::(\S+)", line);
@@ -256,9 +352,12 @@ def _parse_output(stdout: str, stderr: str, returncode: int, max_examples: int) 
         error_msg = stderr.strip() or stdout.strip();
     }
 
-    falsifying = re.search(r"Falsifying example:.*?\n(.*?)$", stdout, re.MULTILINE);
-    if falsifying and failures {
-        failures[-1]["falsifying_example"] = falsifying.group(1).strip();
+    falsifying_match = re.search(r"Falsifying example:(.*?)(?:\n=+|\Z)", stdout, re.DOTALL);
+    if falsifying_match {
+        falsifying_example = falsifying_match.group(1).strip();
+    }
+    if falsifying_example != "" and len(failures) > 0 {
+        failures[-1]["falsifying_example"] = falsifying_example;
     }
 
     return {
@@ -268,7 +367,10 @@ def _parse_output(stdout: str, stderr: str, returncode: int, max_examples: int) 
         "failed_count": failed_count,
         "failures": failures,
         "error": error_msg,
-        "examples_run": max_examples
+        "examples_run": max_examples,
+        "falsifying_example": falsifying_example,
+        "stdout": stdout,
+        "stderr": stderr
     };
 }
 

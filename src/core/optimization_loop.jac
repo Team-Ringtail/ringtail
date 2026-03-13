@@ -360,6 +360,16 @@ def _run_optimize(
                 baseline_coverage_pct,
                 run_log
             );
+            if run_log is not None {
+                _safe_log(lambda: run_log.event(
+                        "candidate_evaluation",
+                        iteration=iteration,
+                        candidate_label=candidate_label,
+                        passed=bool(candidate_eval.get("passed", False)),
+                        error=str(candidate_eval.get("result", {}).get("error", "")),
+                        improvement_ratio=float(candidate_eval.get("comparison", {}).get("improvement_ratio", 0.0))
+                    ));
+            }
 
             if candidate_eval["passed"] {
                 if _is_better_candidate_eval(candidate_eval, best_candidate_eval) {
@@ -415,6 +425,13 @@ def _run_optimize(
         results = results + [result];
         best_passing_result = result;
         if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "candidate_selected",
+                    iteration=iteration,
+                    candidate_label=str(best_candidate_eval.get("candidate_label", "")),
+                    candidate_count_evaluated=len(candidate_plans),
+                    improvement_ratio=float(comparison.get("improvement_ratio", 0.0))
+                ));
             _safe_log(lambda: run_log.optimization_step(
                     iteration=iteration,
                     improvement_ratio=float(comparison.get("improvement_ratio", 0.0)),
@@ -767,6 +784,20 @@ def _evaluate_candidate(
         reference_code=original_source_code,
         max_examples=50
     );
+    if run_log is not None {
+        _safe_log(lambda: run_log.event(
+                "property_tests",
+                iteration=iteration,
+                candidate_label=candidate_label,
+                passed=bool(prop_results.get("passed", False)),
+                total=int(prop_results.get("total", 0)),
+                passed_count=int(prop_results.get("passed_count", 0)),
+                failed_count=int(prop_results.get("failed_count", 0)),
+                examples_run=int(prop_results.get("examples_run", 0)),
+                falsifying_example=str(prop_results.get("falsifying_example", "")),
+                error=str(prop_results.get("error", ""))
+            ));
+    }
     if not prop_results.get("passed", True) {
         falsifying_example = _extract_falsifying_example(prop_results);
         feedback = _build_failure_feedback(

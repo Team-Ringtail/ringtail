@@ -11,7 +11,8 @@ import from src.utils.complexity { compute_complexity }
 def _ranking_score(entry: dict) -> float {
     runtime_component = float(entry.get("median_ms", 0.0));
     complexity_component = float(entry.get("cyclomatic_complexity", 0));
-    return runtime_component * 1000.0 + complexity_component;
+    test_bonus = float(entry.get("discovered_test_count", 0)) * 100.0;
+    return runtime_component * 1000.0 + complexity_component + test_bonus;
 }
 
 
@@ -73,6 +74,7 @@ def:pub rank_functions_in_file(
             "peak_memory_kb": float(profile.get("peak_memory_kb", 0.0)),
             "cyclomatic_complexity": int(complexity.get("cyclomatic_complexity", 0)),
             "discovered_test_files": input.get("extra", {}).get("discovered_test_files", []),
+            "discovered_test_count": len(input.get("extra", {}).get("discovered_test_files", [])),
             "source_file": input.get("extra", {}).get("source_file", file_path)
         };
         ranked = _insert_ranked(ranked, entry);

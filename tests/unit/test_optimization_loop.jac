@@ -1,6 +1,6 @@
 """Integration tests for run_optimization — happy path and error paths."""
 
-import from src.core.optimization_loop { run_optimization }
+import from src.core.optimization_loop { run_optimization, _pick_best_failure }
 
 
 test "happy path optimization on simple Python function" {
@@ -76,4 +76,21 @@ test "candidate-search profile evaluates multiple candidates" {
 
     assert result["candidate_count_evaluated"] == 2;
     assert "candidate_label" in result;
+}
+
+test "pick_best_failure prefers profiling over weaker failures" {
+    failures = [
+        {
+            "feedback": {"type": "unit_test_failure"},
+            "result": {"error": "Tests failed"}
+        },
+        {
+            "feedback": {"type": "profiling_failure"},
+            "result": {"error": "Profiling failed"}
+        }
+    ];
+
+    picked = _pick_best_failure(failures);
+
+    assert picked["feedback"]["type"] == "profiling_failure";
 }
