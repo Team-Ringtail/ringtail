@@ -1,6 +1,6 @@
 """Integration tests for run_optimization — happy path and error paths."""
 
-import from src.core.optimization_loop { run_optimization };
+import from src.core.optimization_loop { run_optimization }
 
 
 test "happy path optimization on simple Python function" {
@@ -61,4 +61,19 @@ test "profiling failure propagates error" {
     assert result["error"] != "";
     assert "profiling" in result["error"].lower() or "baseline" in result["error"].lower();
     assert result["iteration_number"] == 0;
+}
+
+test "candidate-search profile evaluates multiple candidates" {
+    sample_code = "def slow_sum(n):\n    total = 0\n    for i in range(n):\n        for j in range(n):\n            total += i + j\n    return total";
+    input = {
+        "source_code": sample_code,
+        "function_name": "slow_sum",
+        "function_call": "slow_sum(8)",
+        "language": "python",
+        "test_cases": [{"call": "slow_sum(3)", "expected": 18}]
+    };
+    result = run_optimization(input, None, "candidate-search");
+
+    assert result["candidate_count_evaluated"] == 2;
+    assert "candidate_label" in result;
 }

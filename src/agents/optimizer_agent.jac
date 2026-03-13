@@ -19,8 +19,8 @@ exposes a stable contract used by the optimization loop:
 import os;
 import sys;
 import traceback;
-import from typing { Any };
-import from src.utils.llm_client { analyze_and_plan, generate_optimized_code };
+import from typing { Any }
+import from src.utils.llm_client { analyze_and_plan, generate_optimized_code }
 
 def _safe_log(callable: Any) -> None {
     # Best-effort logging: never let logging failures affect optimization.
@@ -63,24 +63,41 @@ def _analyze_and_plan(
         steps.append("Consider splitting into smaller functions");
     }
 
+    candidate_plans = [
+        {
+            "label": "loop-overhead",
+            "steps": ["Reduce loop overhead", "Avoid redundant iterations"]
+        },
+        {
+            "label": "cache-repeated-work",
+            "steps": ["Consider caching repeated work", "Precompute reusable values"]
+        },
+        {
+            "label": "clarity-preserving",
+            "steps": list(steps)
+        }
+    ];
+
     return {
         "estimated_time_sec": estimated_time_sec,
         "estimated_memory_mb": estimated_memory_mb,
         "steps": steps,
         "num_lines": num_lines,
         "num_loops": num_loops,
-        "criteria": criteria
+        "criteria": criteria,
+        "candidate_plans": candidate_plans
     };
 }
 
 """Apply plan to code (stub: minimal transformation so loop can test wiring)."""
 def _apply_plan_to_code(source_code: str, plan: dict) -> str {
     steps = plan.get("steps", []);
+    label = str(plan.get("label", "default"));
     if len(steps) == 0 {
-        return source_code + "\n# [optimizer stub] no steps\n";
+        return source_code + "\n# [optimizer stub:" + label + "] no steps\n";
     }
     # Stub: prepend a comment summarizing the plan; no real code change yet
-    header = "# [optimizer stub] plan steps: " + ", ".join(steps) + "\n";
+    header = "# [optimizer stub:" + label + "] plan steps: " + ", ".join(steps) + "\n";
     return header + source_code;
 }
 
@@ -182,6 +199,36 @@ def:pub think_and_prep(
         );
     }
     return _analyze_and_plan(source_code, criteria, feedback);
+}
+
+
+def:pub enumerate_candidate_plans(
+    plan: dict,
+    max_candidates: int = 1
+) -> list {
+    candidates = [];
+    nested = plan.get("candidate_plans", []);
+
+    if nested is not None and len(nested) > 0 {
+        i = 0;
+        while i < len(nested) and len(candidates) < max_candidates {
+            candidate = dict(plan);
+            nested_plan = nested[i];
+            candidate["candidate_plans"] = [];
+            candidate["label"] = nested_plan.get("label", "candidate_" + str(i));
+            candidate["steps"] = nested_plan.get("steps", plan.get("steps", []));
+            candidates.append(candidate);
+            i = i + 1;
+        }
+    }
+
+    if len(candidates) == 0 {
+        fallback = dict(plan);
+        fallback["label"] = str(plan.get("label", "candidate_0"));
+        candidates.append(fallback);
+    }
+
+    return candidates;
 }
 
 """Write phase: apply or generate the optimized code based on the plan.

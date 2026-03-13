@@ -1,6 +1,6 @@
 """Unit tests for src/utils/code_parser.jac — parse_function."""
 
-import from src.utils.code_parser { parse_function };
+import from src.utils.code_parser { parse_function, list_functions }
 
 
 test "parse_function python simple" {
@@ -25,6 +25,26 @@ test "parse_function python multiple functions picks first" {
     info = parse_function(source, "python");
 
     assert info["function_name"] == "first";
+}
+
+test "parse_function can select named function" {
+    source = "def first():\n    pass\n\ndef second(value: int = 3):\n    return value";
+    info = parse_function(source, "python", "second");
+
+    assert info["function_name"] == "second";
+    assert info["parameters"][0]["default"] == 3;
+    assert info["ast_representation"]["end_lineno"] >= info["ast_representation"]["lineno"];
+}
+
+test "list_functions returns top level python functions" {
+    source = "def first():\n    pass\n\nasync def second(name: str):\n    return name";
+    funcs = list_functions(source, "python");
+
+    assert len(funcs) == 2;
+    assert funcs[0]["function_name"] == "first";
+    assert funcs[1]["function_name"] == "second";
+    assert funcs[1]["ast_representation"]["is_async"] is True;
+    assert "source_segment" in funcs[1];
 }
 
 test "parse_function python syntax error falls back" {

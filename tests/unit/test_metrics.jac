@@ -1,7 +1,7 @@
 """Unit tests for src/utils/metrics.jac."""
 
-import from src.models.types { Metrics };
-import from src.utils.metrics { aggregate_metrics, compare_metrics, calculate_score };
+import from src.models.types { Metrics }
+import from src.utils.metrics { aggregate_metrics, compare_metrics, calculate_score }
 
 
 test "aggregate_metrics single item" {

@@ -1,6 +1,6 @@
 """Unit tests for src/agents/optimizer_agent.jac (heuristic path)."""
 
-import from src.agents.optimizer_agent { think_and_prep, write_optimized_code, compare };
+import from src.agents.optimizer_agent { think_and_prep, write_optimized_code, compare, enumerate_candidate_plans }
 
 
 test "think_and_prep heuristic produces sensible plan" {
@@ -22,6 +22,26 @@ test "think_and_prep heuristic produces sensible plan" {
     assert "estimated_memory_mb" in plan;
     assert "steps" in plan;
     assert len(plan["steps"]) > 0;
+    assert "candidate_plans" in plan;
+}
+
+test "enumerate_candidate_plans returns bounded variants" {
+    plan = {
+        "estimated_time_sec": 0.05,
+        "estimated_memory_mb": 10.0,
+        "steps": ["base"],
+        "candidate_plans": [
+            {"label": "a", "steps": ["one"]},
+            {"label": "b", "steps": ["two"]},
+            {"label": "c", "steps": ["three"]}
+        ]
+    };
+
+    candidates = enumerate_candidate_plans(plan, 2);
+
+    assert len(candidates) == 2;
+    assert candidates[0]["label"] == "a";
+    assert candidates[1]["steps"][0] == "two";
 }
 
 

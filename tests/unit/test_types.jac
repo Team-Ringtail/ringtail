@@ -1,6 +1,6 @@
 """Unit tests for src/models/types.jac — Metrics obj."""
 
-import from src.models.types { Metrics };
+import from src.models.types { Metrics }
 
 
 test "Metrics basic init" {

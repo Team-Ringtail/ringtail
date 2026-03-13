@@ -7,6 +7,7 @@ node AgentConfig {
     has max_iterations: int = 3;
     has llm_model: str = "";
     has temperature: float = 0.1;
+    has candidate_count: int = 1;
 
     # Loop policy configuration
     has max_no_improvement_iters: int = 3;
@@ -19,6 +20,7 @@ node AgentConfig {
 
 Profiles:
   - "default": heuristic-only (no LLM model configured).
+  - "candidate-search": heuristic-only with two candidate rewrites per iteration.
   - "anthropic-sonnet": enables LLM planning/codegen using Claude Sonnet,
     with conservative iteration limits to control cost.
 """
@@ -32,12 +34,20 @@ def:pub get_agent_config(
         return cfg;
     }
 
+    if name == "candidate-search" {
+        cfg.name = "candidate-search";
+        cfg.candidate_count = 2;
+        cfg.stop_on_test_failure = False;
+        return cfg;
+    }
+
     if name == "anthropic-sonnet" {
         cfg.name = "anthropic-sonnet";
         cfg.llm_model = "claude-sonnet-4-20250514";
         # Slightly lower iteration counts by default when using LLMs.
         cfg.max_iterations = 3;
         cfg.max_no_improvement_iters = 2;
+        cfg.candidate_count = 2;
         # Let the loop retry with failure feedback instead of stopping immediately.
         cfg.stop_on_test_failure = False;
         return cfg;

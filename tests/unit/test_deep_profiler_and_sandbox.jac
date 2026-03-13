@@ -1,7 +1,7 @@
 """Unit tests for deep profiling and sandbox runner backends."""
 
-import from src.core.deep_profiler { deep_profile };
-import from src.core.sandbox_runner { LocalBackend };
+import from src.core.deep_profiler { deep_profile }
+import from src.core.sandbox_runner { LocalBackend }
 
 
 test "deep_profile handles simple function or returns graceful error" {
@@ -12,7 +12,7 @@ test "deep_profile handles simple function or returns graceful error" {
 
     assert profile is not None;
     # deep_profile may fail if Scalene is not installed; both paths are acceptable.
-    assert "success" in profile;
+    assert profile.success in [True, False];
 }
 
 

@@ -5,7 +5,7 @@ Pure Jac implementation; takes Metrics (obj) and returns dicts where the loop ex
 """
 
 import math;
-import from src.models.types { Metrics };
+import from src.models.types { Metrics }
 
 
 def aggregate_metrics(metrics_list: list) -> Metrics {
