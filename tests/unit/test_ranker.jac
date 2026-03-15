@@ -3,8 +3,16 @@
 import os;
 import tempfile;
 
-import from src.core.ranker { rank_functions_in_file, rank_replay_candidates_in_file }
-import from interfaces.cli.cli { discover_and_rank_file, discover_and_rank_replay_file }
+import from src.core.ranker {
+    rank_functions_in_file,
+    rank_replay_candidates_in_file,
+    rank_replay_candidates_in_directory
+}
+import from interfaces.cli.cli {
+    discover_and_rank_file,
+    discover_and_rank_replay_file,
+    discover_and_rank_replay_repo
+}
 
 
 def _write(path: str, content: str) -> None {
@@ -120,6 +128,71 @@ test "discover_and_rank_replay_file exposes replay-aware CLI ranking" {
     } finally {
         os.remove(script_path);
         os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "rank_replay_candidates_in_directory prioritizes hottest repo candidate" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_ranker_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "fast_math.py");
+        module_b = os.path.join(pkg_dir, "slow_math.py");
+        script_path = os.path.join(tmp_dir, "drive_repo_rank.py");
+        _write(module_a, "def fast_add(a: int, b: int):\n    return a + b\n");
+        _write(
+            module_b,
+            "def slow_sum(n: int = 40):\n    total = 0\n    for i in range(n):\n        for j in range(n):\n            total += i + j\n    return total\n"
+        );
+        _write(
+            script_path,
+            "from pkg.fast_math import fast_add\nfrom pkg.slow_math import slow_sum\n\nfast_add(1, 2)\nslow_sum(5)\nslow_sum(7)\n"
+        );
+
+        ranked = rank_replay_candidates_in_directory(tmp_dir, script_path, os.path.join(tmp_dir, "tests"), 5);
+
+        assert len(ranked) == 2;
+        assert ranked[0]["function_name"] == "slow_sum";
+        assert ranked[0]["replay_trace_count"] == 2;
+        assert "slow_math.py" in ranked[0]["source_file"];
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.rmdir(pkg_dir);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "discover_and_rank_replay_repo exposes repo replay ranking" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_rank_cli_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "alpha_mod.py");
+        module_b = os.path.join(pkg_dir, "beta_mod.py");
+        script_path = os.path.join(tmp_dir, "drive_repo_cli_rank.py");
+        _write(module_a, "def alpha(x: int):\n    return x + 1\n");
+        _write(module_b, "def beta(x: int):\n    return x * 2\n");
+        _write(
+            script_path,
+            "from pkg.alpha_mod import alpha\nfrom pkg.beta_mod import beta\n\nalpha(1)\nbeta(2)\nbeta(3)\n"
+        );
+
+        ranked = discover_and_rank_replay_repo(tmp_dir, script_path, os.path.join(tmp_dir, "tests"), 5);
+
+        assert len(ranked) == 2;
+        assert ranked[0]["function_name"] == "beta";
+        assert ranked[0]["replay_trace_count"] == 2;
+        assert "beta_mod.py" in ranked[0]["source_file"];
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.rmdir(pkg_dir);
         os.rmdir(tmp_dir);
     }
 }

@@ -6,10 +6,15 @@ import from src.core.discovery {
     build_function_input_from_file,
     discover_functions_in_file,
     build_function_input_from_replay_script,
-    build_replay_inputs_from_script
+    build_replay_inputs_from_script,
+    build_replay_inputs_from_directory
 }
 import from src.core.optimization_loop { run_optimization }
-import from src.core.ranker { rank_functions_in_file, rank_replay_candidates_in_file }
+import from src.core.ranker {
+    rank_functions_in_file,
+    rank_replay_candidates_in_file,
+    rank_replay_candidates_in_directory
+}
 
 
 walker optimize_function {
@@ -200,6 +205,50 @@ def:pub discover_and_rank_replay_file(
 }
 
 
+def:pub inspect_replay_repo(
+    source_root: str,
+    script_path: str,
+    tests_root: str = "tests",
+    analysis_mode: str | None = None
+) -> dict {
+    session = build_replay_inputs_from_directory(
+        source_root,
+        script_path,
+        tests_root,
+        analysis_mode
+    );
+    candidates = [];
+    for input in session.get("candidate_inputs", []) {
+        candidates.append({
+            "source_file": input.get("extra", {}).get("source_file", ""),
+            "function_name": input.get("function_name", ""),
+            "function_call": input.get("function_call", ""),
+            "replay_trace_count": input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0),
+            "discovered_test_count": len(input.get("extra", {}).get("discovered_test_files", []))
+        });
+    }
+    return {
+        "source_files": session.get("source_files", []),
+        "replay_script": session.get("replay_script", script_path),
+        "observed_source_files": session.get("observed_source_files", []),
+        "observed_function_keys": session.get("observed_function_keys", []),
+        "candidate_count": session.get("candidate_count", 0),
+        "candidates": candidates,
+        "replay_trace": session.get("replay_trace", {})
+    };
+}
+
+
+def:pub discover_and_rank_replay_repo(
+    source_root: str,
+    script_path: str,
+    tests_root: str = "tests",
+    limit: int = 10
+) -> list {
+    return rank_replay_candidates_in_directory(source_root, script_path, tests_root, limit);
+}
+
+
 def:pub optimize_replay_function(
     file_path: str,
     function_name: str,
@@ -266,6 +315,47 @@ def:pub optimize_best_replay_function(
 
     result = run_optimization(selected_input, criteria_name, config_name);
     result["selected_function"] = selected_name;
+    result["replay_trace_count"] = selected_trace_count;
+    return result;
+}
+
+
+def:pub optimize_best_replay_in_repo(
+    source_root: str,
+    script_path: str,
+    tests_root: str = "tests",
+    criteria_name: str | None = None,
+    config_name: str | None = None,
+    analysis_mode: str | None = None
+) -> dict {
+    session = build_replay_inputs_from_directory(
+        source_root,
+        script_path,
+        tests_root,
+        analysis_mode
+    );
+    candidates = session.get("candidate_inputs", []);
+    if len(candidates) == 0 {
+        return _error_result("Replay trace captured no replay-backed repo candidates");
+    }
+
+    selected_input = candidates[0];
+    selected_name = selected_input.get("function_name", "");
+    selected_source = selected_input.get("extra", {}).get("source_file", "");
+    selected_trace_count = int(selected_input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
+    for input in candidates {
+        trace_count = int(input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
+        if trace_count > selected_trace_count {
+            selected_input = input;
+            selected_name = input.get("function_name", "");
+            selected_source = input.get("extra", {}).get("source_file", "");
+            selected_trace_count = trace_count;
+        }
+    }
+
+    result = run_optimization(selected_input, criteria_name, config_name);
+    result["selected_function"] = selected_name;
+    result["selected_source_file"] = selected_source;
     result["replay_trace_count"] = selected_trace_count;
     return result;
 }

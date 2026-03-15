@@ -7,7 +7,8 @@ import from src.core.discovery {
     build_function_input_from_file,
     discover_functions_in_file,
     build_function_input_from_replay_script,
-    build_replay_inputs_from_script
+    build_replay_inputs_from_script,
+    build_replay_inputs_from_directory
 }
 import from interfaces.cli.cli {
     inspect_file_function,
@@ -15,7 +16,9 @@ import from interfaces.cli.cli {
     inspect_replay_function,
     optimize_replay_function,
     inspect_replay_session,
-    optimize_best_replay_function
+    optimize_best_replay_function,
+    inspect_replay_repo,
+    optimize_best_replay_in_repo
 }
 
 
@@ -349,6 +352,102 @@ test "optimize_best_replay_function selects a replay-backed target" {
     } finally {
         os.remove(script_path);
         os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "build_replay_inputs_from_directory captures observed functions across files" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_inputs_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "math_a.py");
+        module_b = os.path.join(pkg_dir, "math_b.py");
+        script_path = os.path.join(tmp_dir, "drive_repo.py");
+        _write(module_a, "def add(a: int, b: int):\n    return a + b\n");
+        _write(module_b, "def mul(a: int, b: int):\n    return a * b\n");
+        _write(
+            script_path,
+            "from pkg.math_a import add\nfrom pkg.math_b import mul\n\nadd(1, 2)\nmul(3, 4)\nmul(5, 6)\n"
+        );
+
+        result = build_replay_inputs_from_directory(tmp_dir, script_path, os.path.join(tmp_dir, "tests"), None);
+
+        assert result["candidate_count"] == 2;
+        assert len(result["observed_source_files"]) == 2;
+        assert "pkg/math_a.py" in str(result["replay_trace"]["captured_records"][0]["source_rel_path"]);
+        assert result["replay_trace"]["total_trace_count"] == 3;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.rmdir(pkg_dir);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "inspect_replay_repo summarizes replay-backed repo candidates" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_cli_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "alpha_mod.py");
+        module_b = os.path.join(pkg_dir, "beta_mod.py");
+        script_path = os.path.join(tmp_dir, "drive_repo_cli.py");
+        _write(module_a, "def alpha(x: int):\n    return x + 1\n");
+        _write(module_b, "def beta(x: int):\n    return x * 2\n");
+        _write(
+            script_path,
+            "from pkg.alpha_mod import alpha\nfrom pkg.beta_mod import beta\n\nalpha(1)\nbeta(2)\nbeta(3)\n"
+        );
+
+        result = inspect_replay_repo(tmp_dir, script_path);
+
+        assert result["candidate_count"] == 2;
+        assert len(result["observed_source_files"]) == 2;
+        assert len(result["candidates"]) == 2;
+        assert result["replay_trace"]["total_trace_count"] == 3;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.rmdir(pkg_dir);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "optimize_best_replay_in_repo selects best replay-backed repo target" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_opt_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "fast_math.py");
+        module_b = os.path.join(pkg_dir, "slow_math.py");
+        script_path = os.path.join(tmp_dir, "drive_repo_opt.py");
+        _write(module_a, "def fast_add(a: int, b: int):\n    return a + b\n");
+        _write(
+            module_b,
+            "def sum_up(n: int):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n"
+        );
+        _write(
+            script_path,
+            "from pkg.fast_math import fast_add\nfrom pkg.slow_math import sum_up\n\nfast_add(1, 2)\nsum_up(3)\nsum_up(10)\n"
+        );
+
+        result = optimize_best_replay_in_repo(tmp_dir, script_path);
+
+        assert result["selected_function"] == "sum_up";
+        assert "slow_math.py" in result["selected_source_file"];
+        assert result["test_passed"] is True;
+        assert result["replay_trace_count"] >= 2;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.rmdir(pkg_dir);
         os.rmdir(tmp_dir);
     }
 }

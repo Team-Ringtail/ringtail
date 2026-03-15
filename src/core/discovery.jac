@@ -24,6 +24,41 @@ def:pub discover_functions_in_file(file_path: str) -> list {
 }
 
 
+def:pub discover_python_files(root_dir: str) -> list {
+    matches: list = [];
+    abs_root = os.path.abspath(root_dir);
+    for (dirpath, dirs, files) in os.walk(abs_root) {
+        next_dirs: list = [];
+        for dname in dirs {
+            lower_name = dname.lower();
+            if (
+                lower_name == "__pycache__"
+                or lower_name == ".git"
+                or lower_name == ".venv"
+                or lower_name == "venv"
+                or lower_name == "node_modules"
+                or lower_name == "tests"
+            ) {
+                continue;
+            }
+            next_dirs.append(dname);
+        }
+        dirs[:] = next_dirs;
+
+        for fname in files {
+            if not fname.endswith(".py") {
+                continue;
+            }
+            if fname.startswith("test_") {
+                continue;
+            }
+            matches.append(os.path.abspath(os.path.join(dirpath, fname)));
+        }
+    }
+    return matches;
+}
+
+
 def _render_literal(value: any) -> str {
     if value is None {
         return "None";
@@ -306,4 +341,107 @@ def:pub build_replay_inputs_from_script(
         "traced_function_names": selected_names,
         "observed_function_names": observed_names
     };
+}
+
+
+def:pub build_replay_inputs_from_files(
+    file_paths: list,
+    script_path: str,
+    tests_root: str = "tests",
+    analysis_mode: str | None = None
+) -> dict {
+    abs_files: list = [];
+    file_functions: dict = {};
+    for file_path in file_paths {
+        abs_path = os.path.abspath(str(file_path));
+        if abs_path == os.path.abspath(script_path) {
+            continue;
+        }
+        discovered = discover_functions_in_file(abs_path);
+        file_functions[abs_path] = discovered;
+        abs_files.append(abs_path);
+    }
+
+    function_names_by_source: dict = {};
+    for abs_path in abs_files {
+        selected_names: list = [];
+        for fn in file_functions.get(abs_path, []) {
+            name = str(fn.get("function_name", ""));
+            if name != "" {
+                selected_names.append(name);
+            }
+        }
+        function_names_by_source[abs_path] = selected_names;
+    }
+
+    mod = importlib.import_module("src.core.replay_tracer");
+    trace_fn = getattr(mod, "trace_replay_repo_session_from_script");
+    trace_result = trace_fn(abs_files, script_path, function_names_by_source);
+
+    candidate_inputs: list = [];
+    observed_names: list = [];
+    observed_files: list = [];
+    source_results = trace_result.get("sources", {});
+    for abs_path in abs_files {
+        source_trace = source_results.get(abs_path, {});
+        if int(source_trace.get("trace_count", 0)) <= 0 {
+            continue;
+        }
+        observed_files.append(abs_path);
+        for function_info in file_functions.get(abs_path, []) {
+            function_name = str(function_info.get("function_name", ""));
+            if function_name == "" {
+                continue;
+            }
+            fn_trace = source_trace.get("functions", {}).get(function_name, {});
+            if int(fn_trace.get("trace_count", 0)) <= 0 {
+                continue;
+            }
+
+            observed_names.append(abs_path + "::" + function_name);
+            input = build_function_input_from_file(abs_path, function_name, None, tests_root, analysis_mode);
+            if "error" in input {
+                continue;
+            }
+
+            replay_cases = fn_trace.get("test_cases", []);
+            input["test_cases"] = replay_cases;
+            if len(replay_cases) > 0 {
+                input["function_call"] = replay_cases[0]["call"];
+            }
+            input["extra"]["replay_trace"] = fn_trace;
+            input["extra"]["replay_trace_source"] = source_trace;
+            input["extra"]["replay_trace_session"] = trace_result;
+            input["extra"]["replay_script"] = os.path.abspath(script_path);
+            input["extra"]["replay_partial_success"] = bool(fn_trace.get("partial_success", False));
+            candidate_inputs.append(input);
+        }
+    }
+
+    return {
+        "source_files": abs_files,
+        "replay_script": os.path.abspath(script_path),
+        "replay_trace": trace_result,
+        "candidate_inputs": candidate_inputs,
+        "candidate_count": len(candidate_inputs),
+        "traced_source_files": abs_files,
+        "observed_source_files": observed_files,
+        "observed_function_keys": observed_names
+    };
+}
+
+
+def:pub build_replay_inputs_from_directory(
+    source_root: str,
+    script_path: str,
+    tests_root: str = "tests",
+    analysis_mode: str | None = None
+) -> dict {
+    source_files = discover_python_files(source_root);
+    return build_replay_inputs_from_files(
+        source_files,
+        script_path,
+        tests_root,
+        analysis_mode
+    );
 }
