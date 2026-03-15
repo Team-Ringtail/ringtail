@@ -119,7 +119,7 @@ test "optimize_file_function can optimize directly from file path" {
             "def sum_up(n: int):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n"
         );
 
-        result = optimize_file_function(module_path, "sum_up", "sum_up(10)");
+        result = optimize_file_function(module_path, "sum_up", "sum_up(10)", "tests", None, "test-fast", None);
 
         assert "optimized_code" in result;
         assert "sum_up" in result["optimized_code"];
@@ -256,7 +256,7 @@ test "optimize_replay_function runs optimization from replay-derived tests" {
             "from sum_up import sum_up\n\nsum_up(3)\nsum_up(10)\n"
         );
 
-        result = optimize_replay_function(module_path, "sum_up", script_path);
+        result = optimize_replay_function(module_path, "sum_up", script_path, "tests", None, "test-fast", None);
 
         assert "optimized_code" in result;
         assert "sum_up" in result["optimized_code"];
@@ -345,7 +345,7 @@ test "optimize_best_replay_function selects a replay-backed target" {
             "from best_replay import fast_add, sum_up\n\nfast_add(1, 2)\nsum_up(3)\nsum_up(10)\n"
         );
 
-        result = optimize_best_replay_function(module_path, script_path);
+        result = optimize_best_replay_function(module_path, script_path, "tests", None, "test-fast", None);
 
         assert result["selected_function"] == "sum_up";
         assert result["test_passed"] is True;
@@ -474,7 +474,7 @@ test "optimize_best_replay_in_repo selects best replay-backed repo target" {
             "from pkg.fast_math import fast_add\nfrom pkg.slow_math import sum_up\n\nfast_add(1, 2)\nsum_up(3)\nsum_up(10)\n"
         );
 
-        result = optimize_best_replay_in_repo(tmp_dir, script_path);
+        result = optimize_best_replay_in_repo(tmp_dir, script_path, "tests", None, "test-fast", None);
 
         assert result["selected_function"] == "sum_up";
         assert "slow_math.py" in result["selected_source_file"];
@@ -508,7 +508,7 @@ test "optimize_best_replay_in_repo uses ranker when replay counts tie" {
             "from pkg.fast_math import fast_add\nfrom pkg.slow_math import slow_sum\n\nfast_add(1, 2)\nslow_sum(8)\n"
         );
 
-        result = optimize_best_replay_in_repo(tmp_dir, script_path);
+        result = optimize_best_replay_in_repo(tmp_dir, script_path, "tests", None, "test-fast", None);
 
         assert result["selected_function"] == "slow_sum";
         assert "slow_math.py" in result["selected_source_file"];

@@ -138,6 +138,10 @@ def _run_optimize(
     stop_on_test_failure = True;
     min_improvement_ratio = 1.0;
     candidate_count = 1;
+    benchmark_min_rounds = 10;
+    benchmark_warmup = True;
+    property_test_max_examples = 50;
+    enable_property_tests = True;
 
     if config is not None {
         if config.max_iterations is not None {
@@ -145,6 +149,18 @@ def _run_optimize(
         }
         if config.max_no_improvement_iters is not None {
             max_no_improvement_iters = int(config.max_no_improvement_iters);
+        }
+        if config.benchmark_min_rounds is not None {
+            benchmark_min_rounds = int(config.benchmark_min_rounds);
+        }
+        if config.benchmark_warmup is not None {
+            benchmark_warmup = bool(config.benchmark_warmup);
+        }
+        if config.property_test_max_examples is not None {
+            property_test_max_examples = int(config.property_test_max_examples);
+        }
+        if config.run_property_tests is not None {
+            enable_property_tests = bool(config.run_property_tests);
         }
         if config.stop_on_test_failure is not None {
             stop_on_test_failure = bool(config.stop_on_test_failure);
@@ -231,7 +247,9 @@ def _run_optimize(
     # Baseline profiling on original code (before any optimization)
     baseline_profile = profile_code(
         source_code,
-        function_call
+        function_call,
+        benchmark_min_rounds,
+        benchmark_warmup
     );
     if not baseline_profile.get("success", False) {
         print("Baseline profiling failed: " + str(baseline_profile.get("error", "")));
@@ -362,6 +380,10 @@ def _run_optimize(
                 baseline_stdev_sec,
                 baseline_n,
                 baseline_coverage_pct,
+                benchmark_min_rounds,
+                benchmark_warmup,
+                property_test_max_examples,
+                enable_property_tests,
                 run_log
             );
             if run_log is not None {
@@ -732,6 +754,10 @@ def _evaluate_candidate(
     baseline_stdev_sec: float,
     baseline_n: int,
     baseline_coverage_pct: float,
+    benchmark_min_rounds: int = 10,
+    benchmark_warmup: bool = True,
+    property_test_max_examples: int = 50,
+    enable_property_tests: bool = True,
     run_log: Any = None
 ) -> dict {
     test_results = run_tests_with_coverage(
@@ -782,60 +808,79 @@ def _evaluate_candidate(
         };
     }
 
-    prop_results = run_property_tests(
-        optimized_code,
-        function_name,
-        reference_code=original_source_code,
-        max_examples=50
-    );
-    if run_log is not None {
-        _safe_log(lambda: run_log.event(
-                "property_tests",
-                iteration=iteration,
-                candidate_label=candidate_label,
-                passed=bool(prop_results.get("passed", False)),
-                total=int(prop_results.get("total", 0)),
-                passed_count=int(prop_results.get("passed_count", 0)),
-                failed_count=int(prop_results.get("failed_count", 0)),
-                examples_run=int(prop_results.get("examples_run", 0)),
-                falsifying_example=str(prop_results.get("falsifying_example", "")),
-                error=str(prop_results.get("error", ""))
-            ));
-    }
-    if not prop_results.get("passed", True) {
-        falsifying_example = _extract_falsifying_example(prop_results);
-        feedback = _build_failure_feedback(
-            "property_test_failure",
-            iteration,
-            candidate_label,
-            function_name,
+    if enable_property_tests {
+        prop_results = run_property_tests(
             optimized_code,
-            str(prop_results.get("error", "")),
-            prop_results.get("failures", []),
-            coverage_pct,
-            baseline_coverage_pct,
-            falsifying_example
+            function_name,
+            reference_code=original_source_code,
+            max_examples=property_test_max_examples
         );
-        return {
-            "passed": False,
-            "optimized_code": optimized_code,
-            "feedback": feedback,
-            "result": {
+        if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "property_tests",
+                    iteration=iteration,
+                    candidate_label=candidate_label,
+                    passed=bool(prop_results.get("passed", False)),
+                    total=int(prop_results.get("total", 0)),
+                    passed_count=int(prop_results.get("passed_count", 0)),
+                    failed_count=int(prop_results.get("failed_count", 0)),
+                    examples_run=int(prop_results.get("examples_run", 0)),
+                    falsifying_example=str(prop_results.get("falsifying_example", "")),
+                    error=str(prop_results.get("error", ""))
+                ));
+        }
+        if not prop_results.get("passed", True) {
+            falsifying_example = _extract_falsifying_example(prop_results);
+            feedback = _build_failure_feedback(
+                "property_test_failure",
+                iteration,
+                candidate_label,
+                function_name,
+                optimized_code,
+                str(prop_results.get("error", "")),
+                prop_results.get("failures", []),
+                coverage_pct,
+                baseline_coverage_pct,
+                falsifying_example
+            );
+            return {
+                "passed": False,
                 "optimized_code": optimized_code,
-                "iteration_number": iteration,
-                "metrics": baseline_metrics,
-                "test_passed": False,
-                "improvement_ratio": 0.0,
-                "candidate_label": candidate_label,
-                "coverage_delta": feedback.get("coverage_delta", None),
-                "error": "Property-based test failure"
-            }
-        };
+                "feedback": feedback,
+                "result": {
+                    "optimized_code": optimized_code,
+                    "iteration_number": iteration,
+                    "metrics": baseline_metrics,
+                    "test_passed": False,
+                    "improvement_ratio": 0.0,
+                    "candidate_label": candidate_label,
+                    "coverage_delta": feedback.get("coverage_delta", None),
+                    "error": "Property-based test failure"
+                }
+            };
+        }
+    } else {
+        if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "property_tests",
+                    iteration=iteration,
+                    candidate_label=candidate_label,
+                    passed=True,
+                    total=0,
+                    passed_count=0,
+                    failed_count=0,
+                    examples_run=0,
+                    falsifying_example="",
+                    error="skipped"
+                ));
+        }
     }
 
     profile = profile_code(
         optimized_code,
-        function_call
+        function_call,
+        benchmark_min_rounds,
+        benchmark_warmup
     );
     if run_log is not None {
         _safe_log(lambda: run_log.event(

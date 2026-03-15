@@ -12,7 +12,7 @@ test "happy path optimization on simple Python function" {
         "language": "python",
         "test_cases": [{"call": "slow_sum(3)", "expected": 18}]
     };
-    result = run_optimization(input);
+    result = run_optimization(input, None, "test-fast");
 
     assert result["optimized_code"] is not None;
     assert result["optimized_code"] != "";
@@ -72,7 +72,7 @@ test "candidate-search profile evaluates multiple candidates" {
         "language": "python",
         "test_cases": [{"call": "slow_sum(3)", "expected": 18}]
     };
-    result = run_optimization(input, None, "candidate-search");
+    result = run_optimization(input, None, "test-fast-candidate-search");
 
     assert result["candidate_count_evaluated"] == 2;
     assert "candidate_label" in result;
@@ -118,7 +118,7 @@ test "run_optimization respects explicit function_name in multi-function source"
         "test_cases": [{"call": "sum_up(3)", "expected": 3}]
     };
 
-    result = run_optimization(input);
+    result = run_optimization(input, None, "test-fast");
 
     assert "sum_up" in result["optimized_code"];
     assert result["test_passed"] is True;

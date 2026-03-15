@@ -134,6 +134,7 @@ def profile_code(
     code: str,
     function_call: str,
     min_rounds: int = 10,
+    warmup: bool = True,
     timeout_seconds: int = 30
 ) -> dict {
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_profile_");
@@ -152,11 +153,15 @@ def profile_code(
             f.write(bench_src);
         }
 
+        warmup_flag = "off";
+        if warmup {
+            warmup_flag = "on";
+        }
         result = subprocess.run(
             [sys.executable, "-m", "pytest", "_bench.py",
              "--benchmark-json=" + json_path,
              "--benchmark-min-rounds=" + str(min_rounds),
-             "--benchmark-warmup=on",
+             "--benchmark-warmup=" + warmup_flag,
              "--benchmark-disable-gc",
              "-q", "--no-header", "--tb=short"],
             capture_output=True,
