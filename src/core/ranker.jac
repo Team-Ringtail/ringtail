@@ -9,6 +9,19 @@ import from src.core.discovery { build_replay_inputs_from_directory }
 import from src.core.profiler { profile_code }
 import from src.utils.complexity { compute_complexity }
 
+glob _RANKING_PROFILE_MIN_ROUNDS: int = 1;
+glob _RANKING_PROFILE_WARMUP: bool = False;
+
+
+def _profile_for_ranking(code: str, function_call: str) -> dict {
+    return profile_code(
+        code,
+        function_call,
+        _RANKING_PROFILE_MIN_ROUNDS,
+        _RANKING_PROFILE_WARMUP
+    );
+}
+
 
 def _ranking_score(entry: dict) -> float {
     runtime_component = float(entry.get("median_ms", 0.0));
@@ -93,7 +106,7 @@ def:pub rank_functions_in_file(
             continue;
         }
 
-        profile = profile_code(
+        profile = _profile_for_ranking(
             input["source_code"],
             input["function_call"]
         );
@@ -136,7 +149,7 @@ def:pub rank_replay_candidates_in_file(
 
     for input in candidates {
         function_name = input.get("function_name", "");
-        profile = profile_code(
+        profile = _profile_for_ranking(
             input["source_code"],
             input["function_call"]
         );
@@ -196,7 +209,7 @@ def:pub rank_replay_candidates_in_directory(
 
     for input in candidates {
         function_name = input.get("function_name", "");
-        profile = profile_code(
+        profile = _profile_for_ranking(
             input["source_code"],
             input["function_call"]
         );
