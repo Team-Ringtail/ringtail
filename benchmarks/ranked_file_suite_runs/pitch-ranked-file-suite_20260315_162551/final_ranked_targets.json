@@ -1,0 +1,14 @@
+[
+  {
+    "cyclomatic_complexity": 2,
+    "discovered_test_count": 1,
+    "discovered_test_files": [
+      "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+    ],
+    "function_call": "slow_sum(50000)",
+    "function_name": "slow_sum",
+    "median_ms": 1.140124979428947,
+    "peak_memory_kb": 0.140625,
+    "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/slow_math.py"
+  }
+]

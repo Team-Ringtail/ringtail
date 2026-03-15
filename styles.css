@@ -6,7 +6,7 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #000000 0%, #4b5563 100%);
     min-height: 100vh;
     padding: 2rem;
 }
@@ -210,6 +210,284 @@ body {
     word-break: break-word;
 }
 
+.demo-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.demo-shell {
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+.demo-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    color: white;
+    margin-bottom: 1.5rem;
+}
+
+.demo-hero-copy h1 {
+    font-size: 3.2rem;
+    margin: 0.75rem 0;
+}
+
+.demo-hero-copy p {
+    max-width: 760px;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.88);
+}
+
+.hero-card {
+    background: white;
+    border-radius: 20px;
+    padding: 1.5rem;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16);
+}
+
+.hero-card h2,
+.hero-card h3 {
+    color: #111827;
+    margin-bottom: 0.85rem;
+}
+
+.hero-subtitle,
+.results-header p,
+.run-stage-copy p {
+    color: #4b5563;
+    line-height: 1.6;
+}
+
+.soft-box {
+    background: #f8fafc;
+    color: #0f172a;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    padding: 1rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.simple-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.simple-list-item,
+.target-pill {
+    background: #f8fafc;
+    border: 1px solid #dbeafe;
+    border-radius: 14px;
+    padding: 0.9rem 1rem;
+    color: #0f172a;
+    line-height: 1.5;
+}
+
+.target-pill strong {
+    display: block;
+    margin-bottom: 0.3rem;
+    color: #111827;
+}
+
+.target-pill span {
+    color: #475569;
+}
+
+.run-stage-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+    gap: 1.5rem;
+    background: white;
+    border-radius: 20px;
+    padding: 1.5rem;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16);
+    margin-bottom: 1.5rem;
+}
+
+.eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #6366f1;
+    margin-bottom: 0.4rem;
+}
+
+.progress-meter {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.progress-track {
+    width: 100%;
+    height: 18px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #667eea 0%, #22c55e 100%);
+    border-radius: 999px;
+    transition: width 0.35s ease;
+}
+
+.progress-label {
+    color: #111827;
+    font-weight: 700;
+}
+
+.stage-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stage-card {
+    background: rgba(255, 255, 255, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 18px;
+    padding: 1.15rem;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+}
+
+.stage-card.active {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+}
+
+.stage-card span {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: #111827;
+    color: white;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.stage-card h3 {
+    color: #111827;
+    margin-bottom: 0.45rem;
+}
+
+.stage-card p {
+    color: #4b5563;
+    line-height: 1.5;
+}
+
+.log-card {
+    background: white;
+    border-radius: 20px;
+    padding: 1.25rem;
+    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.16);
+}
+
+.log-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+}
+
+.log-feed {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 16px;
+    padding: 1rem;
+    min-height: 260px;
+    max-height: 420px;
+    overflow: auto;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #111827 0%, #1f2937 100%);
+    color: white;
+    border-radius: 18px;
+    padding: 1.15rem;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.16);
+}
+
+.stat-card span {
+    display: block;
+    color: #cbd5e1;
+    margin-bottom: 0.55rem;
+}
+
+.stat-card strong {
+    font-size: 1.8rem;
+    font-weight: 800;
+}
+
+.suite-card-grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.suite-card {
+    background: #f8fafc;
+    border: 1px solid #dbeafe;
+    border-radius: 16px;
+    padding: 1.25rem;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.suite-card h3,
+.suite-card h4 {
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+}
+
+.suite-meta {
+    color: #475569;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.suite-graph {
+    width: 100%;
+    background: #0f172a;
+    border-radius: 14px;
+    margin-bottom: 1rem;
+}
+
+.comparison-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
 .endpoints {
     display: grid;
     gap: 1rem;
@@ -303,5 +581,17 @@ body {
     .mode-switch,
     .panel-actions {
         flex-direction: column;
+    }
+
+    .demo-hero,
+    .results-header,
+    .log-card-header,
+    .run-stage-card {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+    }
+
+    .demo-hero-copy h1 {
+        font-size: 2.35rem;
     }
 }

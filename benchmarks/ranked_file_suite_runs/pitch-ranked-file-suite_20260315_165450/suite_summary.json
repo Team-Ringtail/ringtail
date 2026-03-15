@@ -1,0 +1,31 @@
+{
+  "average_speedup": 11322.986227045076,
+  "average_time_saved_pct": 99.99116840752123,
+  "fail_count": 0,
+  "output_dir": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165450",
+  "pass_count": 1,
+  "results": [
+    {
+      "baseline_time_ms": 1.1369999265298247,
+      "error": "",
+      "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/slow_math.py",
+      "function_call": "slow_sum(50000)",
+      "function_name": "slow_sum",
+      "improvement_ratio": 11322.986227045076,
+      "median_ms_ranked": 1.0996670462191105,
+      "name": "slow_math::slow_sum",
+      "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165450/optimized_code/01_slow_math_slow_sum.py",
+      "optimized_time_ms": 0.0001004151999950409,
+      "rank": 1,
+      "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-slow_sum_20260315_165513.jsonl",
+      "status": "pass",
+      "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165450_rank1_slow_math_slow_sum_summary.json",
+      "termination_reason": "execution time within target",
+      "time_saved_pct": 99.99116840752123,
+      "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165450_rank1_slow_math_slow_sum_timing.svg"
+    }
+  ],
+  "source_root": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo",
+  "suite_name": "pitch-ranked-file-suite",
+  "target_count": 1
+}

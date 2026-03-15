@@ -446,6 +446,42 @@ def:pub run_optimization_request(request: dict) -> dict {
         );
     }
 
+    if operation == "get_ranked_demo_suite_catalog" {
+        mod = importlib.import_module("src.core.ranked_demo_suite");
+        func = getattr(mod, "get_demo_suite_catalog");
+        return func(request.get("benchmark_id", None));
+    }
+
+    if operation == "get_ranked_demo_benchmarks" {
+        mod = importlib.import_module("src.core.ranked_demo_suite");
+        func = getattr(mod, "get_demo_benchmarks");
+        return func();
+    }
+
+    if operation == "get_latest_ranked_demo_suite" {
+        mod = importlib.import_module("src.core.ranked_demo_suite");
+        func = getattr(mod, "get_latest_demo_suite_result");
+        return func();
+    }
+
+    if operation == "get_ranked_demo_job_progress" {
+        mod = importlib.import_module("src.core.ranked_demo_suite");
+        func = getattr(mod, "get_demo_job_progress");
+        return func(str(request.get("job_id", "")));
+    }
+
+    if operation == "run_ranked_demo_suite" {
+        mod = importlib.import_module("src.core.ranked_demo_suite");
+        func = getattr(mod, "run_demo_suite");
+        return func(
+            server_url=str(request.get("server_url", "http://127.0.0.1:8000")),
+            job_id=request.get("job_id", None),
+            benchmark_id=request.get("benchmark_id", None),
+            top_k=int(request.get("top_k", 3)),
+            per_file_k=int(request.get("per_file_k", 1))
+        );
+    }
+
     if operation == "discover_and_rank_replay_repo" {
         return discover_and_rank_replay_repo(
             str(request.get("source_root", "")),

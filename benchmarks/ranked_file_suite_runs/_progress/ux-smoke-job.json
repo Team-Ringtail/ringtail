@@ -1,0 +1,219 @@
+{
+  "benchmark_id": "ranked-pitch-repo",
+  "benchmark_label": "Ranked Pitch Repo",
+  "job_id": "ux-smoke-job",
+  "log_lines": [
+    "Preparing Ranked Pitch Repo",
+    "Source root: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo",
+    "[1/1] rank=1 slow_math::slow_sum",
+    "  status=pass ranked_ms=1.167000 speedup=11085.296x graph=/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165310_rank1_slow_math_slow_sum_timing.svg",
+    "",
+    "suite_name: pitch-ranked-file-suite",
+    "source_root: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo",
+    "pass_count: 1/1",
+    "ranking_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/ranking.json",
+    "per_file_finalists_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/per_file_finalists.json",
+    "final_ranked_targets_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/final_ranked_targets.json",
+    "summary_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/suite_summary.json",
+    "summary_csv: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/suite_results.csv",
+    "suite_overview_graph: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/suite_overview.svg",
+    "target_graphs:",
+    "  - #1 slow_math::slow_sum: /Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165310_rank1_slow_math_slow_sum_timing.svg"
+  ],
+  "output_dir": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310",
+  "progress_pct": 100,
+  "result": {
+    "final_ranked_targets": [
+      {
+        "cyclomatic_complexity": 2,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "slow_sum(50000)",
+        "function_name": "slow_sum",
+        "median_ms": 1.167000038549304,
+        "peak_memory_kb": 0.140625,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/slow_math.py"
+      }
+    ],
+    "output_dir": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310",
+    "per_file_finalists": [
+      {
+        "cyclomatic_complexity": 3,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "add_digits(987654321)",
+        "function_name": "add_digits",
+        "median_ms": 0.001125037670135498,
+        "peak_memory_kb": 0.482421875,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/digit_math.py"
+      },
+      {
+        "cyclomatic_complexity": 4,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "has_duplicates([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 199])",
+        "function_name": "has_duplicates",
+        "median_ms": 0.45479193795472383,
+        "peak_memory_kb": 1.703125,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/duplicate_scan.py"
+      },
+      {
+        "cyclomatic_complexity": 3,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "clamp(1, 1, 1)",
+        "function_name": "clamp",
+        "median_ms": 7.646041922271252e-05,
+        "peak_memory_kb": 0.0,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/fast_math.py"
+      },
+      {
+        "cyclomatic_complexity": 2,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "slow_sum(50000)",
+        "function_name": "slow_sum",
+        "median_ms": 1.167000038549304,
+        "peak_memory_kb": 0.140625,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/slow_math.py"
+      }
+    ],
+    "ranking": [
+      {
+        "cyclomatic_complexity": 2,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "slow_sum(50000)",
+        "function_name": "slow_sum",
+        "median_ms": 1.167000038549304,
+        "peak_memory_kb": 0.140625,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/slow_math.py"
+      },
+      {
+        "cyclomatic_complexity": 4,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "has_duplicates([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 199])",
+        "function_name": "has_duplicates",
+        "median_ms": 0.45479193795472383,
+        "peak_memory_kb": 1.703125,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/duplicate_scan.py"
+      },
+      {
+        "cyclomatic_complexity": 3,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "add_digits(987654321)",
+        "function_name": "add_digits",
+        "median_ms": 0.001125037670135498,
+        "peak_memory_kb": 0.482421875,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/digit_math.py"
+      },
+      {
+        "cyclomatic_complexity": 3,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "clamp_step(3, 0, 10)",
+        "function_name": "clamp_step",
+        "median_ms": 0.000125030055642128,
+        "peak_memory_kb": 0.0,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/slow_math.py"
+      },
+      {
+        "cyclomatic_complexity": 3,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "clamp(1, 1, 1)",
+        "function_name": "clamp",
+        "median_ms": 7.646041922271252e-05,
+        "peak_memory_kb": 0.0,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/fast_math.py"
+      },
+      {
+        "cyclomatic_complexity": 2,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "first_value([1, 2, 3])",
+        "function_name": "first_value",
+        "median_ms": 0.00016600824892520905,
+        "peak_memory_kb": 0.03125,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/duplicate_scan.py"
+      },
+      {
+        "cyclomatic_complexity": 1,
+        "discovered_test_count": 1,
+        "discovered_test_files": [
+          "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/tests/test_ranked_suite.py"
+        ],
+        "function_call": "is_even(2)",
+        "function_name": "is_even",
+        "median_ms": 0.000125030055642128,
+        "peak_memory_kb": 0.0,
+        "source_file": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/digit_math.py"
+      }
+    ],
+    "runner_stderr": "",
+    "runner_stdout": "[1/1] rank=1 slow_math::slow_sum\n  status=pass ranked_ms=1.167000 speedup=11085.296x graph=/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165310_rank1_slow_math_slow_sum_timing.svg\n\nsuite_name: pitch-ranked-file-suite\nsource_root: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo\npass_count: 1/1\nranking_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/ranking.json\nper_file_finalists_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/per_file_finalists.json\nfinal_ranked_targets_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/final_ranked_targets.json\nsummary_json: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/suite_summary.json\nsummary_csv: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/suite_results.csv\nsuite_overview_graph: /Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/suite_overview.svg\ntarget_graphs:\n  - #1 slow_math::slow_sum: /Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165310_rank1_slow_math_slow_sum_timing.svg",
+    "success": true,
+    "suite_overview_svg_base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5MjAiIGhlaWdodD0iMjEwIiB2aWV3Qm94PSIwIDAgOTIwIDIxMCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJSaW5ndGFpbCByYW5rZWQgZmlsZSBzdWl0ZSBvdmVydmlldyI+CjxyZWN0IHdpZHRoPSI5MjAiIGhlaWdodD0iMjEwIiBmaWxsPSIjMGYxNzJhIiByeD0iMTgiIC8+Cjx0ZXh0IHg9IjI4IiB5PSIzOCIgZmlsbD0iI2Y4ZmFmYyIgZm9udC1zaXplPSIyMiIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXdlaWdodD0iNzAwIj5waXRjaC1yYW5rZWQtZmlsZS1zdWl0ZTwvdGV4dD4KPHRleHQgeD0iMjgiIHk9IjY0IiBmaWxsPSIjY2JkNWUxIiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPnBhc3MgMS8xIHwgYXZnIHNwZWVkdXAgMTEwODUuMzB4PC90ZXh0Pgo8dGV4dCB4PSIyOCIgeT0iMTA4IiBmaWxsPSIjZTJlOGYwIiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI2MDAiPiMxIHNsb3dfbWF0aDo6c2xvd19zdW08L3RleHQ+Cjx0ZXh0IHg9IjI4IiB5PSIxMjYiIGZpbGw9IiM5NGEzYjgiIGZvbnQtc2l6ZT0iMTEiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiI+cmFua2VkIDEuMTY3MDAwIG1zPC90ZXh0Pgo8cmVjdCB4PSIyNjAiIHk9Ijk0IiB3aWR0aD0iNTIwLjAiIGhlaWdodD0iMTQiIGZpbGw9IiNlZjQ0NDQiIHJ4PSI2IiAvPgo8cmVjdCB4PSIyNjAiIHk9IjExNiIgd2lkdGg9IjE2LjAiIGhlaWdodD0iMTQiIGZpbGw9IiMyMmM1NWUiIHJ4PSI2IiAvPgo8dGV4dCB4PSI3OTYuMCIgeT0iMTA2IiBmaWxsPSIjZmVjYWNhIiBmb250LXNpemU9IjEyIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPjEuMTgyMzU0NTIxMCBtczwvdGV4dD4KPHRleHQgeD0iMjkyLjAiIHk9IjEyOCIgZmlsbD0iI2JiZjdkMCIgZm9udC1zaXplPSIxMiIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIj4wLjAwMDEwNjY1OTcgbXM8L3RleHQ+Cjwvc3ZnPg==",
+    "summary": {
+      "average_speedup": 11085.29578694608,
+      "average_time_saved_pct": 99.99097904089147,
+      "fail_count": 0,
+      "output_dir": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310",
+      "pass_count": 1,
+      "results": [
+        {
+          "baseline_time_ms": 1.1823545210063457,
+          "error": "",
+          "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo/slow_math.py",
+          "function_call": "slow_sum(50000)",
+          "function_name": "slow_sum",
+          "graph_svg_base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI3NjAiIGhlaWdodD0iMjYwIiB2aWV3Qm94PSIwIDAgNzYwIDI2MCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJSaW5ndGFpbCBSYW5rZWQgU3VpdGU6ICMxIHNsb3dfbWF0aDo6c2xvd19zdW0iPgogIDxyZWN0IHdpZHRoPSI3NjAiIGhlaWdodD0iMjYwIiBmaWxsPSIjMGYxNzJhIiByeD0iMTgiIC8+CiAgPHRleHQgeD0iMjgiIHk9IjM4IiBmaWxsPSIjZjhmYWZjIiBmb250LXNpemU9IjIyIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI3MDAiPlJpbmd0YWlsIFJhbmtlZCBTdWl0ZTogIzEgc2xvd19tYXRoOjpzbG93X3N1bTwvdGV4dD4KICA8dGV4dCB4PSIyOCIgeT0iNjQiIGZpbGw9IiNjYmQ1ZTEiIGZvbnQtc2l6ZT0iMTQiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiI+c3BlZWR1cCAxMTA4NS4zMHggIHwgIHRpbWUgc2F2ZWQgMTAwLjAlPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIxMTIiIGZpbGw9IiNlMmU4ZjAiIGZvbnQtc2l6ZT0iMTYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9IjYwMCI+QmFzZWxpbmU8L3RleHQ+CiAgPHJlY3QgeD0iMTQwIiB5PSI5MiIgd2lkdGg9IjUyMC4wIiBoZWlnaHQ9IjI4IiBmaWxsPSIjZWY0NDQ0IiByeD0iOCIgLz4KICA8dGV4dCB4PSI2NzYuMCIgeT0iMTExIiBmaWxsPSIjZmVjYWNhIiBmb250LXNpemU9IjE0IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiPjEuMTgyMzU0NTIxMCBtczwvdGV4dD4KICA8dGV4dCB4PSIyOCIgeT0iMTcwIiBmaWxsPSIjZTJlOGYwIiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSI2MDAiPk9wdGltaXplZDwvdGV4dD4KICA8cmVjdCB4PSIxNDAiIHk9IjE1MCIgd2lkdGg9IjE2LjAiIGhlaWdodD0iMjgiIGZpbGw9IiMyMmM1NWUiIHJ4PSI4IiAvPgogIDx0ZXh0IHg9IjE3Mi4wIiB5PSIxNjkiIGZpbGw9IiNiYmY3ZDAiIGZvbnQtc2l6ZT0iMTQiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiI+MC4wMDAxMDY2NTk3IG1zPC90ZXh0PgogIDx0ZXh0IHg9IjI4IiB5PSIyMjYiIGZpbGw9IiM5NGEzYjgiIGZvbnQtc2l6ZT0iMTMiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiI+R2VuZXJhdGVkIGJ5IFJpbmd0YWlsIGZyb20gcmVjb3JkZWQgYmFzZWxpbmUgYW5kIG9wdGltaXplZCBleGVjdXRpb24gdGltaW5ncy48L3RleHQ+Cjwvc3ZnPgo=",
+          "improvement_ratio": 11085.29578694608,
+          "median_ms_ranked": 1.167000038549304,
+          "name": "slow_math::slow_sum",
+          "optimized_code": "def slow_sum(n: int = 50000) -> int:\n    if n <= 0:\n        return 0\n    return n * (n - 1) // 2\n\n\ndef clamp_step(value: int = 3, low: int = 0, high: int = 10) -> int:\n    if value < low:\n        return low\n    if value > high:\n        return high\n    return value\n",
+          "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_file_suite_runs/pitch-ranked-file-suite_20260315_165310/optimized_code/01_slow_math_slow_sum.py",
+          "optimized_time_ms": 0.00010665971785783768,
+          "original_code": "def slow_sum(n: int = 50000) -> int:\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n\n\ndef clamp_step(value: int = 3, low: int = 0, high: int = 10) -> int:\n    if value < low:\n        return low\n    if value > high:\n        return high\n    return value\n",
+          "rank": 1,
+          "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-slow_sum_20260315_165336.jsonl",
+          "status": "pass",
+          "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165310_rank1_slow_math_slow_sum_summary.json",
+          "termination_reason": "execution time within target",
+          "time_saved_pct": 99.99097904089147,
+          "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-ranked-file-suite_20260315_165310_rank1_slow_math_slow_sum_timing.svg"
+        }
+      ],
+      "source_root": "/Users/colingordon/eecs449/ringtail/benchmarks/ranked_pitch_repo",
+      "suite_name": "pitch-ranked-file-suite",
+      "target_count": 1
+    }
+  },
+  "stage": "Benchmark run finished",
+  "status": "succeeded",
+  "updated_at": "2026-03-15T20:54:14.483912Z"
+}

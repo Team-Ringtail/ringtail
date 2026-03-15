@@ -60,6 +60,7 @@ def main() -> int:
     tests_root = str(Path(args.tests_root).expanduser().resolve())
     suite_name = "pitch-ranked-file-suite"
     output_dir = _resolve_output_dir(args.output_dir, suite_name)
+    run_label = output_dir.name
     optimized_dir = output_dir / "optimized_code"
     optimized_dir.mkdir(parents=True, exist_ok=True)
 
@@ -78,6 +79,7 @@ def main() -> int:
             entry,
             rank=idx,
             suite_name=suite_name,
+            run_label=run_label,
             server_url=args.server_url,
             tests_root=tests_root,
             config_name=str(args.config_name),
@@ -162,6 +164,7 @@ def _run_target(
     *,
     rank: int,
     suite_name: str,
+    run_label: str,
     server_url: str,
     tests_root: str,
     config_name: str,
@@ -181,7 +184,7 @@ def _run_target(
         }
     }
     response = _unwrap_function_response(_post_json(server_url, "/function/optimize_sync", payload))
-    artifact_prefix = f"{suite_name}_rank{rank}_{Path(file_path).stem}_{function_name}"
+    artifact_prefix = f"{run_label}_rank{rank}_{Path(file_path).stem}_{function_name}"
     artifacts = create_optimization_artifacts(
         response,
         artifact_prefix=artifact_prefix,
