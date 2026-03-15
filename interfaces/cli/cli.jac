@@ -4,7 +4,8 @@ Command-line interface for Ringtail
 
 import from src.core.discovery {
     build_function_input_from_file,
-    discover_functions_in_file
+    discover_functions_in_file,
+    build_function_input_from_replay_script
 }
 import from src.core.optimization_loop { run_optimization }
 import from src.core.ranker { rank_functions_in_file }
@@ -107,4 +108,21 @@ def:pub discover_and_rank_file(
     limit: int = 10
 ) -> list {
     return rank_functions_in_file(file_path, tests_root, limit);
+}
+
+
+def:pub inspect_replay_function(
+    file_path: str,
+    function_name: str,
+    script_path: str,
+    tests_root: str = "tests",
+    analysis_mode: str | None = None
+) -> dict {
+    return build_function_input_from_replay_script(
+        file_path,
+        function_name,
+        script_path,
+        tests_root,
+        analysis_mode
+    );
 }

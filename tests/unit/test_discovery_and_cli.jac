@@ -5,9 +5,10 @@ import tempfile;
 
 import from src.core.discovery {
     build_function_input_from_file,
-    discover_functions_in_file
+    discover_functions_in_file,
+    build_function_input_from_replay_script
 }
-import from interfaces.cli.cli { inspect_file_function, optimize_file_function }
+import from interfaces.cli.cli { inspect_file_function, optimize_file_function, inspect_replay_function }
 
 
 def _write(path: str, content: str) -> None {
@@ -113,6 +114,62 @@ test "optimize_file_function can optimize directly from file path" {
         assert result["iteration_number"] >= 0;
         assert "baseline_metrics" in result;
     } finally {
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "build_function_input_from_replay_script captures replay cases" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_input_");
+    try {
+        module_path = os.path.join(tmp_dir, "math_ops.py");
+        script_path = os.path.join(tmp_dir, "drive_math_ops.py");
+        _write(
+            module_path,
+            "def add(a: int, b: int):\n    return a + b\n"
+        );
+        _write(
+            script_path,
+            "from math_ops import add\n\nadd(1, 2)\nadd(4, 5)\n"
+        );
+
+        result = build_function_input_from_replay_script(module_path, "add", script_path, os.path.join(tmp_dir, "tests"), None);
+
+        assert result["function_name"] == "add";
+        assert len(result["test_cases"]) == 2;
+        assert result["test_cases"][0]["call"] == "add(1, 2)";
+        assert result["test_cases"][0]["expected"] == "3";
+        assert result["extra"]["replay_trace"]["trace_count"] == 2;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "inspect_replay_function exposes replay-derived input" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_cli_");
+    try {
+        module_path = os.path.join(tmp_dir, "echoer.py");
+        script_path = os.path.join(tmp_dir, "drive_echoer.py");
+        _write(
+            module_path,
+            "def echo(x: int):\n    return x\n"
+        );
+        _write(
+            script_path,
+            "from echoer import echo\n\necho(7)\n"
+        );
+
+        result = inspect_replay_function(module_path, "echo", script_path);
+
+        assert result["function_call"] == "echo(7)";
+        assert len(result["test_cases"]) == 1;
+        assert result["test_cases"][0]["expected"] == "7";
+    } finally {
+        os.remove(script_path);
         os.remove(module_path);
         os.rmdir(tmp_dir);
     }

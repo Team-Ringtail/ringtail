@@ -7,6 +7,7 @@ call inference, and heuristic pytest-style test file discovery.
 
 import os;
 import re;
+import importlib;
 import from src.utils.code_parser { list_functions, parse_function }
 
 
@@ -198,4 +199,35 @@ def:pub build_function_input_from_file(
             "discovered_function": function_info
         }
     };
+}
+
+
+def:pub build_function_input_from_replay_script(
+    file_path: str,
+    function_name: str,
+    script_path: str,
+    tests_root: str = "tests",
+    analysis_mode: str | None = None
+) -> dict {
+    input = build_function_input_from_file(file_path, function_name, None, tests_root, analysis_mode);
+    if "error" in input {
+        return input;
+    }
+
+    mod = importlib.import_module("src.core.replay_tracer");
+    trace_fn = getattr(mod, "trace_replay_cases_from_script");
+    trace_result = trace_fn(file_path, function_name, script_path);
+    if not trace_result.get("success", False) {
+        input["extra"]["replay_trace"] = trace_result;
+        return input;
+    }
+
+    replay_cases = trace_result.get("test_cases", []);
+    input["test_cases"] = replay_cases;
+    if len(replay_cases) > 0 {
+        input["function_call"] = replay_cases[0]["call"];
+    }
+    input["extra"]["replay_trace"] = trace_result;
+    input["extra"]["replay_script"] = os.path.abspath(script_path);
+    return input;
 }
