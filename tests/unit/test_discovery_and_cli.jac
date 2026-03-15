@@ -8,7 +8,8 @@ import from src.core.discovery {
     discover_functions_in_file,
     build_function_input_from_replay_script,
     build_replay_inputs_from_script,
-    build_replay_inputs_from_directory
+    build_replay_inputs_from_directory,
+    infer_replay_source_files
 }
 import from interfaces.cli.cli {
     inspect_file_function,
@@ -388,6 +389,40 @@ test "build_replay_inputs_from_directory captures observed functions across file
 }
 
 
+test "infer_replay_source_files narrows replay candidates to imported modules" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_infer_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "math_a.py");
+        module_b = os.path.join(pkg_dir, "math_b.py");
+        unused_module = os.path.join(pkg_dir, "unused_mod.py");
+        script_path = os.path.join(tmp_dir, "drive_infer.py");
+        _write(module_a, "def add(a: int, b: int):\n    return a + b\n");
+        _write(module_b, "def mul(a: int, b: int):\n    return a * b\n");
+        _write(unused_module, "def hidden(x: int):\n    return x - 1\n");
+        _write(
+            script_path,
+            "from pkg.math_a import add\nfrom pkg.math_b import mul\n\nadd(1, 2)\nmul(3, 4)\n"
+        );
+
+        inferred = infer_replay_source_files(tmp_dir, script_path);
+
+        assert len(inferred) == 2;
+        assert module_a in inferred;
+        assert module_b in inferred;
+        assert unused_module not in inferred;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.remove(unused_module);
+        os.rmdir(pkg_dir);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
 test "inspect_replay_repo summarizes replay-backed repo candidates" {
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_cli_");
     try {
@@ -406,6 +441,8 @@ test "inspect_replay_repo summarizes replay-backed repo candidates" {
         result = inspect_replay_repo(tmp_dir, script_path);
 
         assert result["candidate_count"] == 2;
+        assert result["source_selection_mode"] == "inferred_imports";
+        assert len(result["inferred_source_files"]) == 2;
         assert len(result["observed_source_files"]) == 2;
         assert len(result["candidates"]) == 2;
         assert result["replay_trace"]["total_trace_count"] == 3;
@@ -443,6 +480,39 @@ test "optimize_best_replay_in_repo selects best replay-backed repo target" {
         assert "slow_math.py" in result["selected_source_file"];
         assert result["test_passed"] is True;
         assert result["replay_trace_count"] >= 2;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.rmdir(pkg_dir);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "optimize_best_replay_in_repo uses ranker when replay counts tie" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_tie_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "fast_math.py");
+        module_b = os.path.join(pkg_dir, "slow_math.py");
+        script_path = os.path.join(tmp_dir, "drive_repo_tie.py");
+        _write(module_a, "def fast_add(a: int, b: int):\n    return a + b\n");
+        _write(
+            module_b,
+            "def slow_sum(n: int):\n    total = 0\n    for i in range(n):\n        for j in range(n):\n            total += i + j\n    return total\n"
+        );
+        _write(
+            script_path,
+            "from pkg.fast_math import fast_add\nfrom pkg.slow_math import slow_sum\n\nfast_add(1, 2)\nslow_sum(8)\n"
+        );
+
+        result = optimize_best_replay_in_repo(tmp_dir, script_path);
+
+        assert result["selected_function"] == "slow_sum";
+        assert "slow_math.py" in result["selected_source_file"];
+        assert result["selection_score"] > 0.0;
     } finally {
         os.remove(script_path);
         os.remove(module_a);

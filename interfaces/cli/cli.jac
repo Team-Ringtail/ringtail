@@ -229,6 +229,8 @@ def:pub inspect_replay_repo(
     }
     return {
         "source_files": session.get("source_files", []),
+        "inferred_source_files": session.get("inferred_source_files", []),
+        "source_selection_mode": session.get("source_selection_mode", ""),
         "replay_script": session.get("replay_script", script_path),
         "observed_source_files": session.get("observed_source_files", []),
         "observed_function_keys": session.get("observed_function_keys", []),
@@ -328,6 +330,15 @@ def:pub optimize_best_replay_in_repo(
     config_name: str | None = None,
     analysis_mode: str | None = None
 ) -> dict {
+    ranked = rank_replay_candidates_in_directory(source_root, script_path, tests_root, 1);
+    if len(ranked) == 0 {
+        return _error_result("Replay trace captured no replay-backed repo candidates");
+    }
+
+    top_entry = ranked[0];
+    target_source = str(top_entry.get("source_file", ""));
+    target_function = str(top_entry.get("function_name", ""));
+
     session = build_replay_inputs_from_directory(
         source_root,
         script_path,
@@ -335,27 +346,21 @@ def:pub optimize_best_replay_in_repo(
         analysis_mode
     );
     candidates = session.get("candidate_inputs", []);
-    if len(candidates) == 0 {
-        return _error_result("Replay trace captured no replay-backed repo candidates");
-    }
-
     selected_input = candidates[0];
-    selected_name = selected_input.get("function_name", "");
-    selected_source = selected_input.get("extra", {}).get("source_file", "");
-    selected_trace_count = int(selected_input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
     for input in candidates {
-        trace_count = int(input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
-        if trace_count > selected_trace_count {
+        if (
+            str(input.get("function_name", "")) == target_function
+            and str(input.get("extra", {}).get("source_file", "")) == target_source
+        ) {
             selected_input = input;
-            selected_name = input.get("function_name", "");
-            selected_source = input.get("extra", {}).get("source_file", "");
-            selected_trace_count = trace_count;
+            break;
         }
     }
 
     result = run_optimization(selected_input, criteria_name, config_name);
-    result["selected_function"] = selected_name;
-    result["selected_source_file"] = selected_source;
-    result["replay_trace_count"] = selected_trace_count;
+    result["selected_function"] = target_function;
+    result["selected_source_file"] = target_source;
+    result["replay_trace_count"] = int(top_entry.get("replay_trace_count", 0));
+    result["selection_score"] = float(top_entry.get("selection_score", 0.0));
     return result;
 }

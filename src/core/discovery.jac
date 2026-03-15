@@ -59,6 +59,56 @@ def:pub discover_python_files(root_dir: str) -> list {
 }
 
 
+def _module_to_file_candidates(source_root: str, module_name: str) -> list {
+    candidates: list = [];
+    module_path = module_name.replace(".", os.sep);
+    file_candidate = os.path.abspath(os.path.join(source_root, module_path + ".py"));
+    package_candidate = os.path.abspath(os.path.join(source_root, module_path, "__init__.py"));
+    if os.path.exists(file_candidate) {
+        candidates.append(file_candidate);
+    }
+    if os.path.exists(package_candidate) and package_candidate not in candidates {
+        candidates.append(package_candidate);
+    }
+    return candidates;
+}
+
+
+def:pub infer_replay_source_files(source_root: str, script_path: str) -> list {
+    abs_root = os.path.abspath(source_root);
+    content = _read_file(script_path);
+    inferred: list = [];
+
+    import_matches = re.findall(r"(?m)^\s*import\s+([A-Za-z0-9_.,\s]+)", content);
+    for match in import_matches {
+        for raw_module in str(match).split(",") {
+            module_name = str(raw_module).strip();
+            if " as " in module_name {
+                module_name = module_name.split(" as ")[0].strip();
+            }
+            if module_name == "" {
+                continue;
+            }
+            for candidate in _module_to_file_candidates(abs_root, module_name) {
+                inferred = _maybe_add_match(inferred, candidate);
+            }
+        }
+    }
+
+    from_matches = re.findall(r"(?m)^\s*from\s+([A-Za-z0-9_.]+)\s+import\s+", content);
+    for module_name in from_matches {
+        if str(module_name).startswith(".") {
+            continue;
+        }
+        for candidate in _module_to_file_candidates(abs_root, str(module_name)) {
+            inferred = _maybe_add_match(inferred, candidate);
+        }
+    }
+
+    return inferred;
+}
+
+
 def _render_literal(value: any) -> str {
     if value is None {
         return "None";
@@ -437,11 +487,21 @@ def:pub build_replay_inputs_from_directory(
     tests_root: str = "tests",
     analysis_mode: str | None = None
 ) -> dict {
-    source_files = discover_python_files(source_root);
-    return build_replay_inputs_from_files(
+    inferred_source_files = infer_replay_source_files(source_root, script_path);
+    source_files = inferred_source_files;
+    selection_mode = "inferred_imports";
+    if len(source_files) == 0 {
+        source_files = discover_python_files(source_root);
+        selection_mode = "directory_scan";
+    }
+
+    result = build_replay_inputs_from_files(
         source_files,
         script_path,
         tests_root,
         analysis_mode
     );
+    result["inferred_source_files"] = inferred_source_files;
+    result["source_selection_mode"] = selection_mode;
+    return result;
 }

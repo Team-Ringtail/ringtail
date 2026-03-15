@@ -196,3 +196,36 @@ test "discover_and_rank_replay_repo exposes repo replay ranking" {
         os.rmdir(tmp_dir);
     }
 }
+
+
+test "rank_replay_candidates_in_directory prefers imported modules over full scan" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_import_rank_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        imported_mod = os.path.join(pkg_dir, "used_mod.py");
+        unused_mod = os.path.join(pkg_dir, "unused_mod.py");
+        script_path = os.path.join(tmp_dir, "drive_repo_import_rank.py");
+        _write(imported_mod, "def used(x: int):\n    return x + 1\n");
+        _write(
+            unused_mod,
+            "def very_slow(n: int = 100):\n    total = 0\n    for i in range(n):\n        for j in range(n):\n            total += i + j\n    return total\n"
+        );
+        _write(
+            script_path,
+            "from pkg.used_mod import used\n\nused(1)\nused(2)\n"
+        );
+
+        ranked = rank_replay_candidates_in_directory(tmp_dir, script_path, os.path.join(tmp_dir, "tests"), 5);
+
+        assert len(ranked) == 1;
+        assert ranked[0]["function_name"] == "used";
+        assert "used_mod.py" in ranked[0]["source_file"];
+    } finally {
+        os.remove(script_path);
+        os.remove(imported_mod);
+        os.remove(unused_mod);
+        os.rmdir(pkg_dir);
+        os.rmdir(tmp_dir);
+    }
+}

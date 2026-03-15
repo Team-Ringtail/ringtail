@@ -45,10 +45,11 @@ def _insert_ranked(entries: list, entry: dict) -> list {
 
 def _replay_ranking_score(entry: dict) -> float {
     replay_component = float(entry.get("replay_trace_count", 0)) * 10000.0;
+    unique_call_component = float(entry.get("replay_unique_call_count", 0)) * 1000.0;
     runtime_component = float(entry.get("median_ms", 0.0)) * 1000.0;
     complexity_component = float(entry.get("cyclomatic_complexity", 0));
     test_bonus = float(entry.get("discovered_test_count", 0)) * 100.0;
-    return replay_component + runtime_component + complexity_component + test_bonus;
+    return replay_component + unique_call_component + runtime_component + complexity_component + test_bonus;
 }
 
 
@@ -172,6 +173,7 @@ def:pub rank_replay_candidates_in_file(
             "replay_partial_success": bool(replay_trace.get("partial_success", False)),
             "replay_script": replay_inputs.get("replay_script", script_path)
         };
+        entry["selection_score"] = _replay_ranking_score(entry);
         ranked = _insert_replay_ranked(ranked, entry);
     }
 
@@ -231,6 +233,7 @@ def:pub rank_replay_candidates_in_directory(
             "replay_partial_success": bool(replay_trace.get("partial_success", False)),
             "replay_script": replay_inputs.get("replay_script", script_path)
         };
+        entry["selection_score"] = _replay_ranking_score(entry);
         ranked = _insert_replay_ranked(ranked, entry);
     }
 
