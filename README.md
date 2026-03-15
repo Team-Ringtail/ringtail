@@ -150,9 +150,15 @@ For AI features, set LLM API keys:
 export RINGTAIL_ANTHROPIC_API_KEY="your-key-here"
 # Optional: override the shipped Anthropic model default
 export RINGTAIL_DEFAULT_LLM_MODEL="claude-opus-4-6"
-# For repo-agent clone/push/PR workflows
-export RINGTAIL_GITHUB_TOKEN="your-github-token"
+# Repo-agent auth/config: one env var for Ringtail
+export RINGTAIL_REPO_AGENT_CONFIG='{"app_id":"123456","app_slug":"your-app-slug","private_key_path":"/path/to/github-app.pem","installation_id":12345678}'
+# Or token mode:
+# export RINGTAIL_REPO_AGENT_CONFIG='{"token":"your-github-token"}'
+# Blaxel execution: one env var for Blaxel
+export BLAXEL_API_KEY="your-blaxel-key"
 ```
+
+Legacy `RINGTAIL_GITHUB_*` / `GITHUB_*` env vars still work as fallbacks, but the intended setup is now one Ringtail env plus one Blaxel env.
 
 ## API Endpoints
 
@@ -172,11 +178,15 @@ When running `jac start main.jac`, the following endpoints are automatically ava
 - **POST** `/run_repo_agent_sync` - Run the CLI-first repo agent synchronously
 - **POST** `/submit_repo_agent_job` - Start an async repo-agent job
 - **GET** `/get_repo_agent_job?job_id=<id>` - Poll repo-agent status/result
+- **GET** `/get_github_app_install_info?state=<state>` - Return GitHub App install URL/config state
+- **GET** `/handle_github_app_install_callback?...` - Validate a GitHub App installation callback payload
+- **POST** `/verify_github_repo_access` - Verify auth can access a repo before starting a job
 - **POST** `/benchmark` - Run benchmark comparison
 
 Async jobs are intentionally minimal right now:
-- Job state is kept in memory in the server process.
-- Jobs do not survive server restarts.
+- Job state is persisted under `logs/async_jobs`.
+- Finished jobs survive process restarts.
+- Jobs that were in progress during a restart are recovered as `interrupted`.
 - Completed job payloads include `run_id` and `run_log_path` so a CLI or web UI can link to detailed logs.
 
 ### Repo Agent Flow
@@ -189,20 +199,87 @@ The first repo-agent milestone is CLI-first and request-driven:
   "base_branch": "main",
   "prompt": "make this faster",
   "replay_script": "scripts/drive_hot_path.py",
-  "test_command": "python -m pytest tests",
   "max_targets": 3,
   "publish_pr": true,
+  "auth": {"installation_id": 12345678},
   "backend_config": {"backend": "blaxel"}
 }
 ```
 
 Current behavior:
 - Clones the repo to a working checkout.
+- Supports either env token auth or GitHub App installation auth.
 - Ranks likely targets from replay evidence when `replay_script` is provided, otherwise from repo-wide directory ranking.
 - Fans out optimization across the top targets in parallel.
-- Validates the winning result with the supplied repo test command.
+- Can orchestrate candidate work as durable child jobs when backend fan-out is enabled.
+- Can run ranking/evaluation workers inside Blaxel sandboxes when `backend_config.backend` is `blaxel`.
+- Auto-detects basic Python setup/test commands when the caller does not supply them.
+- Validates the winning result with the detected or supplied repo test command.
 - Opens one best PR when `publish_pr` is true and GitHub auth is available.
 - Returns a PR preview instead of publishing when `publish_pr` is false.
+
+Optional live GitHub App smoke test:
+
+```bash
+RINGTAIL_REPO_AGENT_CONFIG='{"app_id":"...","private_key_path":"/path/to/key.pem","installation_id":12345678}' \
+RINGTAIL_GITHUB_SMOKE_REPO_URL=https://github.com/org/repo.git \
+python -m pytest tests/optimization/with_llm/test_github_app_smoke.py
+```
+
+### GitHub Testing Checklist
+
+If you want to help test the GitHub flow today, the fastest useful path is:
+
+1. Pick a small public Python repo with a simple `pytest` command.
+2. Install the Ringtail GitHub App onto that repo or org.
+3. Set:
+   - `RINGTAIL_REPO_AGENT_CONFIG`
+   - `BLAXEL_API_KEY` if you want true remote execution
+4. First verify auth only:
+
+```bash
+jac start main.jac
+# then call /get_github_app_install_info and /verify_github_repo_access
+```
+
+5. Then run a dry repo-agent job with `publish_pr: false` against that repo.
+6. Once that succeeds, rerun with `publish_pr: true` so we can validate branch push + PR creation.
+
+### Repo Benchmark Scaffold
+
+For pitch/demo graphs across a repo suite, use `benchmarks/repo_suite_runner.py`.
+
+Example manifest:
+
+```json
+{
+  "repos": [
+    {
+      "name": "sample-python-repo",
+      "repo_url": "https://github.com/org/repo.git",
+      "prompt": "make this faster",
+      "base_branch": "main",
+      "test_command": "python -m pytest tests",
+      "backend_config": {"backend": "blaxel"}
+    }
+  ]
+}
+```
+
+Run it with:
+
+```bash
+python benchmarks/repo_suite_runner.py path/to/repo_suite.json
+```
+
+This emits:
+- `benchmarks/repo_suite_results.json`
+- `benchmarks/repo_suite_results.csv`
+
+The CSV is meant to be dropped directly into a plotting notebook or spreadsheet for graphs like:
+- repo vs `improvement_ratio`
+- repo vs validation pass/fail
+- repo vs significant/non-significant result
 
 ## Development
 

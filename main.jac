@@ -54,6 +54,44 @@ def:pub get_repo_agent_job(job_id: str) -> dict {
     return get_optimization_job(job_id);
 }
 
+
+def:pub get_github_app_install_info(state: str = "") -> dict {
+    mod = importlib.import_module("src.core.github_repo_service");
+    install_info = getattr(mod, "get_github_app_install_info");
+    return install_info(state if state != "" else None, None);
+}
+
+
+def:pub handle_github_app_install_callback(
+    installation_id: int,
+    setup_action: str = "",
+    state: str = ""
+) -> dict {
+    mod = importlib.import_module("src.core.github_repo_service");
+    callback = getattr(mod, "handle_github_app_install_callback");
+    return callback(
+        installation_id,
+        setup_action if setup_action != "" else None,
+        state if state != "" else None,
+        None
+    );
+}
+
+
+def:pub verify_github_repo_access(request: dict) -> dict {
+    mod = importlib.import_module("src.core.github_repo_service");
+    verify_access = getattr(mod, "verify_repo_access");
+    auth = request.get("auth", {});
+    if auth is None or not isinstance(auth, dict) {
+        auth = {};
+    }
+    return verify_access(
+        str(request.get("repo_url", "")),
+        dict(auth),
+        request.get("token", None)
+    );
+}
+
 # Walker example - also becomes a REST endpoint at /walker/test_walker  
 walker test_walker {
     has message: str = "Walker is working";

@@ -235,17 +235,22 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
 - **Web/API (`main.jac`)**
   - `optimize_sync(request)` runs a normalized optimization request synchronously.
   - `submit_optimization_job(request)` starts an async optimization job and returns a `job_id`.
-  - `get_optimization_job(job_id)` returns in-memory job status plus the terminal result when finished.
+  - `get_optimization_job(job_id)` returns persisted job status plus the terminal result when finished.
   - `run_repo_agent_sync(request)` runs the repo-agent workflow synchronously.
   - `submit_repo_agent_job(request)` starts an async repo-agent job.
   - `get_repo_agent_job(job_id)` polls repo-agent job state.
-  - Current limitation: async jobs are in-memory and do not survive server restarts.
+  - `get_github_app_install_info(state)` returns the GitHub App install URL/config snapshot for UI handoff.
+  - `handle_github_app_install_callback(...)` validates the installation callback payload and summarizes accessible repos.
+  - `verify_github_repo_access(request)` verifies repo access before starting a repo job.
+  - Current limitation: job state persists, but in-flight jobs interrupted by a restart are recovered as `interrupted` rather than resumed automatically.
 
 - **Repo agent (`src/core/repo_agent.py`, `src/core/github_repo_service.py`, `src/core/repo_workspace.py`)**
   - Clones a repository, ranks likely optimization targets, fans out optimization across top candidates, validates the winner with a repo-local command, and prepares or publishes one PR.
   - Reuses the existing Jac worker path for ranking and per-target optimization.
-  - Uses environment-backed GitHub auth for the first milestone, isolated behind a GitHub service layer so it can later move to a GitHub App install flow.
-  - Supports local validation or Blaxel-backed repo command execution.
+  - Supports both environment-backed token auth and GitHub App installation auth, isolated behind a GitHub service layer.
+  - Detects basic Python repo bootstrap commands (`requirements*.txt`, editable install, pytest layout) when explicit setup/test commands are not provided.
+  - Can fan out candidate optimizations as durable child jobs, which gives the repo workflow explicit per-candidate job IDs and recoverable status.
+  - Supports local validation or Blaxel-backed repo command execution, and can dispatch ranking/evaluation workers through Blaxel-backed remote worker execution.
 
 - **LeetCode benchmarks (`benchmarks/`)**
   - `benchmarks/run_benchmark.py`:
@@ -258,6 +263,9 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
       - Run tests locally or in a Blaxel sandbox.
       - Time baseline vs optimized implementations and compute speedups.
     - Emits a structured JSONL log per run in `logs/`.
+  - `benchmarks/repo_suite_runner.py`:
+    - Runs the repo-agent across a manifest of Python repositories.
+    - Emits JSON and CSV summaries for demo/pitch graphs, including selected target, improvement ratio, significance, validation success, backend, and auth mode.
 
 ---
 
@@ -278,6 +286,8 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
     - `RINGTAIL_OPENAI_API_KEY`
     - `RINGTAIL_ANTHROPIC_API_KEY`
     - `RINGTAIL_DEFAULT_LLM_MODEL` (optional model override; defaults to `claude-opus-4-6`)
+    - `RINGTAIL_GITHUB_TOKEN` for direct token bootstrap
+    - `RINGTAIL_GITHUB_APP_ID`, `RINGTAIL_GITHUB_APP_SLUG`, and `RINGTAIL_GITHUB_APP_PRIVATE_KEY(_PATH)` for GitHub App installation auth
   - This is documented in `AGENTS.md` and enforced by `src/utils/llm_client.{jac,py}`.
 - **Test layout for LLM usage**:
   - Default Jac tests: `jac test tests/unit/` — fast, deterministic, and do not require any LLM or external services.

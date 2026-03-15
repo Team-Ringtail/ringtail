@@ -97,3 +97,27 @@ test "default model resolution honors env override and heuristic profile stays e
         }
     }
 }
+
+
+test "persisted async jobs reload from disk and interrupted jobs are marked" {
+    module = importlib.import_module("src.core.async_jobs");
+    jobs_dir = module.get_jobs_dir();
+    job_path = os.path.join(jobs_dir, "persisted-job.json");
+    try {
+        with open(job_path, "w") as f {
+            f.write(
+                '{"job_id":"persisted-job","status":"running","submitted_at":"2026-03-15T00:00:00Z","started_at":"2026-03-15T00:00:01Z","finished_at":null,"run_id":"persisted-run","run_name":"persisted-run","run_log_path":"logs/persisted-run.jsonl","request_summary":{"operation":"optimize_input"},"error":"","result":null,"pid":1234}'
+            );
+        }
+
+        manager = module.AsyncJobManager();
+        recovered = manager.get_job("persisted-job");
+
+        assert recovered["status"] == "interrupted";
+        assert "restarted" in recovered["error"];
+    } finally {
+        if os.path.exists(job_path) {
+            os.remove(job_path);
+        }
+    }
+}

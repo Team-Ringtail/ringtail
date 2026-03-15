@@ -22,7 +22,8 @@ from src.utils.run_log import LOGS_DIR
 
 _WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 _WORKER_PATH = _WORKSPACE_ROOT / "src" / "core" / "async_optimize_worker.jac"
-_TERMINAL_STATES = {"succeeded", "failed"}
+_JOBS_DIR = Path(os.environ.get("RINGTAIL_ASYNC_JOBS_DIR", Path(LOGS_DIR) / "async_jobs"))
+_TERMINAL_STATES = {"succeeded", "failed", "interrupted"}
 
 
 def _utc_timestamp() -> str:
@@ -31,6 +32,14 @@ def _utc_timestamp() -> str:
 
 def _log_path_for_run_id(run_id: str) -> str:
     return str(Path(LOGS_DIR) / f"{run_id}.jsonl")
+
+
+def _ensure_jobs_dir() -> None:
+    _JOBS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _job_path(job_id: str) -> Path:
+    return _JOBS_DIR / f"{job_id}.json"
 
 
 def _request_summary(request: dict[str, Any]) -> dict[str, Any]:
@@ -47,6 +56,8 @@ def _request_summary(request: dict[str, Any]) -> dict[str, Any]:
         "repo_url": request.get("repo_url"),
         "prompt": request.get("prompt"),
         "max_targets": request.get("max_targets"),
+        "installation_id": request.get("installation_id")
+        or (request.get("auth", {}) if isinstance(request.get("auth"), dict) else {}).get("installation_id"),
     }
 
 
@@ -68,6 +79,8 @@ class AsyncJobManager:
     def __init__(self) -> None:
         self._jobs: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
+        _ensure_jobs_dir()
+        self._load_persisted_jobs()
 
     def submit_job(self, request: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(request, dict):
@@ -99,6 +112,7 @@ class AsyncJobManager:
         }
         with self._lock:
             self._jobs[job_id] = job
+            self._persist_job(job)
 
         thread = threading.Thread(
             target=self._run_job,
@@ -113,6 +127,10 @@ class AsyncJobManager:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
+                persisted = self._read_persisted_job(job_id)
+                if persisted is not None:
+                    self._jobs[job_id] = persisted
+                    return copy.deepcopy(persisted)
                 return {
                     "job_id": job_id,
                     "status": "not_found",
@@ -126,6 +144,7 @@ class AsyncJobManager:
             if job is None:
                 return
             job.update(changes)
+            self._persist_job(job)
 
     def _run_job(self, job_id: str, request: dict[str, Any]) -> None:
         request_file: str | None = None
@@ -190,6 +209,44 @@ class AsyncJobManager:
             if request_file and os.path.exists(request_file):
                 os.remove(request_file)
 
+    def _persist_job(self, job: dict[str, Any]) -> None:
+        path = _job_path(str(job["job_id"]))
+        path.write_text(json.dumps(job, sort_keys=True))
+
+    def _read_persisted_job(self, job_id: str) -> dict[str, Any] | None:
+        path = _job_path(job_id)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            return None
+        if isinstance(data, dict):
+            return data
+        return None
+
+    def _load_persisted_jobs(self) -> None:
+        for path in _JOBS_DIR.glob("*.json"):
+            try:
+                data = json.loads(path.read_text())
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            status = str(data.get("status", ""))
+            if status not in _TERMINAL_STATES:
+                data["status"] = "interrupted"
+                data["finished_at"] = _utc_timestamp()
+                previous_error = str(data.get("error", "")).strip()
+                data["error"] = (
+                    previous_error + "; process restarted before job completed"
+                    if previous_error
+                    else "Process restarted before job completed"
+                )
+                data["pid"] = None
+                path.write_text(json.dumps(data, sort_keys=True))
+            self._jobs[str(data.get("job_id", path.stem))] = data
+
 
 _MANAGER = AsyncJobManager()
 
@@ -204,3 +261,8 @@ def get_job(job_id: str) -> dict[str, Any]:
 
 def is_terminal_status(status: str) -> bool:
     return status in _TERMINAL_STATES
+
+
+def get_jobs_dir() -> str:
+    _ensure_jobs_dir()
+    return str(_JOBS_DIR)
