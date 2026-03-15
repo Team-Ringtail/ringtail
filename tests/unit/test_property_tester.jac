@@ -43,9 +43,10 @@ test "property tests catch behavioral mismatch and expose falsifying example" {
 }
 
 
-test "property tests pass on heuristic rewritten code" {
+test "property tests pass on mock rewritten code" {
     original = "def sum_up(n: int):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n";
     plan = {
+        "backend": "mock",
         "estimated_time_sec": 0.05,
         "estimated_memory_mb": 10.0,
         "steps": ["Reduce loop overhead"],

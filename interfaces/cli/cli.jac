@@ -12,9 +12,11 @@ import from src.core.discovery {
 import from src.core.optimization_loop { run_optimization }
 import from src.core.ranker {
     rank_functions_in_file,
+    rank_functions_in_directory,
     rank_replay_candidates_in_file,
     rank_replay_candidates_in_directory
 }
+import importlib;
 
 
 walker optimize_function {
@@ -170,6 +172,15 @@ def:pub discover_and_rank_file(
     limit: int = 10
 ) -> list {
     return rank_functions_in_file(file_path, tests_root, limit);
+}
+
+
+def:pub discover_and_rank_directory(
+    source_root: str,
+    tests_root: str = "tests",
+    limit: int = 10
+) -> list {
+    return rank_functions_in_directory(source_root, tests_root, limit);
 }
 
 
@@ -427,6 +438,23 @@ def:pub run_optimization_request(request: dict) -> dict {
         return run_optimization(input, criteria_name, config_name);
     }
 
+    if operation == "discover_and_rank_directory" {
+        return discover_and_rank_directory(
+            str(request.get("source_root", "")),
+            str(request.get("tests_root", "tests")),
+            int(request.get("limit", 10))
+        );
+    }
+
+    if operation == "discover_and_rank_replay_repo" {
+        return discover_and_rank_replay_repo(
+            str(request.get("source_root", "")),
+            str(request.get("script_path", "")),
+            str(request.get("tests_root", "tests")),
+            int(request.get("limit", 10))
+        );
+    }
+
     if operation == "optimize_file_function" {
         input = build_function_input_from_file(
             str(request.get("file_path", "")),
@@ -535,6 +563,12 @@ def:pub run_optimization_request(request: dict) -> dict {
         result["replay_trace_count"] = int(top_entry.get("replay_trace_count", 0));
         result["selection_score"] = float(top_entry.get("selection_score", 0.0));
         return result;
+    }
+
+    if operation == "run_repo_agent_job" {
+        mod = importlib.import_module("src.core.repo_agent");
+        run_job = getattr(mod, "run_repo_agent_job");
+        return run_job(request);
     }
 
     return _error_result("Unsupported optimization operation: " + operation);

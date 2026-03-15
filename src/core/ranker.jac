@@ -3,7 +3,7 @@ Lightweight function ranking using existing discovery, profiling, and complexity
 signals. This is intentionally single-file and Python-focused.
 """
 
-import from src.core.discovery { build_function_input_from_file, discover_functions_in_file }
+import from src.core.discovery { build_function_input_from_file, discover_functions_in_file, discover_python_files }
 import from src.core.discovery { build_replay_inputs_from_script }
 import from src.core.discovery { build_replay_inputs_from_directory }
 import from src.core.profiler { profile_code }
@@ -128,6 +128,28 @@ def:pub rank_functions_in_file(
             "source_file": input.get("extra", {}).get("source_file", file_path)
         };
         ranked = _insert_ranked(ranked, entry);
+    }
+
+    if len(ranked) <= limit {
+        return ranked;
+    }
+    return ranked[:limit];
+}
+
+
+def:pub rank_functions_in_directory(
+    source_root: str,
+    tests_root: str = "tests",
+    limit: int = 10
+) -> list {
+    ranked: list = [];
+    source_files = discover_python_files(source_root);
+
+    for source_file in source_files {
+        file_ranked = rank_functions_in_file(source_file, tests_root, limit);
+        for entry in file_ranked {
+            ranked = _insert_ranked(ranked, entry);
+        }
     }
 
     if len(ranked) <= limit {

@@ -236,7 +236,16 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
   - `optimize_sync(request)` runs a normalized optimization request synchronously.
   - `submit_optimization_job(request)` starts an async optimization job and returns a `job_id`.
   - `get_optimization_job(job_id)` returns in-memory job status plus the terminal result when finished.
+  - `run_repo_agent_sync(request)` runs the repo-agent workflow synchronously.
+  - `submit_repo_agent_job(request)` starts an async repo-agent job.
+  - `get_repo_agent_job(job_id)` polls repo-agent job state.
   - Current limitation: async jobs are in-memory and do not survive server restarts.
+
+- **Repo agent (`src/core/repo_agent.py`, `src/core/github_repo_service.py`, `src/core/repo_workspace.py`)**
+  - Clones a repository, ranks likely optimization targets, fans out optimization across top candidates, validates the winner with a repo-local command, and prepares or publishes one PR.
+  - Reuses the existing Jac worker path for ranking and per-target optimization.
+  - Uses environment-backed GitHub auth for the first milestone, isolated behind a GitHub service layer so it can later move to a GitHub App install flow.
+  - Supports local validation or Blaxel-backed repo command execution.
 
 - **LeetCode benchmarks (`benchmarks/`)**
   - `benchmarks/run_benchmark.py`:

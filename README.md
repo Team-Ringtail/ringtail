@@ -150,6 +150,8 @@ For AI features, set LLM API keys:
 export RINGTAIL_ANTHROPIC_API_KEY="your-key-here"
 # Optional: override the shipped Anthropic model default
 export RINGTAIL_DEFAULT_LLM_MODEL="claude-opus-4-6"
+# For repo-agent clone/push/PR workflows
+export RINGTAIL_GITHUB_TOKEN="your-github-token"
 ```
 
 ## API Endpoints
@@ -167,12 +169,40 @@ When running `jac start main.jac`, the following endpoints are automatically ava
 - **POST** `/optimize_sync` - Run a synchronous optimization request
 - **POST** `/submit_optimization_job` - Start an async optimization job
 - **GET** `/get_optimization_job?job_id=<id>` - Poll async job status/result
+- **POST** `/run_repo_agent_sync` - Run the CLI-first repo agent synchronously
+- **POST** `/submit_repo_agent_job` - Start an async repo-agent job
+- **GET** `/get_repo_agent_job?job_id=<id>` - Poll repo-agent status/result
 - **POST** `/benchmark` - Run benchmark comparison
 
 Async jobs are intentionally minimal right now:
 - Job state is kept in memory in the server process.
 - Jobs do not survive server restarts.
 - Completed job payloads include `run_id` and `run_log_path` so a CLI or web UI can link to detailed logs.
+
+### Repo Agent Flow
+
+The first repo-agent milestone is CLI-first and request-driven:
+
+```json
+{
+  "repo_url": "https://github.com/org/repo.git",
+  "base_branch": "main",
+  "prompt": "make this faster",
+  "replay_script": "scripts/drive_hot_path.py",
+  "test_command": "python -m pytest tests",
+  "max_targets": 3,
+  "publish_pr": true,
+  "backend_config": {"backend": "blaxel"}
+}
+```
+
+Current behavior:
+- Clones the repo to a working checkout.
+- Ranks likely targets from replay evidence when `replay_script` is provided, otherwise from repo-wide directory ranking.
+- Fans out optimization across the top targets in parallel.
+- Validates the winning result with the supplied repo test command.
+- Opens one best PR when `publish_pr` is true and GitHub auth is available.
+- Returns a PR preview instead of publishing when `publish_pr` is false.
 
 ## Development
 

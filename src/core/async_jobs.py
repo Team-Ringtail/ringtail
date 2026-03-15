@@ -44,6 +44,9 @@ def _request_summary(request: dict[str, Any]) -> dict[str, Any]:
         "file_path": request.get("file_path"),
         "script_path": request.get("script_path"),
         "source_root": request.get("source_root"),
+        "repo_url": request.get("repo_url"),
+        "prompt": request.get("prompt"),
+        "max_targets": request.get("max_targets"),
     }
 
 

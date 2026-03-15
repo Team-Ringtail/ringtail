@@ -35,6 +35,25 @@ def:pub get_optimization_job(job_id: str) -> dict {
     return get_job(job_id);
 }
 
+
+def:pub run_repo_agent_sync(request: dict) -> dict {
+    payload = dict(request);
+    payload["operation"] = "run_repo_agent_job";
+    return run_optimization_request(payload);
+}
+
+
+def:pub submit_repo_agent_job(request: dict) -> dict {
+    payload = dict(request);
+    payload["operation"] = "run_repo_agent_job";
+    return submit_optimization_job(payload);
+}
+
+
+def:pub get_repo_agent_job(job_id: str) -> dict {
+    return get_optimization_job(job_id);
+}
+
 # Walker example - also becomes a REST endpoint at /walker/test_walker  
 walker test_walker {
     has message: str = "Walker is working";
