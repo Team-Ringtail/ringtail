@@ -359,6 +359,15 @@ def _run_optimize(
             run_log
         );
         last_feedback = None;
+        if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "plan_summary",
+                    backend=str(plan.get("backend", "llm")),
+                    step_count=len(plan.get("steps", [])),
+                    candidate_count=len(plan.get("candidate_plans", [])),
+                    analysis_excerpt=str(plan.get("analysis", ""))[:180]
+                ));
+        }
         
         candidate_plans = enumerate_candidate_plans(plan, candidate_count);
 
@@ -371,6 +380,20 @@ def _run_optimize(
         for candidate_plan in candidate_plans {
             candidate_label = str(candidate_plan.get("label", "candidate_" + str(candidate_idx)));
             candidate_idx = candidate_idx + 1;
+            if run_log is not None {
+                _safe_log(lambda: run_log.event(
+                        "candidate_plan",
+                        iteration=iteration,
+                        candidate_label=candidate_label,
+                        steps=candidate_plan.get("steps", [])
+                    ));
+                _safe_log(lambda: run_log.event(
+                        "codegen_start",
+                        iteration=iteration,
+                        candidate_label=candidate_label,
+                        backend=str(candidate_plan.get("backend", plan.get("backend", "llm")))
+                    ));
+            }
             optimized_code = write_optimized_code(
                 current_source_code,
                 candidate_plan,
@@ -421,6 +444,7 @@ def _run_optimize(
         if best_candidate_eval is None {
             failure_eval = _pick_best_failure(candidate_failures);
             result = failure_eval["result"];
+            result["failure_feedback"] = failure_eval.get("feedback", None);
             result["candidate_count_evaluated"] = len(candidate_plans);
             results = results + [result];
 
@@ -536,8 +560,12 @@ def _run_optimize(
         final_result = dict(results[len(results) - 1]);
         if best_passing_result is not None {
             final_result = dict(best_passing_result);
-        } elif current_source_code is not None and current_source_code != "" {
-            # Prefer returning last known-good code when all iterations failed.
+        } elif (
+            (final_result.get("optimized_code", "") is None or str(final_result.get("optimized_code", "")) == "")
+            and current_source_code is not None and current_source_code != ""
+        ) {
+            # Only fall back to the last known-good code if the failing candidate
+            # did not already provide the rewritten output for inspection.
             final_result["optimized_code"] = current_source_code;
         }
         final_result["baseline_metrics"] = baseline_metrics;

@@ -23,6 +23,7 @@ from src.core.github_repo_service import (
     resolve_github_auth,
     verify_repo_access,
 )
+from src.core.reporting import create_repo_job_artifacts
 from src.core.repo_workspace import detect_repo_bootstrap, run_repo_commands, run_ringtail_worker_request
 
 
@@ -163,6 +164,24 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
         else:
             pull_request["preview_only"] = True
 
+        report_artifacts = create_repo_job_artifacts(
+            {
+                "repo_url": job["repo_url"],
+                "prompt": job["prompt"],
+                "candidate_count": len(ranked_candidates),
+                "evaluated_candidate_count": len(candidate_results),
+                "selected_target": {
+                    "source_file": winner_entry.get("source_file", ""),
+                    "function_name": winner_entry.get("function_name", ""),
+                    "selection_score": winner_entry.get("selection_score", 0.0),
+                },
+                "candidate_summaries": _candidate_summaries(candidate_results),
+                "winner_result": winner_result,
+                "validation_result": validation_result,
+                "pull_request": pull_request,
+            }
+        )
+
         return {
             "success": True,
             "repo_url": job["repo_url"],
@@ -189,12 +208,15 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
             "candidate_summaries": _candidate_summaries(candidate_results),
             "child_jobs": child_jobs,
             "winner_result": winner_result,
+            "summary_stats": report_artifacts,
             "validation_result": validation_result,
             "branch_name": branch_name,
             "commit_sha": commit_sha,
             "artifacts": {
                 "run_log_paths": _run_log_paths(candidate_results),
                 "validation_commands": validation_result.get("commands", []),
+                "summary_json_path": report_artifacts.get("summary_json_path", ""),
+                "timing_graph_path": report_artifacts.get("timing_graph_path", ""),
             },
             "pull_request": pull_request,
         }

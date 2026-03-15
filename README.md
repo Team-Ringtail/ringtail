@@ -88,10 +88,17 @@ Web UI:
 CLI:
 
 ```bash
-ringtail repo submit /path/to/repo "make this faster"
-ringtail repo status <job-id>
+ringtail repo run /path/to/repo "make this faster" --test-command "python -m pytest tests"
+ringtail repo run /path/to/repo "make this faster" --test-command "python -m pytest tests" --verbose
+ringtail repo submit /path/to/repo "make this faster" --wait
+ringtail repo watch <job-id>
+ringtail repo watch <job-id> --verbose
+ringtail repo logs <job-id>
 ringtail file optimize /abs/path/to/file.py function_name --function-call "function_name(10)"
 ```
+
+`ringtail repo run` is the local-tool flow. It submits a repo job, waits, and prints a readable end-of-run summary instead of making you manually poll raw JSON.
+Add `--verbose` to stream observability logs inline for demo use.
 
 
 ## Project Structure
@@ -238,7 +245,7 @@ The first repo-agent milestone is CLI-first and request-driven:
 ```
 
 Current behavior:
-- Clones the repo to a working checkout.
+- Uses a local working-tree snapshot when `repo_url` is a filesystem path, and clones normally for remote repos.
 - Supports either env token auth or GitHub App installation auth.
 - Ranks likely targets from replay evidence when `replay_script` is provided, otherwise from repo-wide directory ranking.
 - Fans out optimization across the top targets in parallel.
@@ -248,6 +255,36 @@ Current behavior:
 - Validates the winning result with the detected or supplied repo test command.
 - Opens one best PR when `publish_pr` is true and GitHub auth is available.
 - Returns a PR preview instead of publishing when `publish_pr` is false.
+- Emits a timing comparison SVG plus JSON summary artifact for the winning optimization so pitch/demo runs have immediate graphable output.
+
+CLI quality-of-life commands:
+
+```bash
+ringtail repo run ../dimos "make this repo faster" --test-command "uv run pytest dimos"
+ringtail repo submit ../dimos "make this repo faster" --test-command "uv run pytest dimos" --wait
+ringtail repo watch <job-id>
+```
+
+Finished successful runs print:
+- selected winning target
+- baseline vs optimized timing
+- percent time saved
+- timing graph path
+- summary JSON path
+
+For presentation/demo observability:
+
+```bash
+ringtail repo run ../dimos "make this repo faster" --test-command "uv run pytest dimos" --verbose
+ringtail repo watch <job-id> --verbose
+ringtail repo logs <job-id>
+```
+
+Verbose output now includes:
+- LLM call phases and token counts
+- optimization plan summaries
+- candidate plans and chosen optimization steps
+- test/profile/improvement events as they happen
 
 Optional live GitHub App smoke test:
 
@@ -313,12 +350,17 @@ The CSV now emits stable columns:
 - `status`
 - `selected_function`
 - `selected_source_file`
+- `baseline_time_ms`
+- `optimized_time_ms`
 - `improvement_ratio`
+- `time_saved_pct`
 - `is_significant`
 - `validation_success`
 - `backend`
 - `auth_mode`
 - `phase`
+- `timing_graph_path`
+- `summary_json_path`
 - `error`
 
 That is enough to make simple pitch graphs in Sheets, Numbers, or a notebook.

@@ -231,7 +231,8 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
 
 - **CLI (`interfaces/cli/cli.jac`)**
   - Provides file-based and replay-based optimize helpers plus `run_optimization_request`, a normalized request dispatcher reused by the async worker path.
-  - The packaged Python CLI entrypoint now lives in `src/ringtail_cli.py` and exposes `ringtail serve`, `ringtail repo submit`, `ringtail repo status`, `ringtail file optimize`, and `ringtail config doctor`.
+  - The packaged Python CLI entrypoint now lives in `src/ringtail_cli.py` and exposes `ringtail serve`, `ringtail repo run`, `ringtail repo submit`, `ringtail repo watch`, `ringtail repo status`, `ringtail file optimize`, and `ringtail config doctor`.
+  - `repo run` is the local-tool UX path: it submits a repo job, waits, and prints a readable summary instead of forcing manual polling.
 
 - **Web/API (`main.jac`)**
   - `optimize_sync(request)` runs a normalized optimization request synchronously.
@@ -251,16 +252,22 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
 
 - **Repo agent (`src/core/repo_agent.py`, `src/core/github_repo_service.py`, `src/core/repo_workspace.py`)**
   - Clones a repository, ranks likely optimization targets, fans out optimization across top candidates, validates the winner with a repo-local command, and prepares or publishes one PR.
+  - Uses a local working-tree snapshot rather than `git clone` when the repo target is a filesystem path, which better matches the local CLI tool workflow and avoids unnecessary local Git/LFS issues.
   - Reuses the existing Jac worker path for ranking and per-target optimization.
   - Supports both environment-backed token auth and GitHub App installation auth, isolated behind a GitHub service layer.
   - Reports clearer phase context (`preflight`, `clone`, `rank`, `optimize`, `validate`, `git`, `pull_request`) when repo jobs fail.
   - Detects basic Python repo bootstrap commands (`requirements*.txt`, editable install, pytest layout) when explicit setup/test commands are not provided.
   - Can fan out candidate optimizations as durable child jobs, which gives the repo workflow explicit per-candidate job IDs and recoverable status.
   - Supports local validation or Blaxel-backed repo command execution, and can dispatch ranking/evaluation workers through Blaxel-backed remote worker execution.
+  - Emits pitch-friendly reporting artifacts for the winning candidate: timing comparison SVGs plus summary JSON with baseline/optimized timings and repo-level counts.
 
 - **Product support (`src/core/product_support.py`, `src/core/async_jobs.py`)**
   - `product_support.py` centralizes config-doctor output, auth readiness, and recent job summaries so the CLI and web UI stay in sync.
   - `async_jobs.list_jobs()` provides the persisted recent-job feed used by product-facing surfaces.
+
+- **Reporting (`src/core/reporting.py`)**
+  - Generates SVG timing comparison charts and JSON summaries from baseline vs optimized execution times.
+  - Used for successful repo-job winners and local CLI function optimizations so pitch/demo runs leave behind graphable artifacts automatically.
 
 - **LeetCode benchmarks (`benchmarks/`)**
   - `benchmarks/run_benchmark.py`:
@@ -275,7 +282,7 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
     - Emits a structured JSONL log per run in `logs/`.
   - `benchmarks/repo_suite_runner.py`:
     - Runs the repo-agent across a manifest of Python repositories.
-    - Emits JSON and CSV summaries for demo/pitch graphs, including stable plotting fields like prompt, phase, backend, auth mode, and validation success.
+    - Emits JSON and CSV summaries for demo/pitch graphs, including baseline/optimized timings, time saved percent, and artifact paths.
   - `benchmarks/repo_suite_template.json`:
     - Starter manifest for repeatable repo-suite demo runs.
 

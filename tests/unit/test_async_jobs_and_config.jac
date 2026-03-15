@@ -99,6 +99,15 @@ test "default model resolution honors env override and heuristic profile stays e
 }
 
 
+test "live-fast profile retries after test failure" {
+    live_fast_cfg = get_agent_config("live-fast");
+
+    assert live_fast_cfg.max_iterations == 2;
+    assert live_fast_cfg.stop_on_test_failure is False;
+    assert live_fast_cfg.property_test_max_examples == 12;
+}
+
+
 test "persisted async jobs reload from disk and interrupted jobs are marked" {
     module = importlib.import_module("src.core.async_jobs");
     jobs_dir = module.get_jobs_dir();

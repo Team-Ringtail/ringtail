@@ -42,6 +42,7 @@ Profiles:
   - "default": shipped Anthropic Opus profile.
   - "heuristic": legacy profile name; no longer provides a silent fallback optimizer.
   - "candidate-search": LLM-backed two-candidate search profile.
+  - "live-fast": fast live LLM profile for local smoke/demo runs.
   - "test-fast": low-cost explicit mock profile for local/unit tests.
   - "test-fast-candidate-search": low-cost test profile with two candidates.
   - "anthropic-sonnet": compatibility alias for the shipped Anthropic default.
@@ -68,6 +69,19 @@ def:pub get_agent_config(
         cfg.name = "candidate-search";
         cfg.llm_model = resolve_default_llm_model(None);
         cfg.candidate_count = 2;
+        cfg.stop_on_test_failure = False;
+        return cfg;
+    }
+
+    if name == "live-fast" {
+        cfg.name = "live-fast";
+        cfg.llm_model = resolve_default_llm_model(None);
+        cfg.max_iterations = 2;
+        cfg.max_no_improvement_iters = 1;
+        cfg.candidate_count = 1;
+        cfg.benchmark_min_rounds = 2;
+        cfg.benchmark_warmup = False;
+        cfg.property_test_max_examples = 12;
         cfg.stop_on_test_failure = False;
         return cfg;
     }

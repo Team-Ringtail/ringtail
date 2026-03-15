@@ -96,6 +96,11 @@ test "repo agent sync local repo returns pr preview" {
         assert len(result["candidate_results"]) >= 1;
         assert result["bootstrap"]["test_command"] == "python -m pytest tests";
         assert len(result["candidate_summaries"]) >= 1;
+        assert result["summary_stats"]["baseline_time_ms"] > 0.0;
+        assert os.path.exists(result["artifacts"]["timing_graph_path"]);
+        assert os.path.exists(result["artifacts"]["summary_json_path"]);
+        os.remove(result["artifacts"]["timing_graph_path"]);
+        os.remove(result["artifacts"]["summary_json_path"]);
     } finally {
         for (dirpath, dirs, files) in os.walk(tmp_dir, topdown=False) {
             for fname in files {
