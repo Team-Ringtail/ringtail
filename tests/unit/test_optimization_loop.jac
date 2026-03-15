@@ -1,6 +1,6 @@
 """Integration tests for run_optimization — happy path and error paths."""
 
-import from src.core.optimization_loop { run_optimization, _pick_best_failure }
+import from src.core.optimization_loop { run_optimization, _pick_best_failure, _pytest_from_test_cases }
 
 
 test "happy path optimization on simple Python function" {
@@ -93,4 +93,33 @@ test "pick_best_failure prefers profiling over weaker failures" {
     picked = _pick_best_failure(failures);
 
     assert picked["feedback"]["type"] == "profiling_failure";
+}
+
+test "pytest generation normalizes replay case names for collection" {
+    test_code = _pytest_from_test_cases(
+        "echo",
+        [{"name": "replay_case_0", "call": "echo(1)", "expected": "1"}],
+        "echo(1)"
+    );
+
+    assert "def test_replay_case_0():" in test_code;
+}
+
+test "run_optimization respects explicit function_name in multi-function source" {
+    sample_code = (
+        "def fast_add(a, b):\n    return a + b\n\n"
+        + "def sum_up(n):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n"
+    );
+    input = {
+        "source_code": sample_code,
+        "function_name": "sum_up",
+        "function_call": "sum_up(5)",
+        "language": "python",
+        "test_cases": [{"call": "sum_up(3)", "expected": 3}]
+    };
+
+    result = run_optimization(input);
+
+    assert "sum_up" in result["optimized_code"];
+    assert result["test_passed"] is True;
 }

@@ -160,7 +160,11 @@ def _run_optimize(
     # Initialize: Parse input function and derive metadata
     source_code = function_input["source_code"];
     language = function_input.get("language", "python");
-    parsed_info = parse_function(source_code, language);
+    parsed_info = parse_function(
+        source_code,
+        language,
+        function_input.get("function_name", None)
+    );
     function_name = parsed_info.get("function_name", function_input.get("function_name", ""));
     if function_name == "" {
         function_name = function_input.get("function_name", "");
@@ -962,6 +966,9 @@ def _pytest_from_test_cases(function_name: str, cases: list, function_call: str)
             name = "test_case_" + str(idx);
         }
         name = str(name);
+        if not name.startswith("test_") {
+            name = "test_" + name;
+        }
 
         if call_expr is None {
             continue;

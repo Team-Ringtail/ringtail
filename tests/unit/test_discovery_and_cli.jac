@@ -6,9 +6,17 @@ import tempfile;
 import from src.core.discovery {
     build_function_input_from_file,
     discover_functions_in_file,
-    build_function_input_from_replay_script
+    build_function_input_from_replay_script,
+    build_replay_inputs_from_script
 }
-import from interfaces.cli.cli { inspect_file_function, optimize_file_function, inspect_replay_function }
+import from interfaces.cli.cli {
+    inspect_file_function,
+    optimize_file_function,
+    inspect_replay_function,
+    optimize_replay_function,
+    inspect_replay_session,
+    optimize_best_replay_function
+}
 
 
 def _write(path: str, content: str) -> None {
@@ -168,6 +176,176 @@ test "inspect_replay_function exposes replay-derived input" {
         assert result["function_call"] == "echo(7)";
         assert len(result["test_cases"]) == 1;
         assert result["test_cases"][0]["expected"] == "7";
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "replay trace records raised exceptions as test cases" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_raise_");
+    try {
+        module_path = os.path.join(tmp_dir, "raiser.py");
+        script_path = os.path.join(tmp_dir, "drive_raiser.py");
+        _write(
+            module_path,
+            "def fail_if_zero(x: int):\n    if x == 0:\n        raise ValueError('zero')\n    return x\n"
+        );
+        _write(
+            script_path,
+            "from raiser import fail_if_zero\n\ntry:\n    fail_if_zero(0)\nexcept ValueError:\n    pass\n"
+        );
+
+        result = inspect_replay_function(module_path, "fail_if_zero", script_path);
+
+        assert len(result["test_cases"]) == 1;
+        assert result["test_cases"][0]["raises"] == "ValueError";
+        assert result["extra"]["replay_trace"]["trace_count"] == 1;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "replay trace preserves partial success when script later fails" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_partial_");
+    try {
+        module_path = os.path.join(tmp_dir, "partial.py");
+        script_path = os.path.join(tmp_dir, "drive_partial.py");
+        _write(
+            module_path,
+            "def echo(x: int):\n    return x\n"
+        );
+        _write(
+            script_path,
+            "from partial import echo\n\necho(3)\nraise RuntimeError('after call')\n"
+        );
+
+        result = inspect_replay_function(module_path, "echo", script_path);
+
+        assert len(result["test_cases"]) == 1;
+        assert result["extra"]["replay_trace"]["partial_success"] is True;
+        assert "RuntimeError" in result["extra"]["replay_trace"]["run_error"];
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "optimize_replay_function runs optimization from replay-derived tests" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_opt_");
+    try {
+        module_path = os.path.join(tmp_dir, "sum_up.py");
+        script_path = os.path.join(tmp_dir, "drive_sum_up.py");
+        _write(
+            module_path,
+            "def sum_up(n: int):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n"
+        );
+        _write(
+            script_path,
+            "from sum_up import sum_up\n\nsum_up(3)\nsum_up(10)\n"
+        );
+
+        result = optimize_replay_function(module_path, "sum_up", script_path);
+
+        assert "optimized_code" in result;
+        assert "sum_up" in result["optimized_code"];
+        assert result["iteration_number"] >= 0;
+        assert "baseline_metrics" in result;
+        assert result["test_passed"] is True;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "build_replay_inputs_from_script captures multiple observed functions" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_session_");
+    try {
+        module_path = os.path.join(tmp_dir, "math_ops.py");
+        script_path = os.path.join(tmp_dir, "drive_math_ops.py");
+        _write(
+            module_path,
+            "def add(a: int, b: int):\n    return a + b\n\n"
+            + "def mul(a: int, b: int):\n    return a * b\n\n"
+            + "def unused(x: int):\n    return x - 1\n"
+        );
+        _write(
+            script_path,
+            "from math_ops import add, mul\n\nadd(1, 2)\nmul(3, 4)\nadd(5, 6)\n"
+        );
+
+        result = build_replay_inputs_from_script(module_path, script_path, os.path.join(tmp_dir, "tests"), None, None);
+
+        assert result["candidate_count"] == 2;
+        assert "add" in result["observed_function_names"];
+        assert "mul" in result["observed_function_names"];
+        assert result["replay_trace"]["total_trace_count"] == 3;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "inspect_replay_session summarizes replay-backed candidates" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_session_cli_");
+    try {
+        module_path = os.path.join(tmp_dir, "session_mod.py");
+        script_path = os.path.join(tmp_dir, "drive_session_mod.py");
+        _write(
+            module_path,
+            "def alpha(n: int):\n    return n + 1\n\n"
+            + "def beta(n: int):\n    return n * 2\n"
+        );
+        _write(
+            script_path,
+            "from session_mod import alpha, beta\n\nalpha(2)\nbeta(3)\nbeta(4)\n"
+        );
+
+        result = inspect_replay_session(module_path, script_path);
+
+        assert result["candidate_count"] == 2;
+        assert len(result["candidates"]) == 2;
+        assert "beta" in result["observed_function_names"];
+        assert result["replay_trace"]["total_trace_count"] == 3;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "optimize_best_replay_function selects a replay-backed target" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_best_replay_opt_");
+    try {
+        module_path = os.path.join(tmp_dir, "best_replay.py");
+        script_path = os.path.join(tmp_dir, "drive_best_replay.py");
+        _write(
+            module_path,
+            "def fast_add(a: int, b: int):\n    return a + b\n\n"
+            + "def sum_up(n: int):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n"
+        );
+        _write(
+            script_path,
+            "from best_replay import fast_add, sum_up\n\nfast_add(1, 2)\nsum_up(3)\nsum_up(10)\n"
+        );
+
+        result = optimize_best_replay_function(module_path, script_path);
+
+        assert result["selected_function"] == "sum_up";
+        assert result["test_passed"] is True;
+        assert result["replay_trace_count"] >= 2;
     } finally {
         os.remove(script_path);
         os.remove(module_path);

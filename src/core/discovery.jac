@@ -209,25 +209,101 @@ def:pub build_function_input_from_replay_script(
     tests_root: str = "tests",
     analysis_mode: str | None = None
 ) -> dict {
+    session = build_replay_inputs_from_script(
+        file_path,
+        script_path,
+        tests_root,
+        analysis_mode,
+        [function_name]
+    );
+    candidates = session.get("candidate_inputs", []);
+    if len(candidates) > 0 {
+        return candidates[0];
+    }
+
     input = build_function_input_from_file(file_path, function_name, None, tests_root, analysis_mode);
     if "error" in input {
         return input;
     }
 
-    mod = importlib.import_module("src.core.replay_tracer");
-    trace_fn = getattr(mod, "trace_replay_cases_from_script");
-    trace_result = trace_fn(file_path, function_name, script_path);
-    if not trace_result.get("success", False) {
-        input["extra"]["replay_trace"] = trace_result;
-        return input;
+    trace_result = session.get("replay_trace", {}).get("functions", {}).get(
+        function_name,
+        session.get("replay_trace", {})
+    );
+    input["extra"]["replay_trace"] = trace_result;
+    input["extra"]["replay_trace_session"] = session.get("replay_trace", {});
+    input["extra"]["replay_script"] = os.path.abspath(script_path);
+    input["extra"]["replay_partial_success"] = bool(trace_result.get("partial_success", False));
+    return input;
+}
+
+
+def:pub build_replay_inputs_from_script(
+    file_path: str,
+    script_path: str,
+    tests_root: str = "tests",
+    analysis_mode: str | None = None,
+    function_names: list | None = None
+) -> dict {
+    discovered = discover_functions_in_file(file_path);
+    selected_names: list = [];
+
+    if function_names is None or len(function_names) == 0 {
+        for fn in discovered {
+            name = str(fn.get("function_name", ""));
+            if name != "" {
+                selected_names.append(name);
+            }
+        }
+    } else {
+        for name in function_names {
+            selected_names.append(str(name));
+        }
     }
 
-    replay_cases = trace_result.get("test_cases", []);
-    input["test_cases"] = replay_cases;
-    if len(replay_cases) > 0 {
-        input["function_call"] = replay_cases[0]["call"];
+    mod = importlib.import_module("src.core.replay_tracer");
+    trace_fn = getattr(mod, "trace_replay_session_from_script");
+    trace_result = trace_fn(file_path, selected_names, script_path);
+
+    candidate_inputs: list = [];
+    observed_names: list = [];
+    traces = trace_result.get("functions", {});
+    for function_info in discovered {
+        function_name = str(function_info.get("function_name", ""));
+        if function_name == "" or function_name not in traces {
+            continue;
+        }
+
+        fn_trace = traces.get(function_name, {});
+        if int(fn_trace.get("trace_count", 0)) <= 0 {
+            continue;
+        }
+
+        observed_names.append(function_name);
+        input = build_function_input_from_file(file_path, function_name, None, tests_root, analysis_mode);
+        if "error" in input {
+            continue;
+        }
+
+        replay_cases = fn_trace.get("test_cases", []);
+        input["test_cases"] = replay_cases;
+        if len(replay_cases) > 0 {
+            input["function_call"] = replay_cases[0]["call"];
+        }
+        input["extra"]["replay_trace"] = fn_trace;
+        input["extra"]["replay_trace_session"] = trace_result;
+        input["extra"]["replay_script"] = os.path.abspath(script_path);
+        input["extra"]["replay_partial_success"] = bool(fn_trace.get("partial_success", False));
+        candidate_inputs.append(input);
     }
-    input["extra"]["replay_trace"] = trace_result;
-    input["extra"]["replay_script"] = os.path.abspath(script_path);
-    return input;
+
+    return {
+        "source_file": os.path.abspath(file_path),
+        "replay_script": os.path.abspath(script_path),
+        "replay_trace": trace_result,
+        "candidate_inputs": candidate_inputs,
+        "candidate_count": len(candidate_inputs),
+        "traced_function_names": selected_names,
+        "observed_function_names": observed_names
+    };
 }
