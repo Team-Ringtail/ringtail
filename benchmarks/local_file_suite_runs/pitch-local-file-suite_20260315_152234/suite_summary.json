@@ -1,0 +1,59 @@
+{
+  "average_speedup": 3727.441828028514,
+  "average_time_saved_pct": 96.83435994204892,
+  "fail_count": 0,
+  "output_dir": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_152234",
+  "pass_count": 3,
+  "results": [
+    {
+      "baseline_time_ms": 1.0216665104962885,
+      "error": "",
+      "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite/slow_sum.py",
+      "function_name": "slow_sum",
+      "improvement_ratio": 10346.002676082075,
+      "name": "slow-sum",
+      "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_152234/optimized_code/slow-sum.py",
+      "optimized_time_ms": 9.874987881630659e-05,
+      "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-slow_sum_20260315_152234.jsonl",
+      "status": "pass",
+      "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_slow-sum_summary.json",
+      "termination_reason": "execution time within target",
+      "time_saved_pct": 99.99033443126481,
+      "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_slow-sum_timing.svg"
+    },
+    {
+      "baseline_time_ms": 0.0010409858077764511,
+      "error": "",
+      "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/leetcode/add_digits/solution.py",
+      "function_name": "add_digits",
+      "improvement_ratio": 10.676759957971154,
+      "name": "add-digits",
+      "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_152234/optimized_code/add-digits.py",
+      "optimized_time_ms": 9.750016033649445e-05,
+      "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-add_digits_20260315_152307.jsonl",
+      "status": "pass",
+      "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_add-digits_summary.json",
+      "termination_reason": "execution time within target",
+      "time_saved_pct": 90.6338626705435,
+      "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_add-digits_timing.svg"
+    },
+    {
+      "baseline_time_ms": 71.72804197762161,
+      "error": "",
+      "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite/has_duplicates.py",
+      "function_name": "has_duplicates",
+      "improvement_ratio": 825.6460480454967,
+      "name": "has-duplicates",
+      "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_152234/optimized_code/has-duplicates.py",
+      "optimized_time_ms": 0.08687505032867193,
+      "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-has_duplicates_20260315_152344.jsonl",
+      "status": "pass",
+      "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_has-duplicates_summary.json",
+      "termination_reason": "execution time within target",
+      "time_saved_pct": 99.87888272433845,
+      "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_has-duplicates_timing.svg"
+    }
+  ],
+  "suite_name": "pitch-local-file-suite",
+  "target_count": 3
+}

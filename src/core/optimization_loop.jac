@@ -372,7 +372,7 @@ def _run_optimize(
         candidate_plans = enumerate_candidate_plans(plan, candidate_count);
 
         # Generate pytest from structured test cases (user + plan)
-        merged_cases = _merge_test_cases(test_cases, plan);
+        merged_cases = _merge_test_cases(function_name, test_cases, plan);
         test_code = _pytest_from_test_cases(function_name, merged_cases, function_call);
         best_candidate_eval = None;
         candidate_failures: list = [];
@@ -1023,7 +1023,7 @@ def _evaluate_candidate(
 }
 
 
-def _merge_test_cases(base_cases: list, plan: dict) -> list {
+def _merge_test_cases(function_name: str, base_cases: list, plan: dict) -> list {
     merged = [];
     if base_cases is not None {
         merged = base_cases;
@@ -1031,10 +1031,26 @@ def _merge_test_cases(base_cases: list, plan: dict) -> list {
     if plan is not None {
         extra = plan.get("test_cases", None);
         if extra is not None and len(extra) > 0 {
-            merged = merged + extra;
+            merged = merged + _filter_test_cases_for_function(function_name, extra);
         }
     }
     return merged;
+}
+
+
+def _filter_test_cases_for_function(function_name: str, cases: list) -> list {
+    filtered: list = [];
+    prefix = function_name + "(";
+    for case in cases {
+        if not isinstance(case, dict) {
+            continue;
+        }
+        call_expr = str(case.get("call", "")).strip();
+        if call_expr == "" or call_expr.startswith(prefix) {
+            filtered.append(case);
+        }
+    }
+    return filtered;
 }
 
 

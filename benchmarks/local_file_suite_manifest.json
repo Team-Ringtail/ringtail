@@ -1,0 +1,26 @@
+{
+  "name": "pitch-local-file-suite",
+  "targets": [
+    {
+      "name": "slow-sum",
+      "file_path": "benchmarks/local_file_suite/slow_sum.py",
+      "function_name": "slow_sum",
+      "function_call": "slow_sum(50000)",
+      "config_name": "live-fast"
+    },
+    {
+      "name": "add-digits",
+      "file_path": "benchmarks/leetcode/add_digits/solution.py",
+      "function_name": "add_digits",
+      "function_call": "add_digits(987654321)",
+      "config_name": "live-fast"
+    },
+    {
+      "name": "has-duplicates",
+      "file_path": "benchmarks/local_file_suite/has_duplicates.py",
+      "function_name": "has_duplicates",
+      "function_call": "has_duplicates(list(range(2500)) + [2499])",
+      "config_name": "live-fast"
+    }
+  ]
+}

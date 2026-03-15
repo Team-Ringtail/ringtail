@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="308" viewBox="0 0 880 308" role="img" aria-label="Ringtail local file suite overview">
+<rect width="880" height="308" fill="#0f172a" rx="18" />
+<text x="28" y="38" fill="#f8fafc" font-size="22" font-family="Arial, sans-serif" font-weight="700">pitch-local-file-suite</text>
+<text x="28" y="64" fill="#cbd5e1" font-size="14" font-family="Arial, sans-serif">pass 3/3 | avg speedup 3643.57x</text>
+<text x="28" y="102" fill="#e2e8f0" font-size="14" font-family="Arial, sans-serif" font-weight="600">slow-sum</text>
+<rect x="200" y="88" width="16.0" height="14" fill="#ef4444" rx="6" />
+<rect x="200" y="110" width="16.0" height="14" fill="#22c55e" rx="6" />
+<text x="232.0" y="100" fill="#fecaca" font-size="12" font-family="Arial, sans-serif">1.071 ms</text>
+<text x="232.0" y="122" fill="#bbf7d0" font-size="12" font-family="Arial, sans-serif">0.000 ms</text>
+<text x="28" y="158" fill="#e2e8f0" font-size="14" font-family="Arial, sans-serif" font-weight="600">add-digits</text>
+<rect x="200" y="144" width="16.0" height="14" fill="#ef4444" rx="6" />
+<rect x="200" y="166" width="16.0" height="14" fill="#22c55e" rx="6" />
+<text x="232.0" y="156" fill="#fecaca" font-size="12" font-family="Arial, sans-serif">0.001 ms</text>
+<text x="232.0" y="178" fill="#bbf7d0" font-size="12" font-family="Arial, sans-serif">0.000 ms</text>
+<text x="28" y="214" fill="#e2e8f0" font-size="14" font-family="Arial, sans-serif" font-weight="600">has-duplicates</text>
+<rect x="200" y="200" width="520.0" height="14" fill="#ef4444" rx="6" />
+<rect x="200" y="222" width="16.0" height="14" fill="#22c55e" rx="6" />
+<text x="736.0" y="212" fill="#fecaca" font-size="12" font-family="Arial, sans-serif">77.462 ms</text>
+<text x="232.0" y="234" fill="#bbf7d0" font-size="12" font-family="Arial, sans-serif">0.088 ms</text>
+</svg>

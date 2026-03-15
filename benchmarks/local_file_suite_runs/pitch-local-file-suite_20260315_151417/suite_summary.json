@@ -1,0 +1,59 @@
+{
+  "average_speedup": 2399.794453432884,
+  "average_time_saved_pct": 66.80120935424696,
+  "fail_count": 0,
+  "output_dir": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_151417",
+  "pass_count": 3,
+  "results": [
+    {
+      "baseline_time_ms": 1.062665949575603,
+      "error": "",
+      "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite/slow_sum.py",
+      "function_name": "slow_sum",
+      "improvement_ratio": 6401.284011220197,
+      "name": "slow-sum",
+      "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_151417/optimized_code/slow-sum.py",
+      "optimized_time_ms": 0.00016600824892520905,
+      "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-slow_sum_20260315_151417.jsonl",
+      "status": "pass",
+      "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_slow-sum_summary.json",
+      "termination_reason": "Maximum iterations reached",
+      "time_saved_pct": 99.98437813416422,
+      "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_slow-sum_timing.svg"
+    },
+    {
+      "baseline_time_ms": 2.0807499531656504,
+      "error": "",
+      "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite/count_evens.py",
+      "function_name": "count_evens",
+      "improvement_ratio": 1.0054768895938535,
+      "name": "count-evens",
+      "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_151417/optimized_code/count-evens.py",
+      "optimized_time_ms": 2.0694159902632236,
+      "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-count_evens_20260315_151448.jsonl",
+      "status": "pass",
+      "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_count-evens_summary.json",
+      "termination_reason": "No significant improvement for 1 consecutive iterations",
+      "time_saved_pct": 0.5447056665883011,
+      "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_count-evens_timing.svg"
+    },
+    {
+      "baseline_time_ms": 73.00024997675791,
+      "error": "",
+      "file_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite/has_duplicates.py",
+      "function_name": "has_duplicates",
+      "improvement_ratio": 797.0938721888617,
+      "name": "has-duplicates",
+      "optimized_code_path": "/Users/colingordon/eecs449/ringtail/benchmarks/local_file_suite_runs/pitch-local-file-suite_20260315_151417/optimized_code/has-duplicates.py",
+      "optimized_time_ms": 0.091583002358675,
+      "run_log_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/optimize-has_duplicates_20260315_151511.jsonl",
+      "status": "pass",
+      "summary_json_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_has-duplicates_summary.json",
+      "termination_reason": "execution time within target",
+      "time_saved_pct": 99.87454426198838,
+      "timing_graph_path": "/Users/colingordon/eecs449/ringtail/src/utils/../../logs/artifacts/pitch-local-file-suite_has-duplicates_timing.svg"
+    }
+  ],
+  "suite_name": "pitch-local-file-suite",
+  "target_count": 3
+}
