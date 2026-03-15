@@ -10,6 +10,9 @@ import from main {
     run_repo_agent_sync,
     submit_repo_agent_job,
     get_repo_agent_job,
+    get_auth_readiness,
+    get_config_doctor,
+    get_recent_jobs,
     get_github_app_install_info,
     handle_github_app_install_callback,
     verify_github_repo_access
@@ -140,6 +143,19 @@ test "repo agent async submit and status works for local repo" {
 }
 
 
+test "product status endpoints expose auth doctor and recent jobs" {
+    auth = get_auth_readiness();
+    doctor = get_config_doctor();
+    jobs = get_recent_jobs(5);
+
+    assert "auth_mode" in auth;
+    assert "github_app" in auth;
+    assert "checks" in doctor;
+    assert "issues" in doctor;
+    assert isinstance(jobs, list);
+}
+
+
 test "repo agent can fan out via child jobs" {
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_repo_agent_child_jobs_");
     try {
@@ -219,6 +235,32 @@ test "repo agent auto-detects bootstrap and test command" {
         assert result["success"] is True;
         assert "python -m pip install -r requirements.txt" in result["bootstrap"]["setup_commands"];
         assert result["bootstrap"]["test_command"] == "python -m pytest tests";
+    } finally {
+        for (dirpath, dirs, files) in os.walk(tmp_dir, topdown=False) {
+            for fname in files {
+                os.remove(os.path.join(dirpath, fname));
+            }
+            for dname in dirs {
+                os.rmdir(os.path.join(dirpath, dname));
+            }
+        }
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "clone_repo snapshots local repo without git clone" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_repo_agent_clone_local_");
+    try {
+        repo_dir = _create_local_repo(tmp_dir);
+        service = importlib.import_module("src.core.github_repo_service");
+        clone_path = os.path.join(tmp_dir, "copied_repo");
+
+        cloned = service.clone_repo(repo_dir, clone_path, "main", None);
+
+        assert cloned == clone_path;
+        assert os.path.exists(os.path.join(clone_path, "slow_math.py"));
+        assert os.path.exists(os.path.join(clone_path, ".git"));
     } finally {
         for (dirpath, dirs, files) in os.walk(tmp_dir, topdown=False) {
             for fname in files {

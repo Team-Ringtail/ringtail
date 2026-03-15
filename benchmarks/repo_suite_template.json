@@ -1,0 +1,25 @@
+{
+  "repos": [
+    {
+      "name": "sample-python-repo",
+      "repo_url": "https://github.com/org/repo.git",
+      "prompt": "make this faster",
+      "base_branch": "main",
+      "test_command": "python -m pytest tests",
+      "publish_pr": false,
+      "backend_config": {
+        "backend": "local"
+      }
+    },
+    {
+      "name": "sample-python-repo-remote",
+      "repo_url": "https://github.com/org/another-repo.git",
+      "prompt": "reduce runtime in the hottest path",
+      "base_branch": "main",
+      "publish_pr": false,
+      "backend_config": {
+        "backend": "blaxel"
+      }
+    }
+  ]
+}

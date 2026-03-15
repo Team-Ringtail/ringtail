@@ -228,6 +228,25 @@ def clone_repo(repo_url: str, destination_dir: str, base_branch: str | None = No
         shutil.rmtree(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
 
+    if is_local_repo_url(repo_url):
+        source = Path(repo_url[7:] if repo_url.startswith("file://") else repo_url).resolve()
+        if not source.exists():
+            raise FileNotFoundError(f"Local repository path does not exist: {repo_url}")
+        shutil.copytree(
+            source,
+            dest,
+            ignore=shutil.ignore_patterns(
+                ".venv",
+                "node_modules",
+                ".pytest_cache",
+                "__pycache__",
+                ".mypy_cache",
+                ".ruff_cache",
+                ".jac",
+            ),
+        )
+        return str(dest)
+
     command = ["git", "clone"]
     if base_branch:
         command.extend(["--branch", base_branch])

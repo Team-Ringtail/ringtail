@@ -65,18 +65,23 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
     clone_path = os.path.join(temp_root, "repo")
     auth_context = resolve_github_auth(auth=job.get("auth", {}), explicit_token=job.get("token"))
     token = str(auth_context.get("token", ""))
+    phase = "auth"
 
     try:
+        phase = "preflight"
         repo_access = verify_repo_access(job["repo_url"], auth=job.get("auth", {}), explicit_token=job.get("token"))
+        phase = "clone"
         clone_repo(job["repo_url"], clone_path, job["base_branch"], token or None)
         tests_root = _resolve_repo_path(clone_path, job["tests_root"])
         replay_script = _resolve_optional_repo_path(clone_path, job.get("replay_script"))
+        phase = "bootstrap"
         bootstrap = detect_repo_bootstrap(
             clone_path,
             explicit_setup_commands=job.get("setup_commands", []),
             explicit_test_command=job.get("test_command", None),
         )
 
+        phase = "rank"
         ranked_candidates = _rank_repo_candidates(clone_path, tests_root, replay_script, job)
         ranked_candidates = _apply_prompt_focus(job["prompt"], ranked_candidates)
         max_targets = min(job["max_targets"], len(ranked_candidates))
@@ -84,6 +89,7 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
         if not selected_candidates:
             raise ValueError("No candidate targets were found in the repository")
 
+        phase = "optimize"
         candidate_results, child_jobs = _evaluate_candidates(
             clone_path,
             tests_root,
@@ -101,6 +107,7 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
         source_file = str(winner_entry.get("source_file", ""))
         Path(source_file).write_text(str(winner_result.get("optimized_code", "")))
 
+        phase = "validate"
         validation_commands = list(bootstrap.get("setup_commands", []))
         if bootstrap.get("test_command", "") != "":
             validation_commands.append(str(bootstrap["test_command"]))
@@ -137,9 +144,11 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
 
         commit_sha = ""
         if job.get("publish_pr", False):
+            phase = "git"
             create_branch(clone_path, branch_name)
             commit_sha = commit_all(clone_path, pr_title)
             push_branch(clone_path, job["repo_url"], branch_name, token)
+            phase = "pull_request"
             pr_data = create_pull_request(
                 repo_url=job["repo_url"],
                 title=pr_title,
@@ -165,6 +174,7 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
                 "installation_id": auth_context.get("installation_id", None),
                 "expires_at": auth_context.get("expires_at", None),
             },
+            "phase": "done",
             "repo_access": repo_access,
             "bootstrap": bootstrap,
             "rank_strategy": "replay_repo" if replay_script else "directory_rank",
@@ -188,6 +198,8 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
             },
             "pull_request": pull_request,
         }
+    except Exception as exc:
+        raise RuntimeError(f"[{phase}] {exc}") from exc
     finally:
         if not request.get("keep_repo_checkout", False):
             shutil.rmtree(temp_root, ignore_errors=True)

@@ -33,57 +33,65 @@ Ringtail is an intelligent code optimization system that uses AI agents in an it
 
 ## Installation
 
-### 1. Clone the Repository
+### Local-first install
 
 ```bash
 git clone <repository-url>
 cd ringtail
-```
 
-### 2. Create and Activate Virtual Environment
-
-```bash
-# Create virtual environment
 python3 -m venv venv
-
-# Activate virtual environment
-# On macOS/Linux:
 source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-```
 
-### 3. Install Dependencies
-
-```bash
 pip install -r requirements.txt
+pip install -e .
 ```
 
-This installs Jaseci, which includes all required plugins (jaclang, byllm, jac-client, jac-scale, jac-super).
+For a user-tool style install, `pipx install .` and `uv tool install .` also work once your environment has Jaseci available.
 
-### 4. Verify Installation
+### Verify prerequisites
 
 ```bash
-jac --version
+ringtail config doctor
 ```
+
+This checks the local `jac`, `git`, and `openssl` binaries, plus the Ringtail and Blaxel env config.
 
 ## Quick Start
 
-### Start the Development Server
+### 1. Set env vars
 
 ```bash
-# Make sure virtual environment is activated
-source venv/bin/activate
-
-# Start the server
-jac start main.jac
+export RINGTAIL_ANTHROPIC_API_KEY="your-key-here"
+export RINGTAIL_REPO_AGENT_CONFIG='{"app_id":"123456","app_slug":"your-app-slug","private_key_path":"/path/to/github-app.pem","installation_id":12345678}'
+export BLAXEL_API_KEY="your-blaxel-key"
 ```
 
-The server will start on `http://localhost:8000` by default.
+You normally only need:
+- `RINGTAIL_REPO_AGENT_CONFIG` for Ringtail GitHub auth/config
+- `BLAXEL_API_KEY` for Blaxel-backed remote execution
 
-### Access the Application
+### 2. Start the local product
 
-Open your browser and navigate to http://localhost:8000/
+```bash
+ringtail serve
+```
+
+The local UI runs at `http://localhost:8000`.
+
+### 3. Use either surface
+
+Web UI:
+- Open `http://localhost:8000`
+- Use `Repo Agent` for async repo jobs
+- Use `Function Optimize` for direct file/function runs
+
+CLI:
+
+```bash
+ringtail repo submit /path/to/repo "make this faster"
+ringtail repo status <job-id>
+ringtail file optimize /abs/path/to/file.py function_name --function-call "function_name(10)"
+```
 
 
 ## Project Structure
@@ -92,6 +100,7 @@ Open your browser and navigate to http://localhost:8000/
 ringtail/
 ├── main.jac                    # Main application entry point
 ├── jac.toml                    # Jaseci project configuration
+├── pyproject.toml              # Packaged Python CLI entrypoint
 ├── requirements.txt            # Python dependencies
 ├── styles.css                  # Client-side CSS styles
 ├── README.md                   # This file
@@ -108,6 +117,7 @@ ringtail/
 │   │   └── tester.jac             # Unit testing utilities
 │   ├── models/                 # Data models and types
 │   │   └── types.jac              # Type definitions
+│   ├── ringtail_cli.py         # Packaged `ringtail` CLI
 │   └── utils/                  # Utility functions
 │       ├── code_parser.jac        # Code parsing utilities
 │       └── metrics.jac            # Performance metrics
@@ -160,6 +170,22 @@ export BLAXEL_API_KEY="your-blaxel-key"
 
 Legacy `RINGTAIL_GITHUB_*` / `GITHUB_*` env vars still work as fallbacks, but the intended setup is now one Ringtail env plus one Blaxel env.
 
+### Config doctor
+
+The packaged CLI exposes a lightweight setup check:
+
+```bash
+ringtail config doctor
+ringtail config doctor --json
+```
+
+Use it before demos to verify:
+- local binaries (`jac`, `git`, `openssl`)
+- Ringtail env config
+- GitHub App install readiness
+- Blaxel availability
+- async jobs directory location
+
 ## API Endpoints
 
 When running `jac start main.jac`, the following endpoints are automatically available:
@@ -172,16 +198,21 @@ When running `jac start main.jac`, the following endpoints are automatically ava
 - **POST** `/walker/test_walker` - Demonstrates graph traversal capabilities
 
 ### Planned Endpoints
-- **POST** `/optimize_sync` - Run a synchronous optimization request
-- **POST** `/submit_optimization_job` - Start an async optimization job
-- **GET** `/get_optimization_job?job_id=<id>` - Poll async job status/result
-- **POST** `/run_repo_agent_sync` - Run the CLI-first repo agent synchronously
-- **POST** `/submit_repo_agent_job` - Start an async repo-agent job
-- **GET** `/get_repo_agent_job?job_id=<id>` - Poll repo-agent status/result
-- **GET** `/get_github_app_install_info?state=<state>` - Return GitHub App install URL/config state
-- **GET** `/handle_github_app_install_callback?...` - Validate a GitHub App installation callback payload
-- **POST** `/verify_github_repo_access` - Verify auth can access a repo before starting a job
-- **POST** `/benchmark` - Run benchmark comparison
+
+With the current `jac start` server shape, public functions are exposed under `/function/...`.
+
+- **POST** `/function/optimize_sync` - Run a synchronous optimization request
+- **POST** `/function/submit_optimization_job` - Start an async optimization job
+- **POST** `/function/get_optimization_job` - Poll async job status/result
+- **POST** `/function/run_repo_agent_sync` - Run the CLI-first repo agent synchronously
+- **POST** `/function/submit_repo_agent_job` - Start an async repo-agent job
+- **POST** `/function/get_repo_agent_job` - Poll repo-agent status/result
+- **POST** `/function/get_auth_readiness` - Return GitHub/Blaxel readiness summary for CLI/web UX
+- **POST** `/function/get_config_doctor` - Return local prerequisite/config doctor data
+- **POST** `/function/get_recent_jobs` - Return recent persisted async jobs
+- **POST** `/function/get_github_app_install_info` - Return GitHub App install URL/config state
+- **POST** `/function/handle_github_app_install_callback` - Validate a GitHub App installation callback payload
+- **POST** `/function/verify_github_repo_access` - Verify auth can access a repo before starting a job
 
 Async jobs are intentionally minimal right now:
 - Job state is persisted under `logs/async_jobs`.
@@ -247,7 +278,7 @@ jac start main.jac
 
 ### Repo Benchmark Scaffold
 
-For pitch/demo graphs across a repo suite, use `benchmarks/repo_suite_runner.py`.
+For pitch/demo graphs across a repo suite, use `benchmarks/repo_suite_runner.py` with `benchmarks/repo_suite_template.json`.
 
 Example manifest:
 
@@ -265,6 +296,32 @@ Example manifest:
   ]
 }
 ```
+
+Quick recipe for tomorrow:
+
+```bash
+cp benchmarks/repo_suite_template.json /tmp/repo_suite.json
+python benchmarks/repo_suite_runner.py /tmp/repo_suite.json \
+  --output-json benchmarks/repo_suite_results.json \
+  --output-csv benchmarks/repo_suite_results.csv
+```
+
+The CSV now emits stable columns:
+- `name`
+- `repo_url`
+- `prompt`
+- `status`
+- `selected_function`
+- `selected_source_file`
+- `improvement_ratio`
+- `is_significant`
+- `validation_success`
+- `backend`
+- `auth_mode`
+- `phase`
+- `error`
+
+That is enough to make simple pitch graphs in Sheets, Numbers, or a notebook.
 
 Run it with:
 

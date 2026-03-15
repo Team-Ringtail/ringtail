@@ -259,6 +259,13 @@ def get_job(job_id: str) -> dict[str, Any]:
     return _MANAGER.get_job(job_id)
 
 
+def list_jobs(limit: int = 10) -> list[dict[str, Any]]:
+    with _MANAGER._lock:
+        jobs = [copy.deepcopy(job) for job in _MANAGER._jobs.values()]
+    jobs.sort(key=lambda job: str(job.get("submitted_at", "")), reverse=True)
+    return jobs[: max(0, int(limit))]
+
+
 def is_terminal_status(status: str) -> bool:
     return status in _TERMINAL_STATES
 
