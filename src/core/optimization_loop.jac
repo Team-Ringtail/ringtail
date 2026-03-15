@@ -49,6 +49,10 @@ def _maybe_create_run_log(function_input: dict, function_name: str) -> Any {
                 run_name = "optimize-" + str(function_name);
             }
         }
+        run_id = function_input.get("run_id", None);
+        if run_id is not None and str(run_id) != "" {
+            return RunLog(str(run_name), run_id=str(run_id));
+        }
         return RunLog(str(run_name));
     } except Exception as e {
         print("[run_log] disabled (bridge failed): " + str(e));
@@ -60,6 +64,16 @@ def _safe_log(callable: Any) -> None {
     # Best-effort logging: never let logging failures affect optimization.
     # TODO: Once RunLog is ported to Jac, replace this with typed logging calls.
     try { callable(); } except Exception { ; }
+}
+
+
+def _with_run_metadata(result: dict, run_log: Any) -> dict {
+    if run_log is None {
+        return result;
+    }
+    result["run_id"] = getattr(run_log, "run_id", "");
+    result["run_log_path"] = getattr(run_log, "log_path", "");
+    return result;
 }
 
 
@@ -95,6 +109,10 @@ def:pub run_optimization(
         config_profile_name = "default";
     }
     config = get_agent_config(config_profile_name);
+    requested_llm_model = input.get("llm_model", None);
+    if requested_llm_model is not None and str(requested_llm_model) != "" {
+        config.llm_model = str(requested_llm_model);
+    }
 
     # Call core logic directly instead of going through a walker spawn.
     return _run_optimize(input, criteria, config);
@@ -187,6 +205,14 @@ def _run_optimize(
     }
 
     run_log = _maybe_create_run_log(function_input, function_name);
+    zero_metrics = {
+        "execution_time": 0.0,
+        "memory_usage": 0.0,
+        "cpu_usage": None,
+        "code_complexity": None,
+        "test_coverage": None
+    };
+    baseline_metrics = zero_metrics;
 
     try {
         if run_log is not None {
@@ -208,14 +234,7 @@ def _run_optimize(
         if run_log is not None {
             _safe_log(lambda: run_log.error("Missing required 'function_call' for profiling"));
         }
-        zero_metrics = {
-            "execution_time": 0.0,
-            "memory_usage": 0.0,
-            "cpu_usage": None,
-            "code_complexity": None,
-            "test_coverage": None
-        };
-        return {
+        return _with_run_metadata({
             "optimized_code": source_code,
             "iteration_number": 0,
             "metrics": zero_metrics,
@@ -225,7 +244,7 @@ def _run_optimize(
             "termination_reason": "Missing required 'function_call' for profiling",
             "converged": False,
             "error": "Missing required 'function_call' for profiling"
-        };
+        }, run_log);
     }
     function_call: str = str(function_input["function_call"]);
 
@@ -261,14 +280,7 @@ def _run_optimize(
                     stdev_ms=baseline_profile.get("stdev_ms", 0.0)
                 ));
         }
-        zero_metrics = {
-            "execution_time": 0.0,
-            "memory_usage": 0.0,
-            "cpu_usage": None,
-            "code_complexity": None,
-            "test_coverage": None
-        };
-        return {
+        return _with_run_metadata({
             "optimized_code": source_code,
             "iteration_number": 0,
             "metrics": zero_metrics,
@@ -278,7 +290,7 @@ def _run_optimize(
             "termination_reason": "Baseline profiling failed",
             "converged": False,
             "error": "Baseline profiling failed: " + str(baseline_profile.get("error", ""))
-        };
+        }, run_log);
     }
 
     # Complexity: cyclomatic + nesting depth
@@ -532,11 +544,11 @@ def _run_optimize(
         final_result["termination_reason"] = final_stop_reason;
         final_result["converged"] = final_converged;
         print("Optimization complete. Final improvement ratio: " + str(final_result["improvement_ratio"]));
-        return final_result;
+        return _with_run_metadata(final_result, run_log);
     }
 
     print("No results generated");
-    return {
+    return _with_run_metadata({
         "optimized_code": source_code,
         "iteration_number": 0,
         "metrics": baseline_metrics,
@@ -546,7 +558,26 @@ def _run_optimize(
         "termination_reason": "No iterations completed",
         "converged": False,
         "error": "No iterations completed"
-    };
+    }, run_log);
+    } except Exception as e {
+        if run_log is not None {
+            _safe_log(lambda: run_log.error(
+                    "Optimization failed",
+                    phase="run_optimization",
+                    error=str(e)
+                ));
+        }
+        return _with_run_metadata({
+            "optimized_code": source_code,
+            "iteration_number": 0,
+            "metrics": baseline_metrics,
+            "test_passed": False,
+            "improvement_ratio": 0.0,
+            "baseline_metrics": baseline_metrics,
+            "termination_reason": "Optimization failed",
+            "converged": False,
+            "error": str(e)
+        }, run_log);
     } finally {
         if run_log is not None {
             _safe_log(lambda: run_log.close());

@@ -15,7 +15,7 @@ import textwrap
 from typing import Optional
 
 _ANTHROPIC_ENV_NAMES = ("RINGTAIL_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY")
-_DEFAULT_MODEL = "claude-sonnet-4-20250514"
+_DEFAULT_MODEL = "claude-opus-4-6"
 
 
 def _get_api_key() -> str:
@@ -24,6 +24,15 @@ def _get_api_key() -> str:
         if val:
             return val
     return ""
+
+
+def _resolve_model(model: str | None = None) -> str:
+    if model:
+        return model
+    env_model = os.environ.get("RINGTAIL_DEFAULT_LLM_MODEL", "")
+    if env_model:
+        return env_model
+    return _DEFAULT_MODEL
 
 
 def _get_client():
@@ -45,7 +54,7 @@ def analyze_and_plan(
     function_call: str,
     test_cases: list,
     *,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
     run_log=None,
 ) -> dict:
     """Ask Claude to analyze code and return a structured optimization plan.
@@ -53,6 +62,7 @@ def analyze_and_plan(
     Returns a dict with keys:
       estimated_time_sec, estimated_memory_mb, steps, analysis, test_cases
     """
+    resolved_model = _resolve_model(model)
     client = _get_client()
 
     criteria_str = json.dumps(criteria, indent=2) if criteria else "{}"
@@ -87,7 +97,7 @@ def analyze_and_plan(
     """)
 
     response = client.messages.create(
-        model=model,
+        model=resolved_model,
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -97,7 +107,7 @@ def analyze_and_plan(
 
     if run_log:
         run_log.llm_call(
-            model=model,
+            model=resolved_model,
             prompt_tokens=usage.input_tokens,
             completion_tokens=usage.output_tokens,
             phase="analyze_and_plan",
@@ -108,13 +118,7 @@ def analyze_and_plan(
     try:
         plan = json.loads(text)
     except json.JSONDecodeError:
-        plan = {
-            "estimated_time_sec": 0.05,
-            "estimated_memory_mb": 10.0,
-            "steps": ["LLM returned non-JSON; falling back"],
-            "analysis": text[:500],
-            "test_cases": [],
-        }
+        raise ValueError(f"LLM returned invalid JSON plan: {text[:500]}")
 
     for key in ("estimated_time_sec", "estimated_memory_mb", "steps"):
         plan.setdefault(key, {"estimated_time_sec": 0.05, "estimated_memory_mb": 10.0, "steps": []}[key])
@@ -126,13 +130,14 @@ def generate_optimized_code(
     source_code: str,
     plan: dict,
     *,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
     run_log=None,
 ) -> str:
     """Ask Claude to produce the optimized version of the code.
 
     Returns a Python source string (no markdown fences).
     """
+    resolved_model = _resolve_model(model)
     client = _get_client()
 
     steps_str = "\n".join(f"  - {s}" for s in plan.get("steps", []))
@@ -159,7 +164,7 @@ def generate_optimized_code(
     """)
 
     response = client.messages.create(
-        model=model,
+        model=resolved_model,
         max_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -169,7 +174,7 @@ def generate_optimized_code(
 
     if run_log:
         run_log.llm_call(
-            model=model,
+            model=resolved_model,
             prompt_tokens=usage.input_tokens,
             completion_tokens=usage.output_tokens,
             phase="generate_optimized_code",

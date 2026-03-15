@@ -28,10 +28,11 @@ def _safe_log(callable: Any) -> None {
     try { callable(); } except Exception { ; }
 }
 
-"""Analyze code with simple heuristics; produce a plan with estimated targets."""
+glob _TEST_MOCK_MODEL = "__ringtail_test_mock__";
 
 
-def _analyze_and_plan(
+"""Deterministic test-only optimizer used by local/unit profiles."""
+def _mock_analyze_and_plan(
     source_code: str,
     criteria: dict,
     feedback: dict | None = None
@@ -40,27 +41,24 @@ def _analyze_and_plan(
     num_lines = len(lines);
     code_lower = source_code.lower();
 
-    # Count loops (crude heuristic for "complexity")
+    # Keep mock plans stable so tests exercise orchestration, not model quality.
     num_for = _count_substring(code_lower, "for ");
     num_while = _count_substring(code_lower, "while ");
     num_loops = num_for + num_while;
-
-    # Stub: estimate target time (e.g. 0.05s base + 0.02s per loop, aim to cut by 20%)
     base_time = 0.05;
     per_loop_time = 0.02;
     raw_estimate = base_time + per_loop_time * num_loops;
-    estimated_time_sec = raw_estimate * 0.8;  # target: 20% faster
-    estimated_memory_mb = 10.0;  # stub
+    estimated_time_sec = raw_estimate * 0.8;
+    estimated_memory_mb = 10.0;
 
-    # Build steps list (stub suggestions)
     steps = [];
     if num_loops > 0 {
-        steps = ["Reduce loop overhead", "Consider caching repeated work", "Avoid redundant iterations"];
+        steps = ["mock reduce loop overhead", "mock cache repeated work", "mock avoid redundant iterations"];
     } else {
-        steps = ["Code is simple; consider micro-optimizations or clarity improvements"];
+        steps = ["mock preserve behavior", "mock keep structure stable"];
     }
     if num_lines > 50 {
-        steps.append("Consider splitting into smaller functions");
+        steps.append("mock split large functions");
     }
 
     candidate_plans = [
@@ -79,6 +77,8 @@ def _analyze_and_plan(
     ];
 
     return {
+        "backend": "mock",
+        "analysis": "mock optimizer plan for deterministic tests",
         "estimated_time_sec": estimated_time_sec,
         "estimated_memory_mb": estimated_memory_mb,
         "steps": steps,
@@ -89,16 +89,8 @@ def _analyze_and_plan(
     };
 }
 
-"""Apply plan to code (stub: minimal transformation so loop can test wiring)."""
-def _apply_plan_to_code(source_code: str, plan: dict) -> str {
-    steps = plan.get("steps", []);
-    label = str(plan.get("label", "default"));
-    if len(steps) == 0 {
-        return source_code + "\n# [optimizer stub:" + label + "] no steps\n";
-    }
-    # Stub: prepend a comment summarizing the plan; no real code change yet
-    header = "# [optimizer stub:" + label + "] plan steps: " + ", ".join(steps) + "\n";
-    return header + source_code;
+def _mock_generate_optimized_code(source_code: str, plan: dict) -> str {
+    return source_code;
 }
 
 """
@@ -136,7 +128,7 @@ def _count_substring(s: str, sub: str) -> int {
     return count;
 }
 
-"""LLM-backed analysis via Anthropic Claude (Jac client). Falls back to heuristic on error."""
+"""LLM-backed analysis via Anthropic Claude (Jac client)."""
 def _think_and_prep_llm(
     source_code: str,
     criteria: dict,
@@ -166,12 +158,12 @@ def _think_and_prep_llm(
         );
         return plan;
     } except Exception as e {
-        print("[optimizer_agent] LLM plan failed, falling back to heuristic: " + str(e));
+        print("[optimizer_agent] LLM plan failed: " + str(e));
         traceback.print_exc();
         if run_log is not None {
-            _safe_log(lambda: run_log.error("LLM plan failed; falling back", phase="think_and_prep", error=str(e)));
+            _safe_log(lambda: run_log.error("LLM plan failed", phase="think_and_prep", error=str(e)));
         }
-        return _analyze_and_plan(source_code, criteria, feedback);
+        raise e;
     }
 }
 
@@ -186,6 +178,12 @@ def:pub think_and_prep(
     feedback: dict | None = None,
     run_log: Any = None
 ) -> dict {
+    if llm_model is not None and llm_model == _TEST_MOCK_MODEL {
+        return _mock_analyze_and_plan(source_code, criteria, feedback);
+    }
+    if analysis_mode is not None and analysis_mode == "mock" {
+        return _mock_analyze_and_plan(source_code, criteria, feedback);
+    }
     use_llm = (llm_model is not None and llm_model != "") or (analysis_mode is not None and analysis_mode == "llm");
     if use_llm {
         return _think_and_prep_llm(
@@ -198,7 +196,7 @@ def:pub think_and_prep(
             run_log
         );
     }
-    return _analyze_and_plan(source_code, criteria, feedback);
+    raise ValueError("No optimizer backend configured. Use an LLM-backed profile or the explicit test mock backend.");
 }
 
 
@@ -233,8 +231,8 @@ def:pub enumerate_candidate_plans(
 
 """Write phase: apply or generate the optimized code based on the plan.
 
-Uses the Anthropic LLM if the plan came from an LLM analysis (detected by
-the presence of an 'analysis' key). Falls back to heuristic stub otherwise.
+Uses the Anthropic LLM for production plans and an explicit mock backend for
+deterministic test profiles.
 """
 def write_optimized_code(
     source_code: str,
@@ -242,10 +240,13 @@ def write_optimized_code(
     llm_model: str | None = None,
     run_log: Any = None
 ) -> str {
-    has_llm_plan = plan.get("analysis", None) is not None;
+    if plan.get("backend", "") == "mock" {
+        return _mock_generate_optimized_code(source_code, plan);
+    }
 
+    has_llm_plan = plan.get("analysis", None) is not None;
     if not has_llm_plan {
-        return _apply_plan_to_code(source_code, plan);
+        raise ValueError("Refusing to generate code from a non-LLM, non-mock plan.");
     }
 
     try {
@@ -258,12 +259,12 @@ def write_optimized_code(
         }
         return generate_optimized_code(source_code, plan, **kwargs);
     } except Exception as e {
-        print("[optimizer_agent] LLM code gen failed, falling back to heuristic: " + str(e));
+        print("[optimizer_agent] LLM code gen failed: " + str(e));
         traceback.print_exc();
         if run_log is not None {
-            _safe_log(lambda: run_log.error("LLM code gen failed; falling back", phase="write_optimized_code", error=str(e)));
+            _safe_log(lambda: run_log.error("LLM code gen failed", phase="write_optimized_code", error=str(e)));
         }
-        return _apply_plan_to_code(source_code, plan);
+        raise e;
     }
 }
 

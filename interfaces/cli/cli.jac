@@ -52,7 +52,8 @@ def:pub optimize_file_function(
     tests_root: str = "tests",
     criteria_name: str | None = None,
     config_name: str | None = None,
-    analysis_mode: str | None = None
+    analysis_mode: str | None = None,
+    llm_model: str | None = None
 ) -> dict {
     input = build_function_input_from_file(
         file_path,
@@ -86,6 +87,7 @@ def:pub optimize_file_function(
             "error": input["error"]
         };
     }
+    input = _with_runtime_overrides(input, analysis_mode, llm_model, None, None, None);
     return run_optimization(input, criteria_name, config_name);
 }
 
@@ -114,6 +116,33 @@ def _error_result(message: str) -> dict {
         "converged": False,
         "error": message
     };
+}
+
+
+def _with_runtime_overrides(
+    input: dict,
+    analysis_mode: str | None = None,
+    llm_model: str | None = None,
+    run_id: str | None = None,
+    run_name: str | None = None,
+    enable_run_log: bool | None = None
+) -> dict {
+    if analysis_mode is not None and analysis_mode != "" {
+        input["analysis_mode"] = analysis_mode;
+    }
+    if llm_model is not None and llm_model != "" {
+        input["llm_model"] = llm_model;
+    }
+    if run_id is not None and run_id != "" {
+        input["run_id"] = run_id;
+    }
+    if run_name is not None and run_name != "" {
+        input["run_name"] = run_name;
+    }
+    if enable_run_log is not None {
+        input["enable_run_log"] = bool(enable_run_log);
+    }
+    return input;
 }
 
 
@@ -258,7 +287,8 @@ def:pub optimize_replay_function(
     tests_root: str = "tests",
     criteria_name: str | None = None,
     config_name: str | None = None,
-    analysis_mode: str | None = None
+    analysis_mode: str | None = None,
+    llm_model: str | None = None
 ) -> dict {
     input = build_function_input_from_replay_script(
         file_path,
@@ -279,6 +309,7 @@ def:pub optimize_replay_function(
         return _error_result("Replay trace captured no test cases");
     }
 
+    input = _with_runtime_overrides(input, analysis_mode, llm_model, None, None, None);
     return run_optimization(input, criteria_name, config_name);
 }
 
@@ -289,7 +320,8 @@ def:pub optimize_best_replay_function(
     tests_root: str = "tests",
     criteria_name: str | None = None,
     config_name: str | None = None,
-    analysis_mode: str | None = None
+    analysis_mode: str | None = None,
+    llm_model: str | None = None
 ) -> dict {
     session = build_replay_inputs_from_script(
         file_path,
@@ -315,6 +347,7 @@ def:pub optimize_best_replay_function(
         }
     }
 
+    selected_input = _with_runtime_overrides(selected_input, analysis_mode, llm_model, None, None, None);
     result = run_optimization(selected_input, criteria_name, config_name);
     result["selected_function"] = selected_name;
     result["replay_trace_count"] = selected_trace_count;
@@ -328,7 +361,8 @@ def:pub optimize_best_replay_in_repo(
     tests_root: str = "tests",
     criteria_name: str | None = None,
     config_name: str | None = None,
-    analysis_mode: str | None = None
+    analysis_mode: str | None = None,
+    llm_model: str | None = None
 ) -> dict {
     ranked = rank_replay_candidates_in_directory(source_root, script_path, tests_root, 1);
     if len(ranked) == 0 {
@@ -357,10 +391,151 @@ def:pub optimize_best_replay_in_repo(
         }
     }
 
+    selected_input = _with_runtime_overrides(selected_input, analysis_mode, llm_model, None, None, None);
     result = run_optimization(selected_input, criteria_name, config_name);
     result["selected_function"] = target_function;
     result["selected_source_file"] = target_source;
     result["replay_trace_count"] = int(top_entry.get("replay_trace_count", 0));
     result["selection_score"] = float(top_entry.get("selection_score", 0.0));
     return result;
+}
+
+
+def:pub run_optimization_request(request: dict) -> dict {
+    operation = str(request.get("operation", "optimize_input"));
+    criteria_name = request.get("criteria_name", None);
+    config_name = request.get("config_name", None);
+    analysis_mode = request.get("analysis_mode", None);
+    llm_model = request.get("llm_model", None);
+    run_id = request.get("run_id", None);
+    run_name = request.get("run_name", None);
+    enable_run_log = request.get("enable_run_log", None);
+
+    if operation == "optimize_input" {
+        input = request.get("input", None);
+        if input is None {
+            return _error_result("optimize_input request must include input");
+        }
+        input = _with_runtime_overrides(
+            dict(input),
+            analysis_mode,
+            llm_model,
+            run_id,
+            run_name,
+            enable_run_log
+        );
+        return run_optimization(input, criteria_name, config_name);
+    }
+
+    if operation == "optimize_file_function" {
+        input = build_function_input_from_file(
+            str(request.get("file_path", "")),
+            str(request.get("function_name", "")),
+            request.get("function_call", None),
+            str(request.get("tests_root", "tests")),
+            analysis_mode
+        );
+        if "error" in input {
+            return _error_result(str(input["error"]));
+        }
+        input = _with_runtime_overrides(input, analysis_mode, llm_model, run_id, run_name, enable_run_log);
+        return run_optimization(input, criteria_name, config_name);
+    }
+
+    if operation == "optimize_replay_function" {
+        input = build_function_input_from_replay_script(
+            str(request.get("file_path", "")),
+            str(request.get("function_name", "")),
+            str(request.get("script_path", "")),
+            str(request.get("tests_root", "tests")),
+            analysis_mode
+        );
+        if "error" in input {
+            return _error_result(str(input["error"]));
+        }
+        trace_result = input.get("extra", {}).get("replay_trace", {});
+        if not trace_result.get("success", False) {
+            return _error_result("Replay trace failed: " + str(trace_result.get("error", "")));
+        }
+        if len(input.get("test_cases", [])) == 0 {
+            return _error_result("Replay trace captured no test cases");
+        }
+        input = _with_runtime_overrides(input, analysis_mode, llm_model, run_id, run_name, enable_run_log);
+        return run_optimization(input, criteria_name, config_name);
+    }
+
+    if operation == "optimize_best_replay_function" {
+        session = build_replay_inputs_from_script(
+            str(request.get("file_path", "")),
+            str(request.get("script_path", "")),
+            str(request.get("tests_root", "tests")),
+            analysis_mode,
+            None
+        );
+        candidates = session.get("candidate_inputs", []);
+        if len(candidates) == 0 {
+            return _error_result("Replay trace captured no replay-backed function candidates");
+        }
+
+        selected_input = candidates[0];
+        selected_name = selected_input.get("function_name", "");
+        selected_trace_count = int(selected_input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
+        for input in candidates {
+            trace_count = int(input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
+            if trace_count > selected_trace_count {
+                selected_input = input;
+                selected_name = input.get("function_name", "");
+                selected_trace_count = trace_count;
+            }
+        }
+
+        selected_input = _with_runtime_overrides(selected_input, analysis_mode, llm_model, run_id, run_name, enable_run_log);
+        result = run_optimization(selected_input, criteria_name, config_name);
+        result["selected_function"] = selected_name;
+        result["replay_trace_count"] = selected_trace_count;
+        return result;
+    }
+
+    if operation == "optimize_best_replay_in_repo" {
+        ranked = rank_replay_candidates_in_directory(
+            str(request.get("source_root", "")),
+            str(request.get("script_path", "")),
+            str(request.get("tests_root", "tests")),
+            1
+        );
+        if len(ranked) == 0 {
+            return _error_result("Replay trace captured no replay-backed repo candidates");
+        }
+
+        top_entry = ranked[0];
+        target_source = str(top_entry.get("source_file", ""));
+        target_function = str(top_entry.get("function_name", ""));
+        session = build_replay_inputs_from_directory(
+            str(request.get("source_root", "")),
+            str(request.get("script_path", "")),
+            str(request.get("tests_root", "tests")),
+            analysis_mode
+        );
+        candidates = session.get("candidate_inputs", []);
+        selected_input = candidates[0];
+        for input in candidates {
+            if (
+                str(input.get("function_name", "")) == target_function
+                and str(input.get("extra", {}).get("source_file", "")) == target_source
+            ) {
+                selected_input = input;
+                break;
+            }
+        }
+
+        selected_input = _with_runtime_overrides(selected_input, analysis_mode, llm_model, run_id, run_name, enable_run_log);
+        result = run_optimization(selected_input, criteria_name, config_name);
+        result["selected_function"] = target_function;
+        result["selected_source_file"] = target_source;
+        result["replay_trace_count"] = int(top_entry.get("replay_trace_count", 0));
+        result["selection_score"] = float(top_entry.get("selection_score", 0.0));
+        return result;
+    }
+
+    return _error_result("Unsupported optimization operation: " + operation);
 }

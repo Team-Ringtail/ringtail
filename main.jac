@@ -2,6 +2,9 @@
 # Main application entry point
 
 import from uuid { uuid4 }
+import importlib;
+
+import from interfaces.cli.cli { run_optimization_request }
 cl import "./styles.css";
 
 # Public functions become REST endpoints automatically with jac start
@@ -11,6 +14,25 @@ def:pub health -> dict {
 
 def:pub hello(name: str = "Ringtail") -> dict {
     return {"message": f"Hello from {name}!", "status": "ok"};
+}
+
+
+def:pub optimize_sync(request: dict) -> dict {
+    return run_optimization_request(request);
+}
+
+
+def:pub submit_optimization_job(request: dict) -> dict {
+    mod = importlib.import_module("src.core.async_jobs");
+    submit_job = getattr(mod, "submit_job");
+    return submit_job(request);
+}
+
+
+def:pub get_optimization_job(job_id: str) -> dict {
+    mod = importlib.import_module("src.core.async_jobs");
+    get_job = getattr(mod, "get_job");
+    return get_job(job_id);
 }
 
 # Walker example - also becomes a REST endpoint at /walker/test_walker  

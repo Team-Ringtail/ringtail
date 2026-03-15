@@ -16,7 +16,7 @@ import textwrap;
 import from typing { Any, Optional }
 
 glob _ANTHROPIC_ENV_NAMES = ('RINGTAIL_ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'),
-     _DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+     _DEFAULT_MODEL = 'claude-opus-4-6';
 
 def _get_api_key -> str {
     for name in _ANTHROPIC_ENV_NAMES {
@@ -26,6 +26,18 @@ def _get_api_key -> str {
         }
     }
     return '';
+}
+
+
+def _resolve_model(model: str | None = None) -> str {
+    if model is not None and str(model) != "" {
+        return str(model);
+    }
+    env_model = os.environ.get("RINGTAIL_DEFAULT_LLM_MODEL", "");
+    if env_model != "" {
+        return env_model;
+    }
+    return _DEFAULT_MODEL;
 }
 
 """Return an Anthropic client; raises if the key is missing."""
@@ -53,9 +65,10 @@ def analyze_and_plan(
     test_cases: list,
     feedback: dict | None = None,
     *,
-    model: str = _DEFAULT_MODEL,
+    model: str | None = None,
     run_log: Any = None
 ) -> dict {
+    resolved_model = _resolve_model(model);
     client = _get_client();
     criteria_str = json.dumps(criteria, indent=2) if criteria else '{}';
     tests_str = json.dumps(test_cases, indent=2) if test_cases else '[]';
@@ -96,13 +109,13 @@ the JSON).
     '''
     );
     response = client.messages.create(
-        model=model, max_tokens=2048, messages=[{'role': 'user', 'content': prompt}]
+        model=resolved_model, max_tokens=2048, messages=[{'role': 'user', 'content': prompt}]
     );
     text = response.content[0].text.strip();
     usage = response.usage;
     if run_log {
         run_log.llm_call(
-            model=model,
+            model=resolved_model,
             prompt_tokens=usage.input_tokens,
             completion_tokens=usage.output_tokens,
             phase='analyze_and_plan'
@@ -112,13 +125,7 @@ the JSON).
     try {
         plan = json.loads(text);
     } except json.JSONDecodeError {
-        plan = {
-            'estimated_time_sec': 0.05,
-            'estimated_memory_mb': 10.0,
-            'steps': ['LLM returned non-JSON; falling back'],
-            'analysis': text[:500],
-            'test_cases': []
-        };
+        raise ValueError("LLM returned invalid JSON plan: " + text[:500]);
     }
     for key in ('estimated_time_sec', 'estimated_memory_mb', 'steps') {
         plan.setdefault(
@@ -134,8 +141,9 @@ the JSON).
     Returns a Python source string (no markdown fences).
     """
 def generate_optimized_code(
-    source_code: str, plan: dict, *, model: str = _DEFAULT_MODEL, run_log: Any = None
+    source_code: str, plan: dict, *, model: str | None = None, run_log: Any = None
 ) -> str {
+    resolved_model = _resolve_model(model);
     client = _get_client();
     steps_str = '\n'.join(f"  - {s}" for s in plan.get('steps', []));
     analysis = plan.get('analysis', '');
@@ -161,13 +169,13 @@ return
     """
     );
     response = client.messages.create(
-        model=model, max_tokens=4096, messages=[{'role': 'user', 'content': prompt}]
+        model=resolved_model, max_tokens=4096, messages=[{'role': 'user', 'content': prompt}]
     );
     text = response.content[0].text.strip();
     usage = response.usage;
     if run_log {
         run_log.llm_call(
-            model=model,
+            model=resolved_model,
             prompt_tokens=usage.input_tokens,
             completion_tokens=usage.output_tokens,
             phase='generate_optimized_code'

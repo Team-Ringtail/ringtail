@@ -1,9 +1,9 @@
-"""Unit tests for src/agents/optimizer_agent.jac (heuristic path)."""
+"""Unit tests for src/agents/optimizer_agent.jac."""
 
 import from src.agents.optimizer_agent { think_and_prep, write_optimized_code, compare, enumerate_candidate_plans }
 
 
-test "think_and_prep heuristic produces sensible plan" {
+test "think_and_prep mock backend produces deterministic plan" {
     source = "def foo(n):\n    total = 0\n    for i in range(n):\n        total += i\n    return total";
     criteria = {"performance_weight": 1.0, "code_quality_weight": 1.0, "functionality_weight": 1.0};
     function_call = "foo(10)";
@@ -15,7 +15,7 @@ test "think_and_prep heuristic produces sensible plan" {
         function_call,
         cases,
         None,
-        None
+        "__ringtail_test_mock__"
     );
 
     assert "estimated_time_sec" in plan;
@@ -23,6 +23,7 @@ test "think_and_prep heuristic produces sensible plan" {
     assert "steps" in plan;
     assert len(plan["steps"]) > 0;
     assert "candidate_plans" in plan;
+    assert plan["backend"] == "mock";
 }
 
 test "enumerate_candidate_plans returns bounded variants" {
@@ -45,18 +46,33 @@ test "enumerate_candidate_plans returns bounded variants" {
 }
 
 
-test "write_optimized_code heuristic preserves runnable code" {
+test "write_optimized_code mock backend preserves runnable code" {
     source = "def bar(x):\n    return x * 2";
     plan = {
+        "backend": "mock",
+        "analysis": "mock optimizer plan for deterministic tests",
         "estimated_time_sec": 0.05,
         "estimated_memory_mb": 10.0,
-        "steps": ["stub step"]
+        "steps": ["mock step"]
     };
 
     optimized = write_optimized_code(source, plan, None);
 
     assert "bar" in optimized;
-    assert "stub" in optimized;
+    assert optimized == source;
+}
+
+
+test "think_and_prep without explicit backend fails fast" {
+    source = "def foo(n):\n    return n";
+    criteria = {"performance_weight": 1.0, "code_quality_weight": 1.0, "functionality_weight": 1.0};
+
+    try {
+        think_and_prep(source, criteria, "foo(1)", [], None, None);
+        assert False;
+    } except Exception as e {
+        assert "No optimizer backend configured" in str(e);
+    }
 }
 
 

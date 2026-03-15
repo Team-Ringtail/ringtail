@@ -14,7 +14,7 @@ Usage:
     log.event("benchmark", slug="two_sum", passed=1, time_s=0.04)
     log.close()
 
-Logs are written to  logs/<run_id>_<timestamp>.jsonl  (one JSON object per line).
+Logs are written to  logs/<run_id>.jsonl  (one JSON object per line).
 A combined index at  logs/runs.jsonl  tracks every run for quick querying.
 """
 import datetime as _dt
@@ -27,10 +27,10 @@ LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", 
 
 
 class RunLog:
-    def __init__(self, run_name: str = "run"):
+    def __init__(self, run_name: str = "run", run_id: str | None = None):
         os.makedirs(LOGS_DIR, exist_ok=True)
         ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_id = f"{run_name}_{ts}"
+        self.run_id = run_id or f"{run_name}_{ts}"
         self.log_path = os.path.join(LOGS_DIR, f"{self.run_id}.jsonl")
         self.start_time = time.monotonic()
         self._file = open(self.log_path, "a")

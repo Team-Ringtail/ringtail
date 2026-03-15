@@ -21,7 +21,7 @@ test "think_and_prep llm mode returns plan dict" {
         function_call,
         cases,
         "llm",
-        "claude-sonnet-4-20250514"
+        "claude-opus-4-6"
     );
 
     print("plan: " + str(plan));
@@ -43,7 +43,7 @@ test "write_optimized_code llm mode returns non-empty code" {
     optimized = write_optimized_code(
         source,
         plan,
-        "claude-sonnet-4-20250514"
+        "claude-opus-4-6"
     );
 
     print("optimized: " + optimized);
