@@ -301,6 +301,67 @@ test "build_replay_inputs_from_script captures multiple observed functions" {
 }
 
 
+test "build_replay_inputs_from_script reuses cached replay session" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_cache_single_");
+    try {
+        module_path = os.path.join(tmp_dir, "math_ops.py");
+        script_path = os.path.join(tmp_dir, "drive_math_ops.py");
+        _write(
+            module_path,
+            "def add(a: int, b: int):\n    return a + b\n"
+        );
+        _write(
+            script_path,
+            "from math_ops import add\n\nadd(1, 2)\nadd(4, 5)\n"
+        );
+
+        first = build_replay_inputs_from_script(module_path, script_path, os.path.join(tmp_dir, "tests"), None, None);
+        second = build_replay_inputs_from_script(module_path, script_path, os.path.join(tmp_dir, "tests"), None, None);
+
+        assert first["replay_trace"]["cache_hit"] is False;
+        assert second["replay_trace"]["cache_hit"] is True;
+        assert first["replay_trace"]["cache_key"] == second["replay_trace"]["cache_key"];
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "replay cache invalidates when script changes" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_cache_invalidate_");
+    try {
+        module_path = os.path.join(tmp_dir, "math_ops.py");
+        script_path = os.path.join(tmp_dir, "drive_math_ops.py");
+        _write(
+            module_path,
+            "def add(a: int, b: int):\n    return a + b\n"
+        );
+        _write(
+            script_path,
+            "from math_ops import add\n\nadd(1, 2)\n"
+        );
+
+        first = build_replay_inputs_from_script(module_path, script_path, os.path.join(tmp_dir, "tests"), None, None);
+        _write(
+            script_path,
+            "from math_ops import add\n\nadd(1, 2)\nadd(5, 6)\n"
+        );
+        second = build_replay_inputs_from_script(module_path, script_path, os.path.join(tmp_dir, "tests"), None, None);
+
+        assert first["replay_trace"]["cache_hit"] is False;
+        assert second["replay_trace"]["cache_hit"] is False;
+        assert first["replay_trace"]["cache_key"] != second["replay_trace"]["cache_key"];
+        assert second["replay_trace"]["total_trace_count"] == 2;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_path);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
 test "inspect_replay_session summarizes replay-backed candidates" {
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_session_cli_");
     try {
@@ -379,6 +440,37 @@ test "build_replay_inputs_from_directory captures observed functions across file
         assert len(result["observed_source_files"]) == 2;
         assert "pkg/math_a.py" in str(result["replay_trace"]["captured_records"][0]["source_rel_path"]);
         assert result["replay_trace"]["total_trace_count"] == 3;
+    } finally {
+        os.remove(script_path);
+        os.remove(module_a);
+        os.remove(module_b);
+        os.rmdir(pkg_dir);
+        os.rmdir(tmp_dir);
+    }
+}
+
+
+test "build_replay_inputs_from_directory reuses cached repo replay session" {
+    tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_cache_repo_");
+    try {
+        pkg_dir = os.path.join(tmp_dir, "pkg");
+        os.mkdir(pkg_dir);
+        module_a = os.path.join(pkg_dir, "math_a.py");
+        module_b = os.path.join(pkg_dir, "math_b.py");
+        script_path = os.path.join(tmp_dir, "drive_repo.py");
+        _write(module_a, "def add(a: int, b: int):\n    return a + b\n");
+        _write(module_b, "def mul(a: int, b: int):\n    return a * b\n");
+        _write(
+            script_path,
+            "from pkg.math_a import add\nfrom pkg.math_b import mul\n\nadd(1, 2)\nmul(3, 4)\n"
+        );
+
+        first = build_replay_inputs_from_directory(tmp_dir, script_path, os.path.join(tmp_dir, "tests"), None);
+        second = build_replay_inputs_from_directory(tmp_dir, script_path, os.path.join(tmp_dir, "tests"), None);
+
+        assert first["replay_trace"]["cache_hit"] is False;
+        assert second["replay_trace"]["cache_hit"] is True;
+        assert first["replay_trace"]["cache_key"] == second["replay_trace"]["cache_key"];
     } finally {
         os.remove(script_path);
         os.remove(module_a);

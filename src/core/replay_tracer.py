@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import importlib
 import os
@@ -141,6 +142,8 @@ if run_error:
     raise RuntimeError(run_error)
 """
 
+REPLAY_CACHE_VERSION = "v1"
+
 
 def _render_call(function_name: str, args: list[str], kwargs: dict[str, str]) -> str:
     parts = list(args)
@@ -211,6 +214,73 @@ def _empty_repo_session_result(error: str, *, stdout: str = "", stderr: str = ""
         "stdout": stdout,
         "stderr": stderr,
     }
+
+
+def _cache_dir() -> str:
+    return os.path.join(str(Path.home()), ".ringtail_cache", "replay")
+
+
+def _hash_file(abs_path: str) -> str:
+    return hashlib.sha256(Path(abs_path).read_bytes()).hexdigest()
+
+
+def _session_cache_key(abs_source: str, abs_script: str, function_names: list[str]) -> str:
+    payload = {
+        "version": REPLAY_CACHE_VERSION,
+        "mode": "single_file_session",
+        "source_file": abs_source,
+        "script_path": abs_script,
+        "source_hash": _hash_file(abs_source),
+        "script_hash": _hash_file(abs_script),
+        "function_names": list(function_names),
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _repo_session_cache_key(
+    abs_sources: list[str],
+    abs_script: str,
+    function_names_by_source: dict[str, list[str]],
+) -> str:
+    payload = {
+        "version": REPLAY_CACHE_VERSION,
+        "mode": "repo_session",
+        "script_path": abs_script,
+        "script_hash": _hash_file(abs_script),
+        "sources": [
+            {
+                "source_file": abs_source,
+                "source_hash": _hash_file(abs_source),
+                "function_names": list(function_names_by_source.get(abs_source, [])),
+            }
+            for abs_source in abs_sources
+        ],
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _load_cache(cache_key: str) -> dict | None:
+    cache_path = os.path.join(_cache_dir(), cache_key + ".json")
+    if not os.path.exists(cache_path):
+        return None
+    try:
+        return json.loads(Path(cache_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _store_cache(cache_key: str, result: dict) -> None:
+    cache_dir = _cache_dir()
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_path = os.path.join(cache_dir, cache_key + ".json")
+    Path(cache_path).write_text(json.dumps(result), encoding="utf-8")
+
+
+def _with_cache_metadata(result: dict, cache_key: str, cache_hit: bool) -> dict:
+    with_meta = dict(result)
+    with_meta["cache_key"] = cache_key
+    with_meta["cache_hit"] = cache_hit
+    return with_meta
 
 
 def _group_records_by_function(records: list[dict], function_names: list[str]) -> dict[str, list[dict]]:
@@ -302,6 +372,11 @@ def trace_replay_session_from_script(
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_")
     abs_source = os.path.abspath(source_file_path)
     abs_script = os.path.abspath(script_path)
+    common_root = os.path.commonpath([abs_source, abs_script])
+    cache_key = _session_cache_key(abs_source, abs_script, function_names)
+    cached = _load_cache(cache_key)
+    if cached is not None:
+        return _with_cache_metadata(cached, cache_key, True)
     source_basename = os.path.basename(abs_source)
     script_basename = os.path.basename(abs_script)
     trace_json_path = os.path.join(tmp_dir, "_trace.json")
@@ -362,7 +437,7 @@ def trace_replay_session_from_script(
             if fn_result.get("trace_count", 0) > 0
         ]
         success = len(observed_function_names) > 0
-        return {
+        result_payload = {
             "success": success,
             "functions": functions,
             "traced_function_names": list(function_names),
@@ -376,10 +451,16 @@ def trace_replay_session_from_script(
             "stdout": result.stdout,
             "stderr": result.stderr,
         }
+        _store_cache(cache_key, result_payload)
+        return _with_cache_metadata(result_payload, cache_key, False)
     except subprocess.TimeoutExpired:
-        return _empty_session_result(f"Replay trace timed out after {timeout_seconds}s")
+        result_payload = _empty_session_result(f"Replay trace timed out after {timeout_seconds}s")
+        _store_cache(cache_key, result_payload)
+        return _with_cache_metadata(result_payload, cache_key, False)
     except Exception as exc:  # pragma: no cover - defensive
-        return _empty_session_result(str(exc))
+        result_payload = _empty_session_result(str(exc))
+        _store_cache(cache_key, result_payload)
+        return _with_cache_metadata(result_payload, cache_key, False)
     finally:
         for dirpath, dirs, files in os.walk(tmp_dir, topdown=False):
             for fname in files:
@@ -406,6 +487,8 @@ def trace_replay_cases_from_script(
         result = dict(functions[function_name])
         result["session_total_trace_count"] = session.get("total_trace_count", 0)
         result["observed_function_names"] = session.get("observed_function_names", [])
+        result["cache_key"] = session.get("cache_key", "")
+        result["cache_hit"] = bool(session.get("cache_hit", False))
         return result
     return _empty_trace_result(
         str(session.get("error", "No calls captured")),
@@ -426,6 +509,15 @@ def trace_replay_repo_session_from_script(
     abs_sources = [os.path.abspath(path) for path in source_file_paths]
     abs_script = os.path.abspath(script_path)
     common_root = os.path.commonpath(abs_sources + [abs_script])
+    raw_function_names_by_source = function_names_by_source or {}
+    normalized_function_names_by_source = {
+        abs_source: list(raw_function_names_by_source.get(abs_source, []))
+        for abs_source in abs_sources
+    }
+    cache_key = _repo_session_cache_key(abs_sources, abs_script, normalized_function_names_by_source)
+    cached = _load_cache(cache_key)
+    if cached is not None:
+        return _with_cache_metadata(cached, cache_key, True)
     tmp_dir = tempfile.mkdtemp(prefix="ringtail_replay_repo_")
     trace_json_path = os.path.join(tmp_dir, "_trace.json")
     wrapper_path = os.path.join(tmp_dir, "_trace_repo_wrapper.py")
@@ -433,14 +525,10 @@ def trace_replay_repo_session_from_script(
     try:
         source_specs: list[dict] = []
         source_rel_paths: list[str] = []
-        normalized_function_names_by_source: dict[str, list[str]] = {}
-
         for abs_source in abs_sources:
             source_rel_path = _copy_tree_file(abs_source, common_root, tmp_dir)
             source_rel_paths.append(source_rel_path)
-            selected_functions = []
-            if function_names_by_source is not None:
-                selected_functions = list(function_names_by_source.get(abs_source, []))
+            selected_functions = list(normalized_function_names_by_source.get(abs_source, []))
             normalized_function_names_by_source[source_rel_path] = selected_functions
             source_specs.append(
                 {
@@ -530,7 +618,7 @@ def trace_replay_repo_session_from_script(
             }
 
         success = len(observed_source_files) > 0
-        return {
+        result_payload = {
             "success": success,
             "sources": sources,
             "traced_source_files": abs_sources,
@@ -544,10 +632,16 @@ def trace_replay_repo_session_from_script(
             "stdout": result.stdout,
             "stderr": result.stderr,
         }
+        _store_cache(cache_key, result_payload)
+        return _with_cache_metadata(result_payload, cache_key, False)
     except subprocess.TimeoutExpired:
-        return _empty_repo_session_result(f"Replay trace timed out after {timeout_seconds}s")
+        result_payload = _empty_repo_session_result(f"Replay trace timed out after {timeout_seconds}s")
+        _store_cache(cache_key, result_payload)
+        return _with_cache_metadata(result_payload, cache_key, False)
     except Exception as exc:  # pragma: no cover - defensive
-        return _empty_repo_session_result(str(exc))
+        result_payload = _empty_repo_session_result(str(exc))
+        _store_cache(cache_key, result_payload)
+        return _with_cache_metadata(result_payload, cache_key, False)
     finally:
         for dirpath, dirs, files in os.walk(tmp_dir, topdown=False):
             for fname in files:
