@@ -218,6 +218,7 @@ cl def:pub app -> JsxElement {
     has demoCard3Original: str = "";
     has demoCard3Optimized: str = "";
     has pollingInitialized: bool = False;
+    has demoPollHandle: any = None;
 
     def _value(data: any, key: str, fallback: any) -> any {
         if data is None {
@@ -227,21 +228,6 @@ cl def:pub app -> JsxElement {
             return data[key];
         }
         return fallback;
-    }
-
-    def _unwrap_response(resp: any) -> any {
-        if resp is None {
-            return resp;
-        }
-        data = _value(resp, "data", None);
-        if data is None {
-            return resp;
-        }
-        result = _value(data, "result", None);
-        if result is None {
-            return resp;
-        }
-        return result;
     }
 
     def _format_demo_benchmarks(data: dict) -> str {
@@ -437,6 +423,41 @@ cl def:pub app -> JsxElement {
         }
     }
 
+    def stopDemoPollingTimer() -> None {
+        if demoPollHandle is not None {
+            globalThis.clearInterval(demoPollHandle);
+            demoPollHandle = None;
+        }
+    }
+
+    def startDemoPollingTimer(jobId: str) -> None {
+        stopDemoPollingTimer();
+        if str(jobId) == "" {
+            return;
+        }
+        # Bind polling to the concrete submitted job id so callback closures
+        # don't depend on eventually-consistent state reads.
+        demoPollHandle = globalThis.setInterval(lambda -> None { pollDemoProgress(jobId); }, 500);
+        pollingInitialized = True;
+    }
+
+    async def sleepMs(ms: int) -> None {
+        await globalThis.Promise(lambda resolve: any -> None { globalThis.setTimeout(resolve, ms); });
+    }
+
+    async def watchDemoJob(jobId: str) -> None {
+        if str(jobId) == "" {
+            return;
+        }
+        while demoView == "running" and demoJobId == jobId {
+            await pollDemoProgress(jobId);
+            if demoRunStatus != "queued" and demoRunStatus != "running" {
+                return;
+            }
+            await sleepMs(500);
+        }
+    }
+
     def _apply_demo_result(result: dict) -> None {
         summary = _value(result, "summary", {});
         rows = _value(summary, "results", []);
@@ -556,16 +577,19 @@ cl def:pub app -> JsxElement {
                 "per_file_k": perFileK
             };
             resp = await submit_optimization_job(payload);
-            unwrapped = _unwrap_response(resp);
-            demoJobId = str(_value(unwrapped, "job_id", ""));
-            if demoJobId == "" {
+
+            demoJobIdTmp = str(_value(resp, "job_id", ""));
+            setDemoJobId(demoJobIdTmp);
+            if demoJobIdTmp == "" {
                 demoRunStatus = "failed";
                 demoRunStage = "Benchmark run failed to start";
                 uiMessage = "Failed to start benchmark run: missing job_id from async job manager.";
                 return;
             }
             uiMessage = "";
-            await pollDemoProgress();
+            startDemoPollingTimer(demoJobIdTmp);
+            await pollDemoProgress(demoJobIdTmp);
+            await watchDemoJob(demoJobIdTmp);
         } except Exception as err {
             demoRunStatus = "failed";
             demoRunStage = "Benchmark run failed to start";
@@ -573,12 +597,11 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    async def pollDemoProgress() -> None {
-        if demoJobId == "" {
+    async def pollDemoProgress(demoJobIdTmp: str) -> None {
+        if demoJobIdTmp == "" {
             return;
         }
-        progressResp = await get_ranked_demo_job_progress(demoJobId);
-        progress = _unwrap_response(progressResp);
+        progress = await get_ranked_demo_job_progress(demoJobIdTmp);
         jobStatus = str(_value(progress, "job_status", _value(progress, "status", "running")));
         demoRunStatus = jobStatus;
         demoRunStage = str(_value(progress, "stage", "Running benchmark"));
@@ -588,10 +611,12 @@ cl def:pub app -> JsxElement {
             _apply_demo_result(_value(progress, "result", {}));
             demoProgressPct = 100;
             demoView = "results";
+            stopDemoPollingTimer();
         }
         if jobStatus == "failed" {
             demoRunStage = "Benchmark run failed";
             uiMessage = str(_value(progress, "error", _value(progress, "job_error", "Benchmark run failed")));
+            stopDemoPollingTimer();
         }
         if jobStatus == "not_found" {
             demoRunStatus = "failed";
@@ -601,12 +626,13 @@ cl def:pub app -> JsxElement {
                 "error",
                 "The benchmark job could not be found. It may have expired or never started correctly."
             ));
+            stopDemoPollingTimer();
         }
     }
 
     async def tickDemoPolling() -> None {
         if demoView == "running" and demoJobId != "" {
-            await pollDemoProgress();
+            await pollDemoProgress(demoJobId);
         }
     }
 
@@ -629,9 +655,8 @@ cl def:pub app -> JsxElement {
             }
             healthStatus = await health();
             await refreshBenchmarkContext();
-            if not pollingInitialized {
-                pollingInitialized = True;
-                globalThis.setInterval(lambda -> None { tickDemoPolling(); }, 3000);
+            if pollingInitialized and demoJobId != "" and (demoRunStatus == "queued" or demoRunStatus == "running") {
+                startDemoPollingTimer(demoJobId);
             }
         } except Exception as e {
             healthStatus = {"status": "error", "message": str(e)};

@@ -13,8 +13,34 @@ from pathlib import Path
 from typing import Any
 
 from src.core import async_jobs
+from src.utils.run_log import LOGS_DIR
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+def _workspace_root_candidates() -> list[Path]:
+    candidates = [Path.cwd().resolve(), Path(__file__).resolve().parents[2]]
+    for parent in Path.cwd().resolve().parents:
+        candidates.append(parent)
+    deduped = []
+    seen = set()
+    for item in candidates:
+        key = str(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(item)
+    return deduped
+
+
+def _detect_workspace_root() -> Path:
+    for candidate in _workspace_root_candidates():
+        if (candidate / "main.jac").exists() and (candidate / "benchmarks").exists():
+            return candidate
+    for candidate in _workspace_root_candidates():
+        if (candidate / "benchmarks" / "ranked_file_suite_runs").exists():
+            return candidate
+    return Path(__file__).resolve().parents[2]
+
+
+WORKSPACE_ROOT = _detect_workspace_root()
 DEFAULT_SOURCE_ROOT = WORKSPACE_ROOT / "benchmarks" / "ranked_pitch_repo"
 DEFAULT_TESTS_ROOT = DEFAULT_SOURCE_ROOT / "tests"
 RUNS_ROOT = WORKSPACE_ROOT / "benchmarks" / "ranked_file_suite_runs"
@@ -71,7 +97,9 @@ def get_demo_job_progress(job_id: str) -> dict[str, Any]:
         progress["error"] = f"Async job not found for job_id={job_id}. It may have expired or never started."
     if status == "failed" and not str(progress.get("error", "")).strip():
         progress["error"] = str(job.get("error", "")) or "Async job failed without an error message."
-    return progress
+    if _merge_live_activity(progress):
+        _write_progress(job_id, progress)
+    return _public_progress(progress)
 
 
 def _resolve_benchmark(benchmark_id: str | None = None) -> dict[str, Any]:
@@ -124,6 +152,7 @@ def run_demo_suite(
         "benchmark_id": str(suite["id"]),
         "benchmark_label": str(suite["label"]),
         "status": "running",
+        "started_at": dt.datetime.utcnow().isoformat() + "Z",
         "stage": "Preparing benchmark run",
         "progress_pct": 5,
         "output_dir": str(output_dir),
@@ -302,15 +331,214 @@ def _progress_path(job_id: str) -> Path:
     return PROGRESS_ROOT / f"{job_id}.json"
 
 
+def _candidate_progress_paths(job_id: str) -> list[Path]:
+    paths = [_progress_path(job_id)]
+    for root in _workspace_root_candidates():
+        candidate = root / "benchmarks" / "ranked_file_suite_runs" / "_progress" / f"{job_id}.json"
+        if candidate not in paths:
+            paths.append(candidate)
+    return paths
+
+
 def _write_progress(job_id: str, payload: dict[str, Any]) -> None:
     _progress_path(job_id).write_text(json.dumps(payload, indent=2, sort_keys=True))
 
 
 def _read_progress(job_id: str) -> dict[str, Any] | None:
-    path = _progress_path(job_id)
-    if not path.exists():
-        return None
-    return json.loads(path.read_text())
+    for path in _candidate_progress_paths(job_id):
+        if not path.exists():
+            continue
+        try:
+            return json.loads(path.read_text())
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _public_progress(progress: dict[str, Any]) -> dict[str, Any]:
+    clean = {}
+    for key, value in progress.items():
+        if str(key).startswith("_"):
+            continue
+        clean[key] = value
+    return clean
+
+
+def _merge_live_activity(progress: dict[str, Any]) -> bool:
+    changed = False
+    existing_lines = progress.get("log_lines", [])
+    log_lines = [str(item) for item in existing_lines] if isinstance(existing_lines, list) else []
+    seen_files_raw = progress.get("_seen_live_logs", [])
+    seen_files = set(str(item) for item in seen_files_raw) if isinstance(seen_files_raw, list) else set()
+    raw_positions = progress.get("_live_log_positions", {})
+    positions: dict[str, int] = {}
+    if isinstance(raw_positions, dict):
+        for key, value in raw_positions.items():
+            try:
+                positions[str(key)] = max(0, int(value))
+            except (TypeError, ValueError):
+                positions[str(key)] = 0
+
+    for path in _collect_live_log_paths(progress):
+        if path not in seen_files:
+            log_lines.append(f"==> {Path(path).name} <==")
+            seen_files.add(path)
+            changed = True
+        path_changed, new_lines = _drain_live_log_file(path, positions)
+        if new_lines:
+            log_lines.extend(new_lines)
+            changed = True
+        if path_changed:
+            changed = True
+
+    if len(log_lines) > 80:
+        log_lines = log_lines[-80:]
+        changed = True
+
+    progress["log_lines"] = log_lines
+    progress["_seen_live_logs"] = sorted(seen_files)
+    progress["_live_log_positions"] = positions
+    return changed
+
+
+def _collect_live_log_paths(progress: dict[str, Any]) -> list[str]:
+    paths: list[str] = []
+    _append_live_log_path(paths, progress.get("run_log_path", ""))
+    result = progress.get("result", {})
+    if isinstance(result, dict):
+        summary = result.get("summary", {})
+        rows = summary.get("results", []) if isinstance(summary, dict) else []
+        if isinstance(rows, list):
+            for row in rows:
+                if isinstance(row, dict):
+                    _append_live_log_path(paths, row.get("run_log_path", ""))
+    for path in _discover_recent_live_logs(progress):
+        _append_live_log_path(paths, path)
+    return paths
+
+
+def _append_live_log_path(paths: list[str], value: Any) -> None:
+    raw = str(value or "").strip()
+    if raw == "":
+        return
+    resolved = str(Path(raw).resolve())
+    if resolved not in paths:
+        paths.append(resolved)
+
+
+def _discover_recent_live_logs(progress: dict[str, Any]) -> list[str]:
+    logs_dir = Path(LOGS_DIR)
+    if not logs_dir.exists():
+        return []
+    cutoff = _progress_start_epoch(progress)
+    discovered: list[str] = []
+    for path in sorted(logs_dir.glob("*.jsonl"), key=lambda item: item.stat().st_mtime):
+        if path.name == "runs.jsonl":
+            continue
+        if path.stat().st_mtime + 1.0 < cutoff:
+            continue
+        discovered.append(str(path.resolve()))
+    return discovered
+
+
+def _progress_start_epoch(progress: dict[str, Any]) -> float:
+    for key in ("started_at", "updated_at"):
+        raw = str(progress.get(key, "")).strip()
+        if raw == "":
+            continue
+        try:
+            return dt.datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            continue
+    return dt.datetime.utcnow().timestamp()
+
+
+def _drain_live_log_file(path: str, positions: dict[str, int]) -> tuple[bool, list[str]]:
+    file_path = Path(path)
+    if not file_path.exists():
+        return False, []
+    start_pos = max(0, int(positions.get(path, 0)))
+    with file_path.open("r", encoding="utf-8", errors="replace") as handle:
+        handle.seek(start_pos)
+        raw_lines = handle.readlines()
+        end_pos = handle.tell()
+    positions[path] = end_pos
+    if not raw_lines:
+        return end_pos != start_pos, []
+    output = []
+    for raw in raw_lines:
+        text = raw.rstrip("\n")
+        if text == "":
+            continue
+        output.append(_format_live_log_line(path, text))
+    return end_pos != start_pos, output
+
+
+def _format_live_log_line(path: str, text: str) -> str:
+    prefix = "[" + Path(path).name + "]"
+    try:
+        event = json.loads(text)
+    except json.JSONDecodeError:
+        return f"{prefix} {text}"
+    if not isinstance(event, dict):
+        return f"{prefix} {text}"
+    kind = str(event.get("kind", "event"))
+    elapsed = event.get("elapsed_s", None)
+    elapsed_text = f"{float(elapsed):6.2f}s" if isinstance(elapsed, (int, float)) else "   ??.??s"
+    details = _format_live_log_details(event)
+    return f"{prefix} {elapsed_text} {kind}: {details}".rstrip()
+
+
+def _format_live_log_details(event: dict[str, Any]) -> str:
+    kind = str(event.get("kind", ""))
+    if kind == "run_start":
+        return f"run_name={event.get('run_name', '')}"
+    if kind == "run_metadata":
+        return (
+            f"function={event.get('function_name', '')} "
+            f"config={event.get('config_name', '')} "
+            f"analysis_mode={event.get('analysis_mode', None)}"
+        )
+    if kind == "llm_call":
+        return (
+            f"phase={event.get('phase', '')} "
+            f"model={event.get('model', '')} "
+            f"in={event.get('prompt_tokens', 0)} "
+            f"out={event.get('completion_tokens', 0)}"
+        )
+    if kind in {"iteration_start", "candidate_selected"}:
+        return " ".join(
+            [
+                f"iteration={event.get('iteration', '')}",
+                f"candidate={event.get('candidate_label', '')}",
+                f"improvement_ratio={event.get('improvement_ratio', '')}",
+            ]
+        ).strip()
+    if kind in {"tests", "property_tests", "profile", "candidate_evaluation", "optimization_step"}:
+        keys = [
+            "iteration",
+            "candidate_label",
+            "passed",
+            "success",
+            "improvement_ratio",
+            "coverage_percent",
+            "is_significant",
+            "confidence",
+            "agent_reason",
+            "error",
+        ]
+        parts = [f"{key}={event.get(key)}" for key in keys if key in event and event.get(key) not in ("", None)]
+        return " ".join(parts)
+    if kind == "error":
+        return str(event.get("message", ""))
+    if kind == "run_end":
+        return f"events={event.get('total_events', '')}"
+    parts = [
+        f"{key}={value}"
+        for key, value in event.items()
+        if key not in {"ts", "elapsed_s", "seq", "kind"} and value not in ("", None)
+    ]
+    return " ".join(parts)
 
 
 def _stage_for_line(line: str, *, top_k: int, current_pct: int) -> tuple[str, int]:
