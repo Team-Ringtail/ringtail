@@ -83,6 +83,11 @@ class AsyncJobManager:
         self._load_persisted_jobs()
 
     def submit_job(self, request: dict[str, Any]) -> dict[str, Any]:
+        if "request" in request and len(request) == 1:
+            request = request["request"]
+        print(f"[async_jobs] unwrapped request: {request}")
+        print("making it to the python")
+
         if not isinstance(request, dict):
             raise TypeError("request must be a dict")
 
@@ -90,6 +95,9 @@ class AsyncJobManager:
         run_id = request.get("run_id") or f"async_job_{job_id}"
         run_name = request.get("run_name") or run_id
         payload = dict(request)
+        print(f"[async_jobs] payload operation: {payload.get('operation')}")
+        print(f"[async_jobs] payload keys: {list(payload.keys())}")
+        print(f"[async_jobs] raw request: {request}")
         payload.setdefault("operation", "optimize_input")
         payload["job_id"] = job_id
         payload["run_id"] = run_id
@@ -172,6 +180,10 @@ class AsyncJobManager:
             self._update_job(job_id, pid=proc.pid)
             stdout, stderr = proc.communicate()
             result = _extract_result(stdout)
+
+            print(f"[async_jobs] returncode: {proc.returncode}")
+            print(f"[async_jobs] stdout: {stdout[:500]}")
+            print(f"[async_jobs] stderr: {stderr[:500]}")
 
             if proc.returncode == 0 and result is not None:
                 self._update_job(

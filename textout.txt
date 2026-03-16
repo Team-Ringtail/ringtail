@@ -1,0 +1,1353 @@
+⚠ Debug mode is enabled. For production, consider setting debug=false in  section of jac.toml
+✖ Error: error[E0013]: 'node' is a keyword and cannot be used as a parameter name (prefix with backtick to escape: `node)
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:80:22
+   78 | 
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+      |                      ^^^^
+   81 |     if node is None {
+   82 |         return None;
+✖ Error: error[E0002]: Missing ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:80:22
+   78 | 
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+      |                      ^^^^
+   81 |     if node is None {
+   82 |         return None;
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:80:22
+   78 | 
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+      |                      ^^^^
+   81 |     if node is None {
+   82 |         return None;
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:80:32
+   78 | 
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+      |                                ^
+   81 |     if node is None {
+   82 |         return None;
+✖ Error: error[E0005]: Unexpected token '|'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:80:32
+   78 | 
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+      |                                ^
+   81 |     if node is None {
+   82 |         return None;
+✖ Error: error[E0005]: Unexpected token 'if'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:81:5
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+   81 |     if node is None {
+      |     ^^
+   82 |         return None;
+   83 |     }
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:81:16
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+   81 |     if node is None {
+      |                ^^^^
+   82 |         return None;
+   83 |     }
+✖ Error: error[E0005]: Unexpected token 'None'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:81:16
+   79 | 
+   80 | def _literal_default(node: Any | None) -> Any | None {
+   81 |     if node is None {
+      |                ^^^^
+   82 |         return None;
+   83 |     }
+✖ Error: error[E0005]: Unexpected token 'return'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:82:9
+   80 | def _literal_default(node: Any | None) -> Any | None {
+   81 |     if node is None {
+   82 |         return None;
+      |         ^^^^^^
+   83 |     }
+   84 |     try {
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:82:20
+   80 | def _literal_default(node: Any | None) -> Any | None {
+   81 |     if node is None {
+   82 |         return None;
+      |                    ^
+   83 |     }
+   84 |     try {
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:83:5
+   81 |     if node is None {
+   82 |         return None;
+   83 |     }
+      |     ^
+   84 |     try {
+   85 |         return ast.literal_eval(node);
+✖ Error: error[E0005]: Unexpected token 'try'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:84:5
+   82 |         return None;
+   83 |     }
+   84 |     try {
+      |     ^^^
+   85 |         return ast.literal_eval(node);
+   86 |     } except Exception {
+✖ Error: error[E0005]: Unexpected token 'return'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:85:9
+   83 |     }
+   84 |     try {
+   85 |         return ast.literal_eval(node);
+      |         ^^^^^^
+   86 |     } except Exception {
+   87 |         return None;
+✖ Error: error[E0003]: Expected identifier, got ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:85:37
+   83 |     }
+   84 |     try {
+   85 |         return ast.literal_eval(node);
+      |                                     ^
+   86 |     } except Exception {
+   87 |         return None;
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:85:37
+   83 |     }
+   84 |     try {
+   85 |         return ast.literal_eval(node);
+      |                                     ^
+   86 |     } except Exception {
+   87 |         return None;
+✖ Error: error[E0005]: Unexpected token ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:85:37
+   83 |     }
+   84 |     try {
+   85 |         return ast.literal_eval(node);
+      |                                     ^
+   86 |     } except Exception {
+   87 |         return None;
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:85:38
+   83 |     }
+   84 |     try {
+   85 |         return ast.literal_eval(node);
+      |                                      ^
+   86 |     } except Exception {
+   87 |         return None;
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:86:5
+   84 |     try {
+   85 |         return ast.literal_eval(node);
+   86 |     } except Exception {
+      |     ^
+   87 |         return None;
+   88 |     }
+✖ Error: error[E0005]: Unexpected token 'return'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:87:9
+   85 |         return ast.literal_eval(node);
+   86 |     } except Exception {
+   87 |         return None;
+      |         ^^^^^^
+   88 |     }
+   89 | }
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:87:20
+   85 |         return ast.literal_eval(node);
+   86 |     } except Exception {
+   87 |         return None;
+      |                    ^
+   88 |     }
+   89 | }
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:88:5
+   86 |     } except Exception {
+   87 |         return None;
+   88 |     }
+      |     ^
+   89 | }
+   90 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:89:1
+   87 |         return None;
+   88 |     }
+   89 | }
+      | ^
+   90 | 
+   91 | 
+✖ Error: error[E0013]: 'node' is a keyword and cannot be used as a parameter name (prefix with backtick to escape: `node)
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:92:39
+   90 | 
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+      |                                       ^^^^
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+✖ Error: error[E0002]: Missing ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:92:39
+   90 | 
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+      |                                       ^^^^
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:92:39
+   90 | 
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+      |                                       ^^^^
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:92:48
+   90 | 
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+      |                                                ^
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+✖ Error: error[E0005]: Unexpected token ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:92:48
+   90 | 
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+      |                                                ^
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+✖ Error: error[E0005]: Unexpected token 'if'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:93:5
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+      |     ^^
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+✖ Error: error[E0003]: Expected identifier, got ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:93:20
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+      |                    ^
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:93:20
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+      |                    ^
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+✖ Error: error[E0005]: Unexpected token ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:93:20
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+      |                    ^
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+✖ Error: error[E0003]: Expected identifier, got ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:93:48
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+      |                                                ^
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:93:48
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+      |                                                ^
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+✖ Error: error[E0005]: Unexpected token ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:93:48
+   91 | 
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+      |                                                ^
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:94:40
+   92 | def _source_segment(source_code: str, node: Any) -> str {
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+      |                                        ^
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+✖ Error: error[E0005]: Unexpected token 'start'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:95:9
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+      |         ^^^^^
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:95:25
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+      |                         ^
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:95:25
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+      |                         ^
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:95:25
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+      |                         ^
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:95:37
+   93 |     if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+      |                                     ^
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+✖ Error: error[E0005]: Unexpected token 'end'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:96:9
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+      |         ^^^
+   97 |         return "\n".join(lines);
+   98 |     }
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:96:23
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+      |                       ^
+   97 |         return "\n".join(lines);
+   98 |     }
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:96:23
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+      |                       ^
+   97 |         return "\n".join(lines);
+   98 |     }
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:96:23
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+      |                       ^
+   97 |         return "\n".join(lines);
+   98 |     }
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:96:35
+   94 |         lines = source_code.split("\n");
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+      |                                   ^
+   97 |         return "\n".join(lines);
+   98 |     }
+✖ Error: error[E0005]: Unexpected token 'return'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:97:9
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+      |         ^^^^^^
+   98 |     }
+   99 |     return "";
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:97:43
+   95 |         start = int(node.lineno) - 1;
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+      |                                           ^
+   98 |     }
+   99 |     return "";
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:98:5
+   96 |         end = int(node.end_lineno);
+   97 |         return "\n".join(lines);
+   98 |     }
+      |     ^
+   99 |     return "";
+  100 | }
+✖ Error: error[E0005]: Unexpected token 'return'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:99:5
+   97 |         return "\n".join(lines);
+   98 |     }
+   99 |     return "";
+      |     ^^^^^^
+  100 | }
+  101 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:99:14
+   97 |         return "\n".join(lines);
+   98 |     }
+   99 |     return "";
+      |              ^
+  100 | }
+  101 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac💯1
+   98 |     }
+   99 |     return "";
+  100 | }
+      | ^
+  101 | 
+  102 | 
+✖ Error: error[E0013]: 'node' is a keyword and cannot be used as a parameter name (prefix with backtick to escape: `node)
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:103:45
+  101 | 
+  102 | 
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+      |                                             ^^^^
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+✖ Error: error[E0002]: Missing ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:103:45
+  101 | 
+  102 | 
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+      |                                             ^^^^
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:103:45
+  101 | 
+  102 | 
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+      |                                             ^^^^
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:103:54
+  101 | 
+  102 | 
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+      |                                                      ^
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+✖ Error: error[E0005]: Unexpected token ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:103:54
+  101 | 
+  102 | 
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+      |                                                      ^
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:104:26
+  102 | 
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+  104 |     parameters: list = [];
+      |                          ^
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+✖ Error: error[E0005]: Unexpected token 'positional_args'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:105:5
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+      |     ^^^^^^^^^^^^^^^
+  106 |     defaults = node.args.defaults;
+  107 |     default_start = len(positional_args) - len(defaults);
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:105:27
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+      |                           ^
+  106 |     defaults = node.args.defaults;
+  107 |     default_start = len(positional_args) - len(defaults);
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:105:27
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+      |                           ^
+  106 |     defaults = node.args.defaults;
+  107 |     default_start = len(positional_args) - len(defaults);
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:105:27
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+      |                           ^
+  106 |     defaults = node.args.defaults;
+  107 |     default_start = len(positional_args) - len(defaults);
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:105:37
+  103 | def _python_function_info(source_code: str, node: Any) -> dict {
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+      |                                     ^
+  106 |     defaults = node.args.defaults;
+  107 |     default_start = len(positional_args) - len(defaults);
+✖ Error: error[E0005]: Unexpected token 'defaults'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:106:5
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+      |     ^^^^^^^^
+  107 |     default_start = len(positional_args) - len(defaults);
+  108 | 
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:106:20
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+      |                    ^
+  107 |     default_start = len(positional_args) - len(defaults);
+  108 | 
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:106:20
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+      |                    ^
+  107 |     default_start = len(positional_args) - len(defaults);
+  108 | 
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:106:20
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+      |                    ^
+  107 |     default_start = len(positional_args) - len(defaults);
+  108 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:106:34
+  104 |     parameters: list = [];
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+      |                                  ^
+  107 |     default_start = len(positional_args) - len(defaults);
+  108 | 
+✖ Error: error[E0005]: Unexpected token 'default_start'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:107:5
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+  107 |     default_start = len(positional_args) - len(defaults);
+      |     ^^^^^^^^^^^^^
+  108 | 
+  109 |     idx = 0;
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:107:57
+  105 |     positional_args = node.args.args;
+  106 |     defaults = node.args.defaults;
+  107 |     default_start = len(positional_args) - len(defaults);
+      |                                                         ^
+  108 | 
+  109 |     idx = 0;
+✖ Error: error[E0005]: Unexpected token 'idx'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:109:5
+  107 |     default_start = len(positional_args) - len(defaults);
+  108 | 
+  109 |     idx = 0;
+      |     ^^^
+  110 |     for arg in positional_args {
+  111 |         param_type = _annotation_to_string(arg.annotation);
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:109:12
+  107 |     default_start = len(positional_args) - len(defaults);
+  108 | 
+  109 |     idx = 0;
+      |            ^
+  110 |     for arg in positional_args {
+  111 |         param_type = _annotation_to_string(arg.annotation);
+✖ Error: error[E0005]: Unexpected token 'for'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:110:5
+  108 | 
+  109 |     idx = 0;
+  110 |     for arg in positional_args {
+      |     ^^^
+  111 |         param_type = _annotation_to_string(arg.annotation);
+  112 |         default_value = None;
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:111:59
+  109 |     idx = 0;
+  110 |     for arg in positional_args {
+  111 |         param_type = _annotation_to_string(arg.annotation);
+      |                                                           ^
+  112 |         default_value = None;
+  113 |         if idx >= default_start and default_start >= 0 {
+✖ Error: error[E0005]: Unexpected token 'default_value'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:112:9
+  110 |     for arg in positional_args {
+  111 |         param_type = _annotation_to_string(arg.annotation);
+  112 |         default_value = None;
+      |         ^^^^^^^^^^^^^
+  113 |         if idx >= default_start and default_start >= 0 {
+  114 |             default_value = _literal_default(defaults);
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:112:29
+  110 |     for arg in positional_args {
+  111 |         param_type = _annotation_to_string(arg.annotation);
+  112 |         default_value = None;
+      |                             ^
+  113 |         if idx >= default_start and default_start >= 0 {
+  114 |             default_value = _literal_default(defaults);
+✖ Error: error[E0005]: Unexpected token 'if'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:113:9
+  111 |         param_type = _annotation_to_string(arg.annotation);
+  112 |         default_value = None;
+  113 |         if idx >= default_start and default_start >= 0 {
+      |         ^^
+  114 |             default_value = _literal_default(defaults);
+  115 |         }
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:114:76
+  112 |         default_value = None;
+  113 |         if idx >= default_start and default_start >= 0 {
+  114 |             default_value = _literal_default(defaults);
+      |                                                                            ^
+  115 |         }
+  116 |         parameters.append({
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:115:9
+  113 |         if idx >= default_start and default_start >= 0 {
+  114 |             default_value = _literal_default(defaults);
+  115 |         }
+      |         ^
+  116 |         parameters.append({
+  117 |             "name": arg.arg,
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:121:9
+  119 |             "default": default_value,
+  120 |             "kind": "positional"
+  121 |         });
+      |         ^
+  122 |         idx = idx + 1;
+  123 |     }
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:121:11
+  119 |             "default": default_value,
+  120 |             "kind": "positional"
+  121 |         });
+      |           ^
+  122 |         idx = idx + 1;
+  123 |     }
+✖ Error: error[E0005]: Unexpected token 'idx'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:122:9
+  120 |             "kind": "positional"
+  121 |         });
+  122 |         idx = idx + 1;
+      |         ^^^
+  123 |     }
+  124 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:122:22
+  120 |             "kind": "positional"
+  121 |         });
+  122 |         idx = idx + 1;
+      |                      ^
+  123 |     }
+  124 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:123:5
+  121 |         });
+  122 |         idx = idx + 1;
+  123 |     }
+      |     ^
+  124 | 
+  125 |     if node.args.vararg is not None {
+✖ Error: error[E0005]: Unexpected token 'if'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:125:5
+  123 |     }
+  124 | 
+  125 |     if node.args.vararg is not None {
+      |     ^^
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:125:12
+  123 |     }
+  124 | 
+  125 |     if node.args.vararg is not None {
+      |            ^
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:125:12
+  123 |     }
+  124 | 
+  125 |     if node.args.vararg is not None {
+      |            ^
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:125:12
+  123 |     }
+  124 | 
+  125 |     if node.args.vararg is not None {
+      |            ^
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:127:25
+  125 |     if node.args.vararg is not None {
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+      |                         ^
+  128 |             "type": _annotation_to_string(node.args.vararg.annotation),
+  129 |             "default": None,
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:127:25
+  125 |     if node.args.vararg is not None {
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+      |                         ^
+  128 |             "type": _annotation_to_string(node.args.vararg.annotation),
+  129 |             "default": None,
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:127:25
+  125 |     if node.args.vararg is not None {
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+      |                         ^
+  128 |             "type": _annotation_to_string(node.args.vararg.annotation),
+  129 |             "default": None,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:128:47
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+  128 |             "type": _annotation_to_string(node.args.vararg.annotation),
+      |                                               ^
+  129 |             "default": None,
+  130 |             "kind": "vararg"
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:128:47
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+  128 |             "type": _annotation_to_string(node.args.vararg.annotation),
+      |                                               ^
+  129 |             "default": None,
+  130 |             "kind": "vararg"
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:128:47
+  126 |         parameters.append({
+  127 |             "name": node.args.vararg.arg,
+  128 |             "type": _annotation_to_string(node.args.vararg.annotation),
+      |                                               ^
+  129 |             "default": None,
+  130 |             "kind": "vararg"
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:131:9
+  129 |             "default": None,
+  130 |             "kind": "vararg"
+  131 |         });
+      |         ^
+  132 |     }
+  133 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:131:11
+  129 |             "default": None,
+  130 |             "kind": "vararg"
+  131 |         });
+      |           ^
+  132 |     }
+  133 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:132:5
+  130 |             "kind": "vararg"
+  131 |         });
+  132 |     }
+      |     ^
+  133 | 
+  134 |     kw_idx = 0;
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:134:15
+  132 |     }
+  133 | 
+  134 |     kw_idx = 0;
+      |               ^
+  135 |     for arg in node.args.kwonlyargs {
+  136 |         default_value = None;
+✖ Error: error[E0005]: Unexpected token 'for'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:135:5
+  133 | 
+  134 |     kw_idx = 0;
+  135 |     for arg in node.args.kwonlyargs {
+      |     ^^^
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:135:20
+  133 | 
+  134 |     kw_idx = 0;
+  135 |     for arg in node.args.kwonlyargs {
+      |                    ^
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:135:20
+  133 | 
+  134 |     kw_idx = 0;
+  135 |     for arg in node.args.kwonlyargs {
+      |                    ^
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:135:20
+  133 | 
+  134 |     kw_idx = 0;
+  135 |     for arg in node.args.kwonlyargs {
+      |                    ^
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:136:29
+  134 |     kw_idx = 0;
+  135 |     for arg in node.args.kwonlyargs {
+  136 |         default_value = None;
+      |                             ^
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+✖ Error: error[E0005]: Unexpected token 'if'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:137:9
+  135 |     for arg in node.args.kwonlyargs {
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+      |         ^^
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+  139 |         }
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:137:29
+  135 |     for arg in node.args.kwonlyargs {
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+      |                             ^
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+  139 |         }
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:137:29
+  135 |     for arg in node.args.kwonlyargs {
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+      |                             ^
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+  139 |         }
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:137:29
+  135 |     for arg in node.args.kwonlyargs {
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+      |                             ^
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+  139 |         }
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:138:50
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+      |                                                  ^
+  139 |         }
+  140 |         parameters.append({
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:138:50
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+      |                                                  ^
+  139 |         }
+  140 |         parameters.append({
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:138:50
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+      |                                                  ^
+  139 |         }
+  140 |         parameters.append({
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:138:76
+  136 |         default_value = None;
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+      |                                                                            ^
+  139 |         }
+  140 |         parameters.append({
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:139:9
+  137 |         if kw_idx < len(node.args.kw_defaults) {
+  138 |             default_value = _literal_default(node.args.kw_defaults);
+  139 |         }
+      |         ^
+  140 |         parameters.append({
+  141 |             "name": arg.arg,
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:145:9
+  143 |             "default": default_value,
+  144 |             "kind": "kwonly"
+  145 |         });
+      |         ^
+  146 |         kw_idx = kw_idx + 1;
+  147 |     }
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:145:11
+  143 |             "default": default_value,
+  144 |             "kind": "kwonly"
+  145 |         });
+      |           ^
+  146 |         kw_idx = kw_idx + 1;
+  147 |     }
+✖ Error: error[E0005]: Unexpected token 'kw_idx'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:146:9
+  144 |             "kind": "kwonly"
+  145 |         });
+  146 |         kw_idx = kw_idx + 1;
+      |         ^^^^^^
+  147 |     }
+  148 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:146:28
+  144 |             "kind": "kwonly"
+  145 |         });
+  146 |         kw_idx = kw_idx + 1;
+      |                            ^
+  147 |     }
+  148 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:147:5
+  145 |         });
+  146 |         kw_idx = kw_idx + 1;
+  147 |     }
+      |     ^
+  148 | 
+  149 |     if node.args.kwarg is not None {
+✖ Error: error[E0005]: Unexpected token 'if'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:149:5
+  147 |     }
+  148 | 
+  149 |     if node.args.kwarg is not None {
+      |     ^^
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:149:12
+  147 |     }
+  148 | 
+  149 |     if node.args.kwarg is not None {
+      |            ^
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:149:12
+  147 |     }
+  148 | 
+  149 |     if node.args.kwarg is not None {
+      |            ^
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:149:12
+  147 |     }
+  148 | 
+  149 |     if node.args.kwarg is not None {
+      |            ^
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:151:25
+  149 |     if node.args.kwarg is not None {
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+      |                         ^
+  152 |             "type": _annotation_to_string(node.args.kwarg.annotation),
+  153 |             "default": None,
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:151:25
+  149 |     if node.args.kwarg is not None {
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+      |                         ^
+  152 |             "type": _annotation_to_string(node.args.kwarg.annotation),
+  153 |             "default": None,
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:151:25
+  149 |     if node.args.kwarg is not None {
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+      |                         ^
+  152 |             "type": _annotation_to_string(node.args.kwarg.annotation),
+  153 |             "default": None,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:152:47
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+  152 |             "type": _annotation_to_string(node.args.kwarg.annotation),
+      |                                               ^
+  153 |             "default": None,
+  154 |             "kind": "kwargs"
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:152:47
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+  152 |             "type": _annotation_to_string(node.args.kwarg.annotation),
+      |                                               ^
+  153 |             "default": None,
+  154 |             "kind": "kwargs"
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:152:47
+  150 |         parameters.append({
+  151 |             "name": node.args.kwarg.arg,
+  152 |             "type": _annotation_to_string(node.args.kwarg.annotation),
+      |                                               ^
+  153 |             "default": None,
+  154 |             "kind": "kwargs"
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:155:9
+  153 |             "default": None,
+  154 |             "kind": "kwargs"
+  155 |         });
+      |         ^
+  156 |     }
+  157 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:155:11
+  153 |             "default": None,
+  154 |             "kind": "kwargs"
+  155 |         });
+      |           ^
+  156 |     }
+  157 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:156:5
+  154 |             "kind": "kwargs"
+  155 |         });
+  156 |     }
+      |     ^
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+✖ Error: error[E0003]: Expected identifier, got ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:158:39
+  156 |     }
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+      |                                       ^
+  159 |     if docstring is None { docstring = ""; }
+  160 | 
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:158:39
+  156 |     }
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+      |                                       ^
+  159 |     if docstring is None { docstring = ""; }
+  160 | 
+✖ Error: error[E0005]: Unexpected token ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:158:39
+  156 |     }
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+      |                                       ^
+  159 |     if docstring is None { docstring = ""; }
+  160 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:158:40
+  156 |     }
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+      |                                        ^
+  159 |     if docstring is None { docstring = ""; }
+  160 | 
+✖ Error: error[E0005]: Unexpected token 'if'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:159:5
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+  159 |     if docstring is None { docstring = ""; }
+      |     ^^
+  160 | 
+  161 |     ast_representation = {
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:159:42
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+  159 |     if docstring is None { docstring = ""; }
+      |                                          ^
+  160 | 
+  161 |     ast_representation = {
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:159:44
+  157 | 
+  158 |     docstring = ast.get_docstring(node);
+  159 |     if docstring is None { docstring = ""; }
+      |                                            ^
+  160 | 
+  161 |     ast_representation = {
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:162:21
+  160 | 
+  161 |     ast_representation = {
+  162 |         "name": node.name,
+      |                     ^
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:162:21
+  160 | 
+  161 |     ast_representation = {
+  162 |         "name": node.name,
+      |                     ^
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:162:21
+  160 | 
+  161 |     ast_representation = {
+  162 |         "name": node.name,
+      |                     ^
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:163:23
+  161 |     ast_representation = {
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+      |                       ^
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:163:23
+  161 |     ast_representation = {
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+      |                       ^
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:163:23
+  161 |     ast_representation = {
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+      |                       ^
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+✖ Error: error[E0003]: Expected identifier, got ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:164:35
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+      |                                   ^
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:164:35
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+      |                                   ^
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+✖ Error: error[E0005]: Unexpected token ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:164:35
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+      |                                   ^
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:164:55
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+      |                                                       ^
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:164:55
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+      |                                                       ^
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:164:55
+  162 |         "name": node.name,
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+      |                                                       ^
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:165:31
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+      |                               ^
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:165:31
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+      |                               ^
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:165:31
+  163 |         "lineno": node.lineno,
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+      |                               ^
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:166:35
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+      |                                   ^
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+  168 |     };
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:166:35
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+      |                                   ^
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+  168 |     };
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:166:35
+  164 |         "end_lineno": getattr(node, "end_lineno", node.lineno),
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+      |                                   ^
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+  168 |     };
+✖ Error: error[E0003]: Expected identifier, got ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:167:36
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+      |                                    ^
+  168 |     };
+  169 | 
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:167:36
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+      |                                    ^
+  168 |     };
+  169 | 
+✖ Error: error[E0005]: Unexpected token ','
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:167:36
+  165 |         "args_count": len(node.args.args),
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+      |                                    ^
+  168 |     };
+  169 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:168:5
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+  168 |     };
+      |     ^
+  169 | 
+  170 |     return {
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:168:6
+  166 |         "has_decorators": len(node.decorator_list) > 0,
+  167 |         "is_async": isinstance(node, ast.AsyncFunctionDef)
+  168 |     };
+      |      ^
+  169 | 
+  170 |     return {
+✖ Error: error[E0005]: Unexpected token 'return'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:170:5
+  168 |     };
+  169 | 
+  170 |     return {
+      |     ^^^^^^
+  171 |         "function_name": node.name,
+  172 |         "parameters": parameters,
+✖ Error: error[E0003]: Expected identifier, got '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:171:30
+  169 | 
+  170 |     return {
+  171 |         "function_name": node.name,
+      |                              ^
+  172 |         "parameters": parameters,
+  173 |         "docstring": docstring,
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:171:30
+  169 | 
+  170 |     return {
+  171 |         "function_name": node.name,
+      |                              ^
+  172 |         "parameters": parameters,
+  173 |         "docstring": docstring,
+✖ Error: error[E0005]: Unexpected token '.'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:171:30
+  169 | 
+  170 |     return {
+  171 |         "function_name": node.name,
+      |                              ^
+  172 |         "parameters": parameters,
+  173 |         "docstring": docstring,
+✖ Error: error[E0003]: Expected identifier, got ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:175:60
+  173 |         "docstring": docstring,
+  174 |         "ast_representation": ast_representation,
+  175 |         "source_segment": _source_segment(source_code, node)
+      |                                                            ^
+  176 |     };
+  177 | }
+✖ Error: error[E0002]: Missing ';'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:175:60
+  173 |         "docstring": docstring,
+  174 |         "ast_representation": ast_representation,
+  175 |         "source_segment": _source_segment(source_code, node)
+      |                                                            ^
+  176 |     };
+  177 | }
+✖ Error: error[E0005]: Unexpected token ')'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:175:60
+  173 |         "docstring": docstring,
+  174 |         "ast_representation": ast_representation,
+  175 |         "source_segment": _source_segment(source_code, node)
+      |                                                            ^
+  176 |     };
+  177 | }
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:176:5
+  174 |         "ast_representation": ast_representation,
+  175 |         "source_segment": _source_segment(source_code, node)
+  176 |     };
+      |     ^
+  177 | }
+  178 | 
+✖ Error: error[E0030]: Unexpected semicolon at module level
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:176:6
+  174 |         "ast_representation": ast_representation,
+  175 |         "source_segment": _source_segment(source_code, node)
+  176 |     };
+      |      ^
+  177 | }
+  178 | 
+✖ Error: error[E0005]: Unexpected token '}'
+  --> /home/tutu/EECS/449/ringtail/src/utils/code_parser.jac:177:1
+  175 |         "source_segment": _source_segment(source_code, node)
+  176 |     };
+  177 | }
+      | ^
+  178 | 
+  179 | 

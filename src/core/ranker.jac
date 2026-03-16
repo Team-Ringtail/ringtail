@@ -23,68 +23,68 @@ def _profile_for_ranking(code: str, function_call: str) -> dict {
 }
 
 
-def _ranking_score(entry: dict) -> float {
-    runtime_component = float(entry.get("median_ms", 0.0));
-    complexity_component = float(entry.get("cyclomatic_complexity", 0));
-    test_bonus = float(entry.get("discovered_test_count", 0)) * 100.0;
+def _ranking_score(item: dict) -> float {
+    runtime_component = float(item.get("median_ms", 0.0));
+    complexity_component = float(item.get("cyclomatic_complexity", 0));
+    test_bonus = float(item.get("discovered_test_count", 0)) * 100.0;
     return runtime_component * 1000.0 + complexity_component + test_bonus;
 }
 
 
-def _insert_ranked(entries: list, entry: dict) -> list {
+def _insert_ranked(entries: list, item: dict) -> list {
     if len(entries) == 0 {
-        return [entry];
+        return [item];
     }
 
     result: list = [];
     inserted = False;
-    entry_score = _ranking_score(entry);
+    item_score = _ranking_score(item);
 
     for existing in entries {
-        if not inserted and entry_score > _ranking_score(existing) {
-            result.append(entry);
+        if not inserted and item_score > _ranking_score(existing) {
+            result.append(item);
             inserted = True;
         }
         result.append(existing);
     }
 
     if not inserted {
-        result.append(entry);
+        result.append(item);
     }
 
     return result;
 }
 
 
-def _replay_ranking_score(entry: dict) -> float {
-    replay_component = float(entry.get("replay_trace_count", 0)) * 10000.0;
-    unique_call_component = float(entry.get("replay_unique_call_count", 0)) * 1000.0;
-    runtime_component = float(entry.get("median_ms", 0.0)) * 1000.0;
-    complexity_component = float(entry.get("cyclomatic_complexity", 0));
-    test_bonus = float(entry.get("discovered_test_count", 0)) * 100.0;
+def _replay_ranking_score(item: dict) -> float {
+    replay_component = float(item.get("replay_trace_count", 0)) * 10000.0;
+    unique_call_component = float(item.get("replay_unique_call_count", 0)) * 1000.0;
+    runtime_component = float(item.get("median_ms", 0.0)) * 1000.0;
+    complexity_component = float(item.get("cyclomatic_complexity", 0));
+    test_bonus = float(item.get("discovered_test_count", 0)) * 100.0;
     return replay_component + unique_call_component + runtime_component + complexity_component + test_bonus;
 }
 
 
-def _insert_replay_ranked(entries: list, entry: dict) -> list {
+def _insert_replay_ranked(entries: list, item: dict) -> list {
     if len(entries) == 0 {
-        return [entry];
+        return [item];
     }
 
     result: list = [];
     inserted = False;
-    entry_score = _replay_ranking_score(entry);
+    item_score = _replay_ranking_score(item);
 
     for existing in entries {
-        if not inserted and entry_score > _replay_ranking_score(existing) {
-            result.append(entry);
+        if not inserted and item_score > _replay_ranking_score(existing) {
+            result.append(item);
             inserted = True;
         }
         result.append(existing);
     }
 
     if not inserted {
-        result.append(entry);
+        result.append(item);
     }
 
     return result;
@@ -117,7 +117,7 @@ def:pub rank_functions_in_file(
         source_segment = function_info.get("source_segment", input["source_code"]);
         complexity = compute_complexity(source_segment);
 
-        entry = {
+        row = {
             "function_name": function_name,
             "function_call": input["function_call"],
             "median_ms": float(profile.get("median_ms", 0.0)),
@@ -127,7 +127,7 @@ def:pub rank_functions_in_file(
             "discovered_test_count": len(input.get("extra", {}).get("discovered_test_files", [])),
             "source_file": input.get("extra", {}).get("source_file", file_path)
         };
-        ranked = _insert_ranked(ranked, entry);
+        ranked = _insert_ranked(ranked, row);
     }
 
     if len(ranked) <= limit {
@@ -147,8 +147,8 @@ def:pub rank_functions_in_directory(
 
     for source_file in source_files {
         file_ranked = rank_functions_in_file(source_file, tests_root, limit);
-        for entry in file_ranked {
-            ranked = _insert_ranked(ranked, entry);
+        for row in file_ranked {
+            ranked = _insert_ranked(ranked, row);
         }
     }
 
@@ -194,7 +194,7 @@ def:pub rank_replay_candidates_in_file(
             }
         }
 
-        entry = {
+        row = {
             "function_name": function_name,
             "function_call": input["function_call"],
             "median_ms": float(profile.get("median_ms", 0.0)),
@@ -208,8 +208,8 @@ def:pub rank_replay_candidates_in_file(
             "replay_partial_success": bool(replay_trace.get("partial_success", False)),
             "replay_script": replay_inputs.get("replay_script", script_path)
         };
-        entry["selection_score"] = _replay_ranking_score(entry);
-        ranked = _insert_replay_ranked(ranked, entry);
+        row["selection_score"] = _replay_ranking_score(row);
+        ranked = _insert_replay_ranked(ranked, row);
     }
 
     if len(ranked) <= limit {
@@ -254,7 +254,7 @@ def:pub rank_replay_candidates_in_directory(
             }
         }
 
-        entry = {
+        row = {
             "function_name": function_name,
             "function_call": input["function_call"],
             "median_ms": float(profile.get("median_ms", 0.0)),
@@ -268,8 +268,8 @@ def:pub rank_replay_candidates_in_directory(
             "replay_partial_success": bool(replay_trace.get("partial_success", False)),
             "replay_script": replay_inputs.get("replay_script", script_path)
         };
-        entry["selection_score"] = _replay_ranking_score(entry);
-        ranked = _insert_replay_ranked(ranked, entry);
+        row["selection_score"] = _replay_ranking_score(row);
+        ranked = _insert_replay_ranked(ranked, row);
     }
 
     if len(ranked) <= limit {

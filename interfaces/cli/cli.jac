@@ -413,6 +413,7 @@ def:pub optimize_best_replay_in_repo(
 
 
 def:pub run_optimization_request(request: dict) -> dict {
+    print("entering the CLI");
     operation = str(request.get("operation", "optimize_input"));
     criteria_name = request.get("criteria_name", None);
     config_name = request.get("config_name", None);
@@ -471,6 +472,9 @@ def:pub run_optimization_request(request: dict) -> dict {
     }
 
     if operation == "run_ranked_demo_suite" {
+
+        print("FUCK THIS PROGRAM");
+
         mod = importlib.import_module("src.core.ranked_demo_suite");
         func = getattr(mod, "run_demo_suite");
         return func(

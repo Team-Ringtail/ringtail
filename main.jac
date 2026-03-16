@@ -3,6 +3,7 @@
 
 import from uuid { uuid4 }
 import importlib;
+import from typing { Any }
 
 import from interfaces.cli.cli { run_optimization_request }
 cl import "./styles.css";
@@ -17,15 +18,16 @@ def:pub hello(name: str = "Ringtail") -> dict {
 }
 
 
-def:pub optimize_sync(request: dict) -> dict {
-    return run_optimization_request(request);
+def:pub optimize_sync(payload: dict) -> dict {
+    return dict(run_optimization_request(payload));
 }
 
 
-def:pub submit_optimization_job(request: dict) -> dict {
+def:pub submit_optimization_job(payload: dict) -> dict {
     mod = importlib.import_module("src.core.async_jobs");
     submit_job = getattr(mod, "submit_job");
-    return submit_job(request);
+    print("payload",payload);
+    return submit_job(payload);
 }
 
 
@@ -36,15 +38,15 @@ def:pub get_optimization_job(job_id: str) -> dict {
 }
 
 
-def:pub run_repo_agent_sync(request: dict) -> dict {
-    payload = dict(request);
+def:pub run_repo_agent_sync(payload: dict) -> dict {
+    payload = dict(payload);
     payload["operation"] = "run_repo_agent_job";
     return run_optimization_request(payload);
 }
 
 
-def:pub submit_repo_agent_job(request: dict) -> dict {
-    payload = dict(request);
+def:pub submit_repo_agent_job(payloadIncoming: dict) -> dict {
+    payload = dict(payloadIncoming);
     payload["operation"] = "run_repo_agent_job";
     return submit_optimization_job(payload);
 }
@@ -78,17 +80,17 @@ def:pub handle_github_app_install_callback(
 }
 
 
-def:pub verify_github_repo_access(request: dict) -> dict {
+def:pub verify_github_repo_access(payload: dict) -> dict {
     mod = importlib.import_module("src.core.github_repo_service");
     verify_access = getattr(mod, "verify_repo_access");
-    auth = request.get("auth", {});
+    auth = payload.get("auth", {});
     if auth is None or not isinstance(auth, dict) {
         auth = {};
     }
     return verify_access(
-        str(request.get("repo_url", "")),
+        str(payload.get("repo_url", "")),
         dict(auth),
-        request.get("token", None)
+        payload.get("token", None)
     );
 }
 
@@ -218,7 +220,33 @@ cl def:pub app -> JsxElement {
     has demoCard3Optimized: str = "";
     has pollingInitialized: bool = False;
 
-    def _value(data: any, key: str, fallback: any) -> any {
+    # Single-file optimize state
+    has fileSourceCode: str = "";
+    has fileFunctionName: str = "";
+    has fileFunctionCall: str = "";
+    has fileTestsRoot: str = "tests";
+    has fileConfigName: str = "live-fast";
+    has fileBusy: bool = False;
+    has fileErrorText: str = "";
+    has fileResult: dict = {};
+
+    # Repo-agent state
+    has repoUrl: str = "";
+    has repoPrompt: str = "";
+    has repoBranch: str = "main";
+    has repoBackend: str = "local";
+    has repoConfigName: str = "";
+    has repoPublishPr: bool = False;
+    has repoTestCommand: str = "";
+    has repoMaxTargets: str = "3";
+    has repoJobId: str = "";
+    has repoStatus: str = "idle";
+    has repoStage: str = "";
+    has repoBusy: bool = False;
+    has repoLogText: str = "";
+    has repoResult: dict = {};
+
+    def _value(data: dict | None, key: str, fallback: Any) -> Any {
         if data is None {
             return fallback;
         }
@@ -228,15 +256,97 @@ cl def:pub app -> JsxElement {
         return fallback;
     }
 
+    def _list_value(data: dict | None, key: str, fallback: list) -> list {
+        return _value(data, key, fallback);
+    }
+
     def _format_demo_benchmarks(data: dict) -> str {
         lines: list = [];
-        for item in _value(data, "benchmarks", []) {
+        for item in _list_value(data, "benchmarks", []) {
             lines.append(
                 str(_value(item, "label", "")) + " -> "
                 + str(_value(item, "description", ""))
             );
         }
         return "\n".join(lines);
+    }
+
+    async def runFileOptimize(e: Any) -> None {
+        e.preventDefault();
+        fileBusy = True;
+        fileErrorText = "";
+        fileResult = {};
+        payload = {
+            "operation": "optimize_input",
+            "input": {
+                "source_code": fileSourceCode,
+                "function_name": fileFunctionName,
+                "function_call": fileFunctionCall,
+                "language": "python",
+                "tests_root": fileTestsRoot,
+                "test_cases": []
+            }
+        };
+        if fileConfigName != "" {
+            payload["config_name"] = fileConfigName;
+        }
+        try {
+            result = await optimize_sync(payload);
+            fileResult = result;
+        } except Exception as e {
+            fileErrorText = str(e);
+        }
+        fileBusy = False;
+    }
+
+    async def startRepoRun(e: Any) -> None {
+        e.preventDefault();
+        repoBusy = True;
+        repoStatus = "queued";
+        repoStage = "Submitting repo-agent job";
+        repoLogText = "";
+        uiMessage = "";
+        payload = {
+            "repo_url": repoUrl,
+            "prompt": repoPrompt,
+            "base_branch": repoBranch,
+            "publish_pr": repoPublishPr,
+            "max_targets": int(repoMaxTargets),
+            "backend_config": {"backend": repoBackend}
+        };
+        if repoConfigName != "" {
+            payload["config_name"] = repoConfigName;
+        }
+        if repoTestCommand != "" {
+            payload["test_command"] = repoTestCommand;
+        }
+        try {
+            response = await submit_repo_agent_job(payload);
+            repoJobId = str(_value(response, "job_id", ""));
+            await pollRepoProgress();
+        } except Exception as e {
+            repoBusy = False;
+            uiMessage = str(e);
+        }
+    }
+
+    async def pollRepoProgress() -> None {
+        if repoJobId == "" {
+            return;
+        }
+        try {
+            progress = await get_repo_agent_job(repoJobId);
+            repoStatus = str(_value(progress, "status", _value(progress, "job_status", "running")));
+            repoStage = str(_value(progress, "stage", "Running repo-agent job"));
+            repoLogText = _format_log_text(_list_value(progress, "log_lines", []));
+            repoResult = progress;
+            if repoStatus == "completed" or repoStatus == "succeeded" or repoStatus == "failed" {
+                repoBusy = False;
+            }
+        } except Exception as e {
+            repoBusy = False;
+            uiMessage = str(e);
+        }
     }
 
     def _basename(path: str) -> str {
@@ -258,8 +368,8 @@ cl def:pub app -> JsxElement {
         demoFile4Text = "";
     }
 
-    def _set_demo_file(slot: int, item: dict) -> None {
-        text = str(_value(item, "file_name", "")) + "  " + str(_value(item, "functions", []));
+    def _set_demo_file(slot: int, item) -> None {
+        text = str(_value(item, "file_name", "")) + "  " + str(_list_value(item, "functions", []));
         if slot == 1 {
             demoFile1Visible = True;
             demoFile1Text = text;
@@ -290,7 +400,7 @@ cl def:pub app -> JsxElement {
         demoSelected3Meta = "";
     }
 
-    def _set_selected_target(slot: int, item: dict) -> None {
+    def _set_selected_target(slot: int, item) -> None {
         title = str(_value(item, "function_name", ""));
         fileName = _basename(str(_value(item, "source_file", "")));
         meta = fileName + " | ranked " + str(_value(item, "median_ms", 0.0)) + " ms";
@@ -322,7 +432,7 @@ cl def:pub app -> JsxElement {
         demoFinalist4Text = "";
     }
 
-    def _set_finalist(slot: int, item: dict) -> None {
+    def _set_finalist(slot: int, item) -> None {
         text = str(_value(item, "function_name", "")) + " | " + _basename(str(_value(item, "source_file", "")))
             + " | ranked " + str(_value(item, "median_ms", 0.0)) + " ms";
         if slot == 1 {
@@ -371,7 +481,7 @@ cl def:pub app -> JsxElement {
         demoCard3Optimized = "";
     }
 
-    def _set_demo_card(slot: int, row: dict) -> None {
+    def _set_demo_card(slot: int, row) -> None {
         title = str(_value(row, "name", ""));
         meta = "speedup " + str(_value(row, "improvement_ratio", 0.0)) + "x | time saved "
             + str(_value(row, "time_saved_pct", 0.0)) + "% | ranked "
@@ -407,14 +517,14 @@ cl def:pub app -> JsxElement {
 
     def _apply_demo_result(result: dict) -> None {
         summary = _value(result, "summary", {});
-        rows = _value(summary, "results", []);
+        rows = _list_value(summary, "results", []);
         demoOverviewSvg = str(_value(result, "suite_overview_svg_base64", ""));
         demoPassCount = str(_value(summary, "pass_count", 0));
         demoTargetCount = str(_value(summary, "target_count", 0));
         demoAverageSpeedup = str(_value(summary, "average_speedup", 0.0));
         demoAverageSaved = str(_value(summary, "average_time_saved_pct", 0.0));
         _clear_selected_targets();
-        selectedTargets = _value(result, "final_ranked_targets", []);
+        selectedTargets = _list_value(result, "final_ranked_targets", []);
         if len(selectedTargets) > 0 {
             _set_selected_target(1, selectedTargets[0]);
         }
@@ -425,7 +535,7 @@ cl def:pub app -> JsxElement {
             _set_selected_target(3, selectedTargets[2]);
         }
         _clear_finalists();
-        finalists = _value(result, "per_file_finalists", []);
+        finalists = _list_value(result, "per_file_finalists", []);
         if len(finalists) > 0 {
             _set_finalist(1, finalists[0]);
         }
@@ -455,7 +565,7 @@ cl def:pub app -> JsxElement {
         catalog = await get_ranked_demo_suite_catalog(demoBenchmarkId);
         demoBenchmarkText = _format_demo_benchmarks(benchmarks);
         _clear_demo_files();
-        files = _value(catalog, "files", []);
+        files = _list_value(catalog, "files", []);
         if len(files) > 0 {
             _set_demo_file(1, files[0]);
         }
@@ -483,9 +593,9 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    async def startDemoRun(e: any) -> None {
+    async def startDemoRun(e: Any) -> None {
         e.preventDefault();
-        demoJobId = str(uuid4());
+        demoJobId = globalThis.crypto.randomUUID();
         demoView = "running";
         demoRunStatus = "queued";
         demoRunStage = "Submitting benchmark run";
@@ -502,6 +612,7 @@ cl def:pub app -> JsxElement {
             "top_k": int(demoTopK),
             "per_file_k": int(demoPerFileK)
         };
+        print("payload",payload);
         await submit_optimization_job(payload);
         await pollDemoProgress();
     }
@@ -514,7 +625,7 @@ cl def:pub app -> JsxElement {
         demoRunStatus = str(_value(progress, "job_status", _value(progress, "status", "running")));
         demoRunStage = str(_value(progress, "stage", "Running benchmark"));
         demoProgressPct = int(_value(progress, "progress_pct", 0));
-        demoLogText = _format_log_text(_value(progress, "log_lines", []));
+        demoLogText = _format_log_text(_list_value(progress, "log_lines", []));
         if str(_value(progress, "job_status", "")) == "succeeded" and "result" in progress {
             _apply_demo_result(_value(progress, "result", {}));
             demoProgressPct = 100;
@@ -576,20 +687,20 @@ cl def:pub app -> JsxElement {
                         <div className="hero-card">
                             <h2>Choose A Benchmark</h2>
                             <p className="hero-subtitle">Pick an engineer-designed benchmark suite, choose how many ranked targets to optimize, and run the demo.</p>
-                            <form className="form-grid" onSubmit={lambda e: any -> None { startDemoRun(e); }}>
+                            <form className="form-grid" onSubmit={lambda e: Any -> None { startDemoRun(e); }}>
                                 <label className="field field-full">
                                     <span>Benchmark</span>
-                                    <select value={demoBenchmarkId} onChange={lambda e: any -> None { demoBenchmarkId = e.target.value; refreshBenchmarkContext(); }}>
+                                    <select value={demoBenchmarkId} onChange={lambda e: Any -> None { demoBenchmarkId = e.target.value; refreshBenchmarkContext(); }}>
                                         <option value="ranked-pitch-repo">Ranked Pitch Repo</option>
                                     </select>
                                 </label>
                                 <label className="field">
                                     <span>Top K Final Targets</span>
-                                    <input value={demoTopK} onChange={lambda e: any -> None { demoTopK = e.target.value; }} />
+                                    <input value={demoTopK} onChange={lambda e: Any -> None { demoTopK = e.target.value; }} />
                                 </label>
                                 <label className="field">
                                     <span>Per-File Finalists</span>
-                                    <input value={demoPerFileK} onChange={lambda e: any -> None { demoPerFileK = e.target.value; }} />
+                                    <input value={demoPerFileK} onChange={lambda e: Any -> None { demoPerFileK = e.target.value; }} />
                                 </label>
                                 <div className="panel-actions field-full">
                                     <button type="button" className="secondary-button" onClick={lambda -> None { loadLatestDemoSuite(); }}>
@@ -612,6 +723,136 @@ cl def:pub app -> JsxElement {
                     </div>
                 </div>
             }
+
+            <div className="container">
+                <div className="demo-layout">
+                    <div className="hero-card">
+                        <h2>Optimize Single Function</h2>
+                        <p className="hero-subtitle">Paste a Python function, fill in the metadata, and run the optimizer.</p>
+                        <form className="form-grid" onSubmit={lambda e: Any -> None { runFileOptimize(e); }}>
+                            <label className="field field-full">
+                                <span>Source Code</span>
+                                <textarea
+                                    value={fileSourceCode}
+                                    onChange={lambda e: Any -> None { fileSourceCode = e.target.value; }}
+                                    placeholder="def my_function(...):\n    ..."
+                                    rows={10}
+                                    style={{"fontFamily": "monospace", "fontSize": "0.85rem", "width": "100%", "resize": "vertical"}}
+                                />
+                            </label>
+                            <label className="field">
+                                <span>Function Name</span>
+                                <input value={fileFunctionName} onChange={lambda e: Any -> None { fileFunctionName = e.target.value; }} placeholder="my_function" />
+                            </label>
+                            <label className="field">
+                                <span>Function Call (optional)</span>
+                                <input value={fileFunctionCall} onChange={lambda e: Any -> None { fileFunctionCall = e.target.value; }} placeholder="my_function(10)" />
+                            </label>
+                            <label className="field">
+                                <span>Tests Root</span>
+                                <input value={fileTestsRoot} onChange={lambda e: Any -> None { fileTestsRoot = e.target.value; }} />
+                            </label>
+                            <label className="field">
+                                <span>Config Profile</span>
+                                <input value={fileConfigName} onChange={lambda e: Any -> None { fileConfigName = e.target.value; }} />
+                            </label>
+                            <div className="panel-actions field-full">
+                                <button type="submit" className="primary-button" disabled={fileBusy}>
+                                    {fileBusy and "Optimizing..." or "Run Optimization"}
+                                </button>
+                            </div>
+                        </form>
+                        {fileErrorText != "" and <div className="error-banner">{fileErrorText}</div>}
+                        {fileResult and
+                            <div className="simple-list">
+                                <div className="simple-list-item">
+                                    <strong>Test Passed:</strong> {_value(fileResult, "test_passed", False) and "Yes" or "No"}
+                                </div>
+                                <div className="simple-list-item">
+                                    <strong>Improvement Ratio:</strong> {str(_value(fileResult, "improvement_ratio", 0.0))}x
+                                </div>
+                                <div className="simple-list-item">
+                                    <strong>Termination Reason:</strong> {str(_value(fileResult, "termination_reason", ""))}
+                                </div>
+                                <div className="simple-list-item">
+                                    <strong>Timing Graph:</strong> {str(_value(_value(fileResult, "artifacts", {}), "timing_graph_path", "N/A"))}
+                                </div>
+                                <div className="simple-list-item">
+                                    <strong>Optimized Code:</strong>
+                                    <pre className="result-box">{str(_value(fileResult, "optimized_code", ""))}</pre>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div className="hero-card">
+                        <h2>Repo Agent</h2>
+                        <p className="hero-subtitle">Submit and monitor repo-agent jobs (like <code>ringtail repo run/submit/status</code>).</p>
+                        <form className="form-grid" onSubmit={lambda e: Any -> None { startRepoRun(e); }}>
+                            <label className="field field-full">
+                                <span>Repo (URL or path)</span>
+                                <input value={repoUrl} onChange={lambda e: Any -> None { repoUrl = e.target.value; }} placeholder="../my-repo or https://github.com/org/repo.git" />
+                            </label>
+                            <label className="field field-full">
+                                <span>Prompt</span>
+                                <input value={repoPrompt} onChange={lambda e: Any -> None { repoPrompt = e.target.value; }} placeholder="make this faster" />
+                            </label>
+                            <label className="field">
+                                <span>Branch</span>
+                                <input value={repoBranch} onChange={lambda e: Any -> None { repoBranch = e.target.value; }} />
+                            </label>
+                            <label className="field">
+                                <span>Backend</span>
+                                <select value={repoBackend} onChange={lambda e: Any -> None { repoBackend = e.target.value; }}>
+                                    <option value="local">local</option>
+                                    <option value="blaxel">blaxel</option>
+                                </select>
+                            </label>
+                            <label className="field">
+                                <span>Config Profile (optional)</span>
+                                <input value={repoConfigName} onChange={lambda e: Any -> None { repoConfigName = e.target.value; }} />
+                            </label>
+                            <label className="field">
+                                <span>Test Command (optional)</span>
+                                <input value={repoTestCommand} onChange={lambda e: Any -> None { repoTestCommand = e.target.value; }} placeholder="python -m pytest tests" />
+                            </label>
+                            <label className="field">
+                                <span>Max Targets</span>
+                                <input value={repoMaxTargets} onChange={lambda e: Any -> None { repoMaxTargets = e.target.value; }} />
+                            </label>
+                            <label className="field">
+                                <span>Publish PR</span>
+                                <input type="checkbox" checked={repoPublishPr} onChange={lambda e: Any -> None { repoPublishPr = bool(e.target.checked); }} />
+                            </label>
+                            <label className="field field-full">
+                                <span>Job ID (for status checks)</span>
+                                <input value={repoJobId} onChange={lambda e: Any -> None { repoJobId = e.target.value; }} placeholder="Existing job id" />
+                            </label>
+                            <div className="panel-actions field-full">
+                                <button type="submit" className="primary-button" disabled={repoBusy}>
+                                    {repoBusy and "Running..." or "Start Repo Run"}
+                                </button>
+                                <button type="button" className="secondary-button" onClick={lambda -> None { repoBusy = True; pollRepoProgress(); }}>
+                                    Refresh Status
+                                </button>
+                            </div>
+                        </form>
+                        {repoStatus != "idle" and
+                            <div className="simple-list">
+                                <div className="simple-list-item">
+                                    <strong>Status:</strong> {repoStatus}
+                                </div>
+                                <div className="simple-list-item">
+                                    <strong>Stage:</strong> {repoStage}
+                                </div>
+                            </div>
+                        }
+                        {repoLogText != "" and
+                            <pre className="log-viewer">{repoLogText}</pre>
+                        }
+                    </div>
+                </div>
+            </div>
 
             {demoView == "running" and
                 <div className="container">
