@@ -25,7 +25,8 @@ def:pub optimize_sync(request: dict) -> dict {
 def:pub submit_optimization_job(request: dict) -> dict {
     mod = importlib.import_module("src.core.async_jobs");
     submit_job = getattr(mod, "submit_job");
-    return submit_job(request);
+    out = submit_job(request);
+    return out;
 }
 
 
@@ -228,6 +229,21 @@ cl def:pub app -> JsxElement {
         return fallback;
     }
 
+    def _unwrap_response(resp: any) -> any {
+        if resp is None {
+            return resp;
+        }
+        data = _value(resp, "data", None);
+        if data is None {
+            return resp;
+        }
+        result = _value(data, "result", None);
+        if result is None {
+            return resp;
+        }
+        return result;
+    }
+
     def _format_demo_benchmarks(data: dict) -> str {
         lines: list = [];
         for item in _value(data, "benchmarks", []) {
@@ -347,7 +363,23 @@ cl def:pub app -> JsxElement {
         if len(lines) == 0 {
             return "Live run events will appear here.";
         }
-        return "\n".join(lines);
+        flat: list = [];
+        for raw in lines {
+            text = str(raw);
+            # Split on actual newlines so that any embedded "\n" characters
+            # from the backend become separate lines in the UI.
+            parts = text.split("\n");
+            for part in parts {
+                trimmed = part.rstrip();
+                if trimmed != "" {
+                    flat.append(trimmed);
+                }
+            }
+        }
+        if len(flat) == 0 {
+            return "Live run events will appear here.";
+        }
+        return "\n".join(flat);
     }
 
     def _clear_demo_cards() -> None {
@@ -472,57 +504,103 @@ cl def:pub app -> JsxElement {
 
     async def loadLatestDemoSuite() -> None {
         result = await get_latest_ranked_demo_suite();
+        if result is None {
+            uiMessage = "No benchmark results are available yet. Run a benchmark to see results here.";
+            return;
+        }
         if bool(_value(result, "success", False)) or "summary" in result {
-            _apply_demo_result(result);
+            demoJobId = "";
             demoRunStatus = "succeeded";
             demoRunStage = "Showing latest verified benchmark run";
             demoProgressPct = 100;
             demoView = "results";
+            demoLogText = "Showing the latest verified benchmark run. Live logs will appear here on future runs.";
+            _apply_demo_result(result);
         } else {
             uiMessage = str(_value(result, "error", "Could not load latest benchmark result"));
         }
     }
 
-    async def startDemoRun(e: any) -> None {
-        e.preventDefault();
-        demoJobId = str(uuid4());
-        demoView = "running";
-        demoRunStatus = "queued";
-        demoRunStage = "Submitting benchmark run";
-        demoProgressPct = 6;
-        demoLogText = "Submitting benchmark run...";
-        uiMessage = "";
-        _clear_demo_cards();
-        demoOverviewSvg = "";
-        payload = {
-            "operation": "run_ranked_demo_suite",
-            "job_id": demoJobId,
-            "server_url": demoServerUrl,
-            "benchmark_id": demoBenchmarkId,
-            "top_k": int(demoTopK),
-            "per_file_k": int(demoPerFileK)
-        };
-        await submit_optimization_job(payload);
-        await pollDemoProgress();
+    async def startDemoRun() -> None {
+        if demoRunStatus == "queued" or demoRunStatus == "running" {
+            uiMessage = "A benchmark run is already in progress. Please wait for it to finish or view the current results.";
+            return;
+        }
+        try {
+            topK: int = 0;
+            perFileK: int = 0;
+            try {
+                topK = int(demoTopK);
+                perFileK = int(demoPerFileK);
+            } except Exception {
+                uiMessage = "Top K and Per-File Finalists must be valid whole numbers.";
+                return;
+            }
+            if topK <= 0 or perFileK <= 0 {
+                uiMessage = "Top K and Per-File Finalists must be greater than 0.";
+                return;
+            }
+            demoView = "running";
+            demoRunStatus = "queued";
+            demoRunStage = "Submitting benchmark run";
+            demoProgressPct = 6;
+            demoLogText = "Submitting benchmark run...";
+            uiMessage = "Submitting benchmark run...";
+            _clear_demo_cards();
+            demoOverviewSvg = "";
+            payload = {
+                "operation": "run_ranked_demo_suite",
+                "server_url": demoServerUrl,
+                "benchmark_id": demoBenchmarkId,
+                "top_k": topK,
+                "per_file_k": perFileK
+            };
+            resp = await submit_optimization_job(payload);
+            unwrapped = _unwrap_response(resp);
+            demoJobId = str(_value(unwrapped, "job_id", ""));
+            if demoJobId == "" {
+                demoRunStatus = "failed";
+                demoRunStage = "Benchmark run failed to start";
+                uiMessage = "Failed to start benchmark run: missing job_id from async job manager.";
+                return;
+            }
+            uiMessage = "";
+            await pollDemoProgress();
+        } except Exception as err {
+            demoRunStatus = "failed";
+            demoRunStage = "Benchmark run failed to start";
+            uiMessage = "Failed to start benchmark run: " + str(err);
+        }
     }
 
     async def pollDemoProgress() -> None {
         if demoJobId == "" {
             return;
         }
-        progress = await get_ranked_demo_job_progress(demoJobId);
-        demoRunStatus = str(_value(progress, "job_status", _value(progress, "status", "running")));
+        progressResp = await get_ranked_demo_job_progress(demoJobId);
+        progress = _unwrap_response(progressResp);
+        jobStatus = str(_value(progress, "job_status", _value(progress, "status", "running")));
+        demoRunStatus = jobStatus;
         demoRunStage = str(_value(progress, "stage", "Running benchmark"));
         demoProgressPct = int(_value(progress, "progress_pct", 0));
         demoLogText = _format_log_text(_value(progress, "log_lines", []));
-        if str(_value(progress, "job_status", "")) == "succeeded" and "result" in progress {
+        if jobStatus == "succeeded" and "result" in progress {
             _apply_demo_result(_value(progress, "result", {}));
             demoProgressPct = 100;
             demoView = "results";
         }
-        if str(_value(progress, "job_status", "")) == "failed" {
+        if jobStatus == "failed" {
             demoRunStage = "Benchmark run failed";
             uiMessage = str(_value(progress, "error", _value(progress, "job_error", "Benchmark run failed")));
+        }
+        if jobStatus == "not_found" {
+            demoRunStatus = "failed";
+            demoRunStage = "Benchmark job not found";
+            uiMessage = str(_value(
+                progress,
+                "error",
+                "The benchmark job could not be found. It may have expired or never started correctly."
+            ));
         }
     }
 
@@ -538,6 +616,10 @@ cl def:pub app -> JsxElement {
         demoRunStage = "Ready to run";
         demoProgressPct = 0;
         uiMessage = "";
+        demoJobId = "";
+        demoLogText = "Live run events will appear here.";
+        _clear_demo_cards();
+        demoOverviewSvg = "";
     }
 
     async can with entry {
@@ -576,7 +658,7 @@ cl def:pub app -> JsxElement {
                         <div className="hero-card">
                             <h2>Choose A Benchmark</h2>
                             <p className="hero-subtitle">Pick an engineer-designed benchmark suite, choose how many ranked targets to optimize, and run the demo.</p>
-                            <form className="form-grid" onSubmit={lambda e: any -> None { startDemoRun(e); }}>
+                            <form className="form-grid" onSubmit={lambda e: any -> None { e.preventDefault(); startDemoRun(); }}>
                                 <label className="field field-full">
                                     <span>Benchmark</span>
                                     <select value={demoBenchmarkId} onChange={lambda e: any -> None { demoBenchmarkId = e.target.value; refreshBenchmarkContext(); }}>
@@ -617,7 +699,16 @@ cl def:pub app -> JsxElement {
                 <div className="container">
                     <div className="run-stage-card">
                         <div className="run-stage-copy">
-                            <p className="eyebrow">Benchmark Running</p>
+                            <p className="eyebrow">
+                                Benchmark Running{" "}
+                                {(demoRunStatus == "queued" or demoRunStatus == "running") and
+                                    <span className="loading-dots">
+                                        <span></span>
+                                        <span></span>
+                                        <span></span>
+                                    </span>
+                                }
+                            </p>
                             <h2>{demoRunStage}</h2>
                             <p>Status: {demoRunStatus}</p>
                         </div>
@@ -655,7 +746,6 @@ cl def:pub app -> JsxElement {
                     <div className="log-card">
                         <div className="log-card-header">
                             <h3>Live Activity</h3>
-                            <button className="secondary-button" onClick={lambda -> None { pollDemoProgress(); }}>Refresh Now</button>
                         </div>
                         <pre className="log-feed">{demoLogText}</pre>
                     </div>
@@ -664,7 +754,7 @@ cl def:pub app -> JsxElement {
 
             {demoView == "results" and
                 <div className="container">
-                    <div className="results-header">
+                        <div className="results-header">
                         <div>
                             <p className="eyebrow">Benchmark Complete</p>
                             <h2>Selected Targets And Measured Speedups</h2>
@@ -674,7 +764,7 @@ cl def:pub app -> JsxElement {
                             <button className="secondary-button" onClick={lambda -> None { resetToSetup(); }}>
                                 Back To Setup
                             </button>
-                            <button className="primary-button" onClick={lambda -> None { resetToSetup(); }}>
+                            <button className="primary-button" onClick={lambda -> None { startDemoRun(); }}>
                                 Run Another Benchmark
                             </button>
                         </div>
@@ -718,6 +808,9 @@ cl def:pub app -> JsxElement {
                                     </div>
                                 }
                             </div>
+                            {not demoSelected1Visible and not demoSelected2Visible and not demoSelected3Visible and
+                                <p className="simple-list-empty">No selected targets yet. Run a benchmark to see which functions Ringtail picked.</p>
+                            }
                         </div>
                         <div className="section">
                             <h3>Ranking Details</h3>
@@ -727,6 +820,9 @@ cl def:pub app -> JsxElement {
                                 {demoFinalist3Visible and <div className="simple-list-item">{demoFinalist3Text}</div>}
                                 {demoFinalist4Visible and <div className="simple-list-item">{demoFinalist4Text}</div>}
                             </div>
+                            {not demoFinalist1Visible and not demoFinalist2Visible and not demoFinalist3Visible and not demoFinalist4Visible and
+                                <p className="simple-list-empty">No ranking details are available yet.</p>
+                            }
                         </div>
                     </div>
 
@@ -798,6 +894,9 @@ cl def:pub app -> JsxElement {
                             </div>
                         }
                     </div>
+                    {not demoCard1Visible and not demoCard2Visible and not demoCard3Visible and
+                        <p className="simple-list-empty">No optimized candidates to show yet. Once a benchmark run finishes, winners will appear here.</p>
+                    }
                 </div>
             }
         </div>

@@ -278,6 +278,12 @@ body {
     gap: 0.75rem;
 }
 
+.simple-list-empty {
+    font-size: 0.9rem;
+    color: #6b7280;
+    padding: 0.4rem 0;
+}
+
 .simple-list-item,
 .target-pill {
     background: #f8fafc;
@@ -414,6 +420,39 @@ body {
     line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
+}
+
+.loading-dots {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.loading-dots span {
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 999px;
+    background: #6366f1;
+    animation: loading-pulse 1s infinite ease-in-out;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.loading-dots span:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes loading-pulse {
+    0%, 80%, 100% {
+        transform: scale(0.6);
+        opacity: 0.3;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }
 
 .results-header {

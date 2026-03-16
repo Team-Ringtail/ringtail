@@ -66,8 +66,11 @@ def get_demo_job_progress(job_id: str) -> dict[str, Any]:
     progress["run_log_path"] = str(job.get("run_log_path", ""))
     if isinstance(job.get("result"), dict):
         progress["result"] = job["result"]
-    if str(job.get("status", "")) == "failed" and not str(progress.get("error", "")).strip():
-        progress["error"] = str(job.get("error", ""))
+    status = str(job.get("status", ""))
+    if status == "not_found" and not str(progress.get("error", "")).strip():
+        progress["error"] = f"Async job not found for job_id={job_id}. It may have expired or never started."
+    if status == "failed" and not str(progress.get("error", "")).strip():
+        progress["error"] = str(job.get("error", "")) or "Async job failed without an error message."
     return progress
 
 
@@ -244,7 +247,18 @@ def _new_output_dir() -> Path:
 def _latest_output_dir() -> Path | None:
     if not RUNS_ROOT.exists():
         return None
-    runs = [path for path in RUNS_ROOT.iterdir() if path.is_dir()]
+    # Only consider real run directories, not helper folders like "_progress".
+    # A valid run directory must contain the primary summary artifact.
+    runs = []
+    for path in RUNS_ROOT.iterdir():
+        if not path.is_dir():
+            continue
+        if path.name.startswith("_"):
+            continue
+        summary_path = path / "suite_summary.json"
+        if not summary_path.exists():
+            continue
+        runs.append(path)
     if not runs:
         return None
     runs.sort(key=lambda path: path.stat().st_mtime, reverse=True)
@@ -301,6 +315,12 @@ def _read_progress(job_id: str) -> dict[str, Any] | None:
 
 def _stage_for_line(line: str, *, top_k: int, current_pct: int) -> tuple[str, int]:
     text = str(line).strip()
+    # Allow the runner to emit explicit iteration-level messages (for example,
+    # \"Iteration 1/10\") so the UI can reflect per-iteration activity rather
+    # than only per-target optimization progress.
+    lowered = text.lower()
+    if lowered.startswith("iteration ") or lowered.startswith("iter "):
+        return (text, max(current_pct, 12))
     if text.startswith("[") and "]" in text:
         prefix = text.split("]", 1)[0].lstrip("[")
         current = 0
