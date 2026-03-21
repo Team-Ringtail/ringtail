@@ -296,6 +296,8 @@ python -m pytest tests/optimization/with_llm/test_github_app_smoke.py
 
 ### GitHub Testing Checklist
 
+Offline checks: `python scripts/validate_github_integration.py` (see [tests/GITHUB_VALIDATION.md](tests/GITHUB_VALIDATION.md)).
+
 If you want to help test the GitHub flow today, the fastest useful path is:
 
 1. Pick a small public Python repo with a simple `pytest` command.

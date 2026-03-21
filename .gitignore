@@ -50,5 +50,13 @@ htmlcov/
 *.log
 logs/
 
+# Benchmarks - run outputs and progress tracking
+benchmarks/*_runs/
+benchmarks/tmp_*/
+
+# Secrets
+.env
+.env.*
+
 # Infisical
 .infisical.json

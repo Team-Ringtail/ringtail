@@ -46,6 +46,20 @@ def:pub run_repo_agent_sync(request: dict) -> dict {
 def:pub submit_repo_agent_job(request: dict) -> dict {
     payload = dict(request);
     payload["operation"] = "run_repo_agent_job";
+    # Auto-resolve installation_id from session when not explicitly provided
+    session_token = payload.get("session_token", "");
+    auth = payload.get("auth", {});
+    if auth is None or not isinstance(auth, dict) {
+        auth = {};
+    }
+    if session_token != "" and "installation_id" not in auth {
+        sessions = importlib.import_module("src.core.session_store");
+        install = getattr(sessions, "get_installation_for_session")(session_token);
+        if install is not None {
+            auth["installation_id"] = install["installation_id"];
+            payload["auth"] = auth;
+        }
+    }
     return submit_optimization_job(payload);
 }
 
@@ -90,6 +104,70 @@ def:pub verify_github_repo_access(request: dict) -> dict {
         dict(auth),
         request.get("token", None)
     );
+}
+
+
+def:pub get_github_login_url(redirect_uri: str = "") -> dict {
+    mod = importlib.import_module("src.core.github_oauth");
+    return getattr(mod, "get_login_url")(redirect_uri);
+}
+
+
+def:pub exchange_github_code(code: str, state: str) -> dict {
+    oauth = importlib.import_module("src.core.github_oauth");
+    sessions = importlib.import_module("src.core.session_store");
+    result = getattr(oauth, "exchange_code")(code, state);
+    if "error" in result {
+        return result;
+    }
+    session = getattr(sessions, "create_session")(result["github_user"]);
+    return {
+        "session_token": session["session_token"],
+        "github_login": session["github_login"],
+        "github_user_id": session["github_user_id"],
+        "github_avatar_url": session.get("github_avatar_url", "")
+    };
+}
+
+
+def:pub get_session(session_token: str) -> dict {
+    mod = importlib.import_module("src.core.session_store");
+    session = getattr(mod, "validate_session")(session_token);
+    if session is None {
+        return {"error": "Invalid or expired session"};
+    }
+    install = getattr(mod, "get_installation")(session["github_user_id"]);
+    if install is None {
+        install = {};
+    }
+    return {
+        "github_login": session["github_login"],
+        "github_user_id": session["github_user_id"],
+        "github_avatar_url": session.get("github_avatar_url", ""),
+        "installation": install
+    };
+}
+
+
+def:pub logout(session_token: str) -> dict {
+    mod = importlib.import_module("src.core.session_store");
+    getattr(mod, "delete_session")(session_token);
+    return {"success": True};
+}
+
+
+def:pub save_github_installation(session_token: str, installation_id: int, account_login: str = "") -> dict {
+    sessions = importlib.import_module("src.core.session_store");
+    session = getattr(sessions, "validate_session")(session_token);
+    if session is None {
+        return {"error": "Invalid or expired session"};
+    }
+    record = getattr(sessions, "save_installation")(
+        session["github_user_id"],
+        installation_id,
+        account_login
+    );
+    return {"success": True, "installation": record};
 }
 
 
@@ -157,6 +235,20 @@ walker test_walker {
 cl def:pub app -> JsxElement {
     has healthStatus: dict = {};
     has uiMessage: str = "";
+    has activeTab: str = "benchmark";
+    has sessionToken: str = "";
+    has githubLogin: str = "";
+    has githubAvatarUrl: str = "";
+    has githubUserId: int = 0;
+    has installationId: int = 0;
+    has installAccountLogin: str = "";
+    has repoUrl: str = "";
+    has repoPrompt: str = "make this faster";
+    has repoTestCommand: str = "";
+    has repoPublishPr: bool = False;
+    has repoJobId: str = "";
+    has repoJobStatus: str = "";
+    has repoJobResult: str = "";
     has demoView: str = "setup";
     has demoServerUrl: str = "";
     has demoBenchmarkId: str = "ranked-pitch-repo";
@@ -245,6 +337,24 @@ cl def:pub app -> JsxElement {
             return str(path);
         }
         return str(parts[len(parts) - 1]);
+    }
+
+    def _get_query_param(name: str) -> str {
+        search = str(globalThis.window.location.search or "");
+        if search == "" {
+            return "";
+        }
+        if len(search) > 0 and search[0] == "?" {
+            search = search[1:];
+        }
+        parts = search.split("&");
+        for part in parts {
+            pieces = part.split("=");
+            if len(pieces) >= 2 and pieces[0] == name {
+                return str(globalThis.decodeURIComponent(pieces[1]));
+            }
+        }
+        return "";
     }
 
     def _clear_demo_files() -> None {
@@ -450,6 +560,192 @@ cl def:pub app -> JsxElement {
         }
     }
 
+    async def handleGithubLogin() -> None {
+        result = await get_github_login_url("");
+        url = _value(result, "url", "");
+        if url != "" {
+            globalThis.window.location.href = url;
+        } else {
+            uiMessage = str(_value(result, "error", "OAuth not configured"));
+        }
+    }
+
+    def _save_session_cookie(token: str) -> None {
+        globalThis.document.cookie = "ringtail_session=" + token + "; path=/; max-age=86400; SameSite=Lax";
+    }
+
+    def _read_session_cookie() -> str {
+        raw = str(globalThis.document.cookie or "");
+        if raw == "" {
+            return "";
+        }
+        parts = raw.split("; ");
+        for part in parts {
+            pieces = part.split("=");
+            if len(pieces) >= 2 and pieces[0] == "ringtail_session" {
+                return pieces[1];
+            }
+        }
+        return "";
+    }
+
+    def _clear_session_cookie() -> None {
+        globalThis.document.cookie = "ringtail_session=; path=/; max-age=0";
+    }
+
+    async def handleOAuthCallback() -> None {
+        code = _get_query_param("code");
+        state = _get_query_param("state");
+        if code == "" or state == "" {
+            uiMessage = "OAuth callback missing code or state.";
+            return;
+        }
+        result = await exchange_github_code(code, state);
+        if "error" in result {
+            uiMessage = str(result["error"]);
+            return;
+        }
+        sessionToken = str(result["session_token"]);
+        githubLogin = str(result["github_login"]);
+        githubUserId = int(result["github_user_id"]);
+        githubAvatarUrl = str(_value(result, "github_avatar_url", ""));
+        await loadInstallation();
+        try {
+            _save_session_cookie(sessionToken);
+            globalThis.window.history.replaceState({}, "", globalThis.window.location.pathname);
+        } except Exception as cookieErr {
+            uiMessage = "";
+        }
+    }
+
+    async def restoreSession() -> None {
+        saved = _read_session_cookie();
+        if saved == "" {
+            return;
+        }
+        result = await get_session(saved);
+        if "error" in result {
+            _clear_session_cookie();
+            return;
+        }
+        sessionToken = saved;
+        githubLogin = str(result["github_login"]);
+        githubUserId = int(result["github_user_id"]);
+        githubAvatarUrl = str(_value(result, "github_avatar_url", ""));
+        iid = int(_value(_value(result, "installation", {}), "installation_id", 0));
+        if iid != 0 {
+            installationId = iid;
+            installAccountLogin = str(_value(_value(result, "installation", {}), "account_login", ""));
+        }
+    }
+
+    async def handleLogout() -> None {
+        if sessionToken != "" {
+            await logout(sessionToken);
+        }
+        _clear_session_cookie();
+        sessionToken = "";
+        githubLogin = "";
+        githubUserId = 0;
+        githubAvatarUrl = "";
+        installationId = 0;
+        installAccountLogin = "";
+    }
+
+    async def handleInstallApp() -> None {
+        result = await get_github_app_install_info(sessionToken);
+        url = _value(result, "install_url", "");
+        if url != "" {
+            globalThis.window.location.href = url;
+        } else {
+            uiMessage = "GitHub App not configured on this server.";
+        }
+    }
+
+    async def loadInstallation() -> None {
+        if sessionToken == "" {
+            return;
+        }
+        result = await get_session(sessionToken);
+        iid = int(_value(_value(result, "installation", {}), "installation_id", 0));
+        if iid != 0 {
+            installationId = iid;
+            installAccountLogin = str(_value(_value(result, "installation", {}), "account_login", ""));
+        }
+    }
+
+    async def handleInstallCallback() -> None {
+        iid = _get_query_param("installation_id");
+        if iid == "" {
+            return;
+        }
+        if sessionToken == "" {
+            stateToken = _get_query_param("state");
+            if stateToken != "" {
+                saved = await get_session(stateToken);
+                if "error" not in saved {
+                    sessionToken = stateToken;
+                    githubLogin = str(_value(saved, "github_login", ""));
+                    githubUserId = int(_value(saved, "github_user_id", 0));
+                    githubAvatarUrl = str(_value(saved, "github_avatar_url", ""));
+                }
+            }
+        }
+        if sessionToken == "" {
+            uiMessage = "Session expired. Please sign in again.";
+            return;
+        }
+        result = await save_github_installation(sessionToken, int(iid), "");
+        if _value(result, "success", False) {
+            installationId = int(iid);
+        }
+        globalThis.window.history.replaceState({}, "", globalThis.window.location.pathname);
+        activeTab = "repo";
+    }
+
+    async def submitRepoJob(e: any) -> None {
+        e.preventDefault();
+        repoJobStatus = "submitting";
+        repoJobResult = "";
+        uiMessage = "";
+        try {
+            payload = {
+                "repo_url": repoUrl,
+                "prompt": repoPrompt,
+                "publish_pr": repoPublishPr,
+                "session_token": sessionToken
+            };
+            if repoTestCommand != "" {
+                payload["test_command"] = repoTestCommand;
+            }
+            submitted = await submit_repo_agent_job(payload);
+            repoJobId = str(_value(submitted, "job_id", ""));
+            repoJobStatus = str(_value(submitted, "status", "queued"));
+            if repoJobId == "" {
+                repoJobStatus = "failed";
+                repoJobResult = str(_value(submitted, "error", "No job ID returned"));
+            }
+        } except Exception as err {
+            repoJobStatus = "failed";
+            repoJobResult = str(err);
+            uiMessage = "Job submission failed: " + str(err);
+        }
+    }
+
+    async def pollRepoJob() -> None {
+        if repoJobId == "" or repoJobStatus in ["succeeded", "failed", ""] {
+            return;
+        }
+        result = await get_repo_agent_job(repoJobId);
+        repoJobStatus = str(_value(result, "status", "running"));
+        if repoJobStatus == "succeeded" {
+            repoJobResult = "Optimization complete. Check the repo for a new PR or preview.";
+        }
+        if repoJobStatus == "failed" {
+            repoJobResult = str(_value(result, "error", "Job failed"));
+        }
+    }
+
     async def refreshBenchmarkContext() -> None {
         benchmarks = await get_ranked_demo_benchmarks();
         catalog = await get_ranked_demo_suite_catalog(demoBenchmarkId);
@@ -546,10 +842,16 @@ cl def:pub app -> JsxElement {
                 demoServerUrl = str(globalThis.location.origin);
             }
             healthStatus = await health();
+            await restoreSession();
+            if _get_query_param("installation_id") != "" {
+                await handleInstallCallback();
+            } elif _get_query_param("code") != "" and _get_query_param("installation_id") == "" {
+                await handleOAuthCallback();
+            }
             await refreshBenchmarkContext();
             if not pollingInitialized {
                 pollingInitialized = True;
-                globalThis.setInterval(lambda -> None { tickDemoPolling(); }, 3000);
+                globalThis.setInterval(lambda -> None { tickDemoPolling(); pollRepoJob(); }, 3000);
             }
         } except Exception as e {
             healthStatus = {"status": "error", "message": str(e)};
@@ -562,15 +864,108 @@ cl def:pub app -> JsxElement {
             <div className="demo-hero">
                 <div className="demo-hero-copy">
                     <span className="version">v0.1.0</span>
-                    <h1>Ringtail Benchmark Studio</h1>
-                    <p>Run a curated optimization benchmark, watch Ringtail work in real time, and review the selected targets with measured speedups.</p>
+                    <h1>Ringtail</h1>
+                    <p>AI-powered code optimization. Connect your GitHub repos, run benchmarks, and ship faster code.</p>
                 </div>
-                {_value(healthStatus, "status", "") == "healthy" and <div className="status-badge">Service Healthy</div>}
+                <div className="hero-right">
+                    {githubLogin == "" and
+                        <button className="gh-login-button" onClick={lambda -> None { handleGithubLogin(); }}>
+                            Sign in with GitHub
+                        </button>
+                    }
+                    {githubLogin != "" and
+                        <div className="gh-user-bar">
+                            {githubAvatarUrl != "" and <img className="gh-avatar" src={githubAvatarUrl} />}
+                            <span>{githubLogin}</span>
+                            <button className="secondary-button gh-logout" onClick={lambda -> None { handleLogout(); }}>
+                                Sign out
+                            </button>
+                        </div>
+                    }
+                    {_value(healthStatus, "status", "") == "healthy" and <div className="status-badge">Service Healthy</div>}
+                </div>
+            </div>
+
+            <div className="tab-bar">
+                <button className={activeTab == "benchmark" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { activeTab = "benchmark"; }}>Benchmark Studio</button>
+                <button className={activeTab == "repo" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { activeTab = "repo"; if sessionToken != "" and installationId == 0 { loadInstallation(); }; }}>Optimize a Repo</button>
             </div>
 
             {uiMessage != "" and <div className="info-banner">{uiMessage}</div>}
 
-            {demoView == "setup" and
+            {activeTab == "repo" and
+                <div className="container">
+                    {githubLogin == "" and
+                        <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
+                            <h2>Connect GitHub</h2>
+                            <p className="hero-subtitle">Sign in with GitHub to optimize your repositories.</p>
+                            <button className="gh-login-button" style={{"marginTop": "1.5rem"}} onClick={lambda -> None { handleGithubLogin(); }}>
+                                Sign in with GitHub
+                            </button>
+                        </div>
+                    }
+                    {githubLogin != "" and installationId == 0 and
+                        <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
+                            <h2>Install Ringtail on Your Repos</h2>
+                            <p className="hero-subtitle">Ringtail needs access to push branches and open pull requests.</p>
+                            <button className="primary-button" style={{"marginTop": "1.5rem"}} onClick={lambda -> None { handleInstallApp(); }}>
+                                Install GitHub App
+                            </button>
+                        </div>
+                    }
+                    {githubLogin != "" and installationId != 0 and
+                        <div className="demo-layout">
+                            <div className="hero-card">
+                                <h2>Optimize a Repository</h2>
+                                <p className="hero-subtitle">Point Ringtail at a repo, describe what to optimize, and we'll open a PR with the results.</p>
+                                <form className="form-grid" onSubmit={lambda e: any -> None { submitRepoJob(e); }}>
+                                    <label className="field field-full">
+                                        <span>Repository URL</span>
+                                        <input value={repoUrl} placeholder="https://github.com/org/repo" onChange={lambda e: any -> None { repoUrl = e.target.value; }} />
+                                    </label>
+                                    <label className="field field-full">
+                                        <span>Optimization Prompt</span>
+                                        <input value={repoPrompt} onChange={lambda e: any -> None { repoPrompt = e.target.value; }} />
+                                    </label>
+                                    <label className="field">
+                                        <span>Test Command (optional)</span>
+                                        <input value={repoTestCommand} placeholder="python -m pytest tests" onChange={lambda e: any -> None { repoTestCommand = e.target.value; }} />
+                                    </label>
+                                    <div className="checkbox-field">
+                                        <input type="checkbox" checked={repoPublishPr} onChange={lambda e: any -> None { repoPublishPr = e.target.checked; }} />
+                                        <span>Open a real PR</span>
+                                    </div>
+                                    <div className="panel-actions field-full">
+                                        <button type="submit" className="primary-button">Submit Optimization Job</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div className="hero-card">
+                                <h3>Connection Status</h3>
+                                <div className="simple-list">
+                                    <div className="simple-list-item">Signed in as {githubLogin}</div>
+                                    <div className="simple-list-item">Installation ID: {str(installationId)}</div>
+                                    {installAccountLogin != "" and <div className="simple-list-item">Account: {installAccountLogin}</div>}
+                                </div>
+                                {repoJobStatus != "" and
+                                    <div style={{"marginTop": "1.5rem"}}>
+                                        <h3>Job Status</h3>
+                                        <div className="simple-list">
+                                            <div className="simple-list-item">Job: {repoJobId}</div>
+                                            <div className="simple-list-item">Status: {repoJobStatus}</div>
+                                            {repoJobResult != "" and <div className="simple-list-item">{repoJobResult}</div>}
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            {activeTab == "benchmark" and demoView == "setup" and
                 <div className="container">
                     <div className="demo-layout">
                         <div className="hero-card">
@@ -613,7 +1008,7 @@ cl def:pub app -> JsxElement {
                 </div>
             }
 
-            {demoView == "running" and
+            {activeTab == "benchmark" and demoView == "running" and
                 <div className="container">
                     <div className="run-stage-card">
                         <div className="run-stage-copy">
@@ -662,7 +1057,7 @@ cl def:pub app -> JsxElement {
                 </div>
             }
 
-            {demoView == "results" and
+            {activeTab == "benchmark" and demoView == "results" and
                 <div className="container">
                     <div className="results-header">
                         <div>
