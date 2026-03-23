@@ -1,7 +1,7 @@
 # Ringtail — Task Tracking
 
 Team assignments and status for the first implementation phase.
-See [todo.md](todo.md) for the full project TODO and project structure.
+See [TODO.md](TODO.md) for the full project TODO and project structure.
 
 ---
 

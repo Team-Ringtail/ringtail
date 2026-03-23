@@ -26,9 +26,17 @@ Ringtail is an intelligent code optimization system that uses AI agents in an it
 - Multiple interfaces: CLI, web UI, decorators, GitHub integration
 - Benchmarking against GitHub repositories and LeetCode problems
 
+## Docs Map
+
+- `README.md`: setup, quickstart, and contributor-oriented overview.
+- `API_DOCUMENTATION.md`: current HTTP API surface exposed by `main.jac` (live contract).
+- `REPLAY_API_CONTRACT.md`: logical replay API contract used for product planning/design, plus mapping to the live server.
+- `ARCHITECTURE.md`: system-level architecture and component boundaries.
+- `TASK_TRACKING.md` and `TODO.md`: team planning and execution backlog.
+
 ## Requirements
 
-- Python 3.12 or higher
+- Python 3.11 or higher
 - Virtual environment (recommended)
 
 ## Installation
@@ -111,7 +119,7 @@ ringtail/
 ├── requirements.txt            # Python dependencies
 ├── styles.css                  # Client-side CSS styles
 ├── README.md                   # This file
-├── todo.md                     # Development TODO and progress
+├── TODO.md                     # Development TODO and progress
 ├── .gitignore                  # Git ignore patterns
 │
 ├── src/                        # Core application logic
@@ -195,41 +203,23 @@ Use it before demos to verify:
 
 ## API Endpoints
 
-When running `jac start main.jac`, the following endpoints are automatically available:
+Use `API_DOCUMENTATION.md` as the canonical source for endpoint definitions and request/response payloads.
 
-### Health Check
-- **GET** `/health` - Returns service health status and version
+High-level server shape:
 
-### Test Endpoints
-- **GET** `/hello?name=Ringtail` - Test endpoint with personalized greeting
-- **POST** `/walker/test_walker` - Demonstrates graph traversal capabilities
+- `GET /health`
+- `GET /hello?name=Ringtail`
+- `POST /walker/test_walker`
+- `POST /function/<public-function-name>`
 
-### Planned Endpoints
+For replay-specific behavior and operation routing details, see:
 
-With the current `jac start` server shape, public functions are exposed under `/function/...`.
-
-- **POST** `/function/optimize_sync` - Run a synchronous optimization request
-- **POST** `/function/submit_optimization_job` - Start an async optimization job
-- **POST** `/function/get_optimization_job` - Poll async job status/result
-- **POST** `/function/run_repo_agent_sync` - Run the CLI-first repo agent synchronously
-- **POST** `/function/submit_repo_agent_job` - Start an async repo-agent job
-- **POST** `/function/get_repo_agent_job` - Poll repo-agent status/result
-- **POST** `/function/get_auth_readiness` - Return GitHub/Blaxel readiness summary for CLI/web UX
-- **POST** `/function/get_config_doctor` - Return local prerequisite/config doctor data
-- **POST** `/function/get_recent_jobs` - Return recent persisted async jobs
-- **POST** `/function/get_github_app_install_info` - Return GitHub App install URL/config state
-- **POST** `/function/handle_github_app_install_callback` - Validate a GitHub App installation callback payload
-- **POST** `/function/verify_github_repo_access` - Verify auth can access a repo before starting a job
-
-Async jobs are intentionally minimal right now:
-- Job state is persisted under `logs/async_jobs`.
-- Finished jobs survive process restarts.
-- Jobs that were in progress during a restart are recovered as `interrupted`.
-- Completed job payloads include `run_id` and `run_log_path` so a CLI or web UI can link to detailed logs.
+- `API_DOCUMENTATION.md` (live endpoint contract)
+- `REPLAY_API_CONTRACT.md` (logical replay contract and mapping notes)
 
 ### Repo Agent Flow
 
-The first repo-agent milestone is CLI-first and request-driven:
+The first repo agent milestone is CLI-first and request-driven:
 
 ```json
 {
@@ -312,7 +302,7 @@ jac start main.jac
 # then call /get_github_app_install_info and /verify_github_repo_access
 ```
 
-5. Then run a dry repo-agent job with `publish_pr: false` against that repo.
+5. Then run a dry repo agent job with `publish_pr: false` against that repo.
 6. Once that succeeds, rerun with `publish_pr: true` so we can validate branch push + PR creation.
 
 ### Repo Benchmark Scaffold
@@ -430,4 +420,4 @@ See `TODO.md` for current development progress and TODO items.
 
 ## License
 
-TODO
+Not specified yet.

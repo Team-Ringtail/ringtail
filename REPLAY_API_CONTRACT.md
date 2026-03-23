@@ -1,6 +1,10 @@
-# Replay API Contract
+# Replay API Contract (Logical)
 
 Minimum backend contract for the replay-driven CLI/web flow.
+
+Note: the live server currently routes replay operations through
+`POST /function/optimize_sync` using an `operation` field, rather than exposing
+standalone `/replay/*` HTTP paths.
 
 This keeps the surface small while the internals are still evolving.
 
@@ -11,9 +15,9 @@ This keeps the surface small while the internals are still evolving.
 - Let the UI optimize either the best target automatically or one chosen target.
 - Avoid exposing lots of tuning knobs for now.
 
-## Endpoint 1: Inspect Replay Repo
+## Logical Endpoint 1: Inspect Replay Repo
 
-`POST /replay/inspect`
+`POST /replay/inspect` (logical path)
 
 Purpose: run the replay trace and return the observed repo candidates.
 
@@ -78,9 +82,9 @@ Notes:
 - This should back `inspect_replay_repo(...)`.
 - The UI can use this as the first screen after a replay run.
 
-## Endpoint 2: Rank Replay Repo Candidates
+## Logical Endpoint 2: Rank Replay Repo Candidates
 
-`POST /replay/rank`
+`POST /replay/rank` (logical path)
 
 Purpose: return replay-backed repo candidates in best-first order.
 
@@ -118,11 +122,11 @@ Notes:
 - This should back `discover_and_rank_replay_repo(...)`.
 - The backend owns the ranking formula.
 
-## Endpoint 3: Optimize Best Replay Target
+## Logical Endpoint 3: Optimize Best Replay Target
 
-`POST /replay/optimize-best`
+`POST /replay/optimize-best` (logical path)
 
-Purpose: one-click workflow for the UI. Trace, rank, choose, optimize.
+Purpose: one-click workflow for the UI: trace, rank, choose, and optimize.
 
 Request:
 
@@ -169,9 +173,9 @@ Notes:
 - This should back `optimize_best_replay_in_repo(...)`.
 - This is the simplest “do the thing” entrypoint for the web UI.
 
-## Endpoint 4: Optimize One Replay Target
+## Logical Endpoint 4: Optimize One Replay Target
 
-`POST /replay/optimize-one`
+`POST /replay/optimize-one` (logical path)
 
 Purpose: optimize a specific replay-backed function chosen by the user.
 
@@ -212,16 +216,17 @@ result-shaped error object as long as `error` is present and non-empty.
 
 ## Mapping To Current Backend Functions
 
-- `POST /replay/inspect` -> `inspect_replay_repo(...)`
-- `POST /replay/rank` -> `discover_and_rank_replay_repo(...)`
-- `POST /replay/optimize-best` -> `optimize_best_replay_in_repo(...)`
-- `POST /replay/optimize-one` -> `optimize_replay_function(...)`
+- Prefer live API usage documented in `API_DOCUMENTATION.md`.
+- `inspect_replay_repo(...)` can be called directly if your runtime exposes the imported function route.
+- `POST /function/optimize_sync` with `operation=discover_and_rank_replay_repo` -> `discover_and_rank_replay_repo(...)`
+- `POST /function/optimize_sync` with `operation=optimize_best_replay_in_repo` -> `optimize_best_replay_in_repo(...)`
+- `POST /function/optimize_sync` with `operation=optimize_replay_function` -> `optimize_replay_function(...)`
 
 ## Suggested UI Flow
 
-1. Call `POST /replay/inspect`
+1. Call inspect/rank using the live endpoints in `API_DOCUMENTATION.md`
 2. Show observed candidates
-3. Optionally call `POST /replay/rank`
+3. Optionally run ranking before optimize
 4. Either:
-   - call `POST /replay/optimize-best`, or
-   - let the user choose one candidate and call `POST /replay/optimize-one`
+   - call best-in-repo optimization, or
+   - let the user choose one candidate and optimize that target

@@ -5,7 +5,7 @@ EECS 449 project. AI agent-based code optimizer. Orchestrates think-prep-write-t
 **CRITICAL**: LLM API calls cost money. Batch requests, cache results, estimate costs before implementing features that call LLMs. If a feature requires 100+ LLM calls, stop and find a way to reduce that.
 
 ## Dev Environment
-- Python 3.12+, virtual environment recommended.
+- Python 3.11+, virtual environment recommended.
 - Install: `pip install -r requirements.txt && pip install -e .`
 
 ## Build / Test
