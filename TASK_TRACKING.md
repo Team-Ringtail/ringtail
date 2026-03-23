@@ -85,7 +85,7 @@ See [TODO.md](TODO.md) for the full project TODO and project structure.
 
 ### Tasks
 
-- [ ] Implement `interfaces/cli/cli.jac`
+- [ ] Implement optimization router in `src/api/optimization_requests.jac` (paired with `src/ringtail_cli.py`)
   - [ ] Accept a target file/function as input
   - [ ] Accept optimization criteria as flags or config
   - [ ] Display optimization loop progress and results

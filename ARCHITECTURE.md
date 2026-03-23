@@ -229,8 +229,9 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
 
 ### 6. Interfaces and Benchmarks
 
-- **CLI (`interfaces/cli/cli.jac`)**
+- **Optimization API router (`src/api/optimization_requests.jac`)**
   - Provides file-based and replay-based optimize helpers plus `run_optimization_request`, a normalized request dispatcher reused by the async worker path.
+  - Canonical operation names and defaults are shared via `src/core/optimization_request_contract.py`; `main.jac` also exposes `/function/get_optimization_contract`.
   - The packaged Python CLI entrypoint now lives in `src/ringtail_cli.py` and exposes `ringtail serve`, `ringtail repo run`, `ringtail repo submit`, `ringtail repo watch`, `ringtail repo status`, `ringtail file optimize`, and `ringtail config doctor`.
   - `repo run` is the local-tool UX path: it submits a repo job, waits, and prints a readable summary instead of forcing manual polling.
 
@@ -277,6 +278,10 @@ _All user code (baseline and optimized) runs in **separate Python subprocesses**
   - `benchmarks/optimize_and_bench.py`:
     - Uses `RunLog` and the Python `llm_client` to:
       - Call Anthropic Claude (`analyze_and_plan`, `generate_optimized_code`) on each LeetCode solution.
+    - This script remains an experimental/standalone path; the canonical optimization loop path is `run_optimization_request` -> `run_optimization`.
+  - `benchmarks/capture_baseline.py`:
+    - Captures pre-change baseline metrics across function/file/replay/repo and sync/async paths.
+    - Emits `baseline_raw.jsonl`, `baseline_summary.json`, and `baseline_report.md` for regression checks.
       - Run tests locally or in a Blaxel sandbox.
       - Time baseline vs optimized implementations and compute speedups.
     - Emits a structured JSONL log per run in `logs/`.

@@ -1,5 +1,5 @@
 """
-Command-line interface for Ringtail
+Optimization request routing and helper API surface.
 """
 
 import from src.core.discovery {
@@ -21,7 +21,7 @@ import importlib;
 
 walker optimize_function {
     # Reserved Jac entrypoint. The public helper functions below provide
-    # the currently testable CLI-facing surface.
+    # the currently testable API-facing surface.
 }
 
 
@@ -145,6 +145,20 @@ def _with_runtime_overrides(
         input["enable_run_log"] = bool(enable_run_log);
     }
     return input;
+}
+
+
+def _normalize_operation_request(request: dict) -> dict {
+    mod = importlib.import_module("src.core.optimization_request_contract");
+    normalize_defaults = getattr(mod, "normalize_request_defaults");
+    return normalize_defaults(dict(request));
+}
+
+
+def:pub get_optimization_operation_contract() -> dict {
+    mod = importlib.import_module("src.core.optimization_request_contract");
+    get_payload = getattr(mod, "get_contract_payload");
+    return get_payload();
 }
 
 
@@ -412,18 +426,19 @@ def:pub optimize_best_replay_in_repo(
 }
 
 
-def:pub run_optimization_request(request: dict) -> dict {
-    operation = str(request.get("operation", "optimize_input"));
-    criteria_name = request.get("criteria_name", None);
-    config_name = request.get("config_name", None);
-    analysis_mode = request.get("analysis_mode", None);
-    llm_model = request.get("llm_model", None);
-    run_id = request.get("run_id", None);
-    run_name = request.get("run_name", None);
-    enable_run_log = request.get("enable_run_log", None);
+def:pub run_optimization_request(request: dict) -> dict | list {
+    normalized = _normalize_operation_request(request);
+    operation = str(normalized.get("operation", "optimize_input"));
+    criteria_name = normalized.get("criteria_name", None);
+    config_name = normalized.get("config_name", None);
+    analysis_mode = normalized.get("analysis_mode", None);
+    llm_model = normalized.get("llm_model", None);
+    run_id = normalized.get("run_id", None);
+    run_name = normalized.get("run_name", None);
+    enable_run_log = normalized.get("enable_run_log", None);
 
     if operation == "optimize_input" {
-        input = request.get("input", None);
+        input = normalized.get("input", None);
         if input is None {
             return _error_result("optimize_input request must include input");
         }
@@ -440,16 +455,16 @@ def:pub run_optimization_request(request: dict) -> dict {
 
     if operation == "discover_and_rank_directory" {
         return discover_and_rank_directory(
-            str(request.get("source_root", "")),
-            str(request.get("tests_root", "tests")),
-            int(request.get("limit", 10))
+            str(normalized.get("source_root", "")),
+            str(normalized.get("tests_root", "tests")),
+            int(normalized.get("limit", 10))
         );
     }
 
     if operation == "get_ranked_demo_suite_catalog" {
         mod = importlib.import_module("src.core.ranked_demo_suite");
         func = getattr(mod, "get_demo_suite_catalog");
-        return func(request.get("benchmark_id", None));
+        return func(normalized.get("benchmark_id", None));
     }
 
     if operation == "get_ranked_demo_benchmarks" {
@@ -467,36 +482,36 @@ def:pub run_optimization_request(request: dict) -> dict {
     if operation == "get_ranked_demo_job_progress" {
         mod = importlib.import_module("src.core.ranked_demo_suite");
         func = getattr(mod, "get_demo_job_progress");
-        return func(str(request.get("job_id", "")));
+        return func(str(normalized.get("job_id", "")));
     }
 
     if operation == "run_ranked_demo_suite" {
         mod = importlib.import_module("src.core.ranked_demo_suite");
         func = getattr(mod, "run_demo_suite");
         return func(
-            server_url=str(request.get("server_url", "http://127.0.0.1:8000")),
-            job_id=request.get("job_id", None),
-            benchmark_id=request.get("benchmark_id", None),
-            top_k=int(request.get("top_k", 3)),
-            per_file_k=int(request.get("per_file_k", 1))
+            server_url=str(normalized.get("server_url", "http://127.0.0.1:8000")),
+            job_id=normalized.get("job_id", None),
+            benchmark_id=normalized.get("benchmark_id", None),
+            top_k=int(normalized.get("top_k", 3)),
+            per_file_k=int(normalized.get("per_file_k", 1))
         );
     }
 
     if operation == "discover_and_rank_replay_repo" {
         return discover_and_rank_replay_repo(
-            str(request.get("source_root", "")),
-            str(request.get("script_path", "")),
-            str(request.get("tests_root", "tests")),
-            int(request.get("limit", 10))
+            str(normalized.get("source_root", "")),
+            str(normalized.get("script_path", "")),
+            str(normalized.get("tests_root", "tests")),
+            int(normalized.get("limit", 10))
         );
     }
 
     if operation == "optimize_file_function" {
         input = build_function_input_from_file(
-            str(request.get("file_path", "")),
-            str(request.get("function_name", "")),
-            request.get("function_call", None),
-            str(request.get("tests_root", "tests")),
+            str(normalized.get("file_path", "")),
+            str(normalized.get("function_name", "")),
+            normalized.get("function_call", None),
+            str(normalized.get("tests_root", "tests")),
             analysis_mode
         );
         if "error" in input {
@@ -508,10 +523,10 @@ def:pub run_optimization_request(request: dict) -> dict {
 
     if operation == "optimize_replay_function" {
         input = build_function_input_from_replay_script(
-            str(request.get("file_path", "")),
-            str(request.get("function_name", "")),
-            str(request.get("script_path", "")),
-            str(request.get("tests_root", "tests")),
+            str(normalized.get("file_path", "")),
+            str(normalized.get("function_name", "")),
+            str(normalized.get("script_path", "")),
+            str(normalized.get("tests_root", "tests")),
             analysis_mode
         );
         if "error" in input {
@@ -530,9 +545,9 @@ def:pub run_optimization_request(request: dict) -> dict {
 
     if operation == "optimize_best_replay_function" {
         session = build_replay_inputs_from_script(
-            str(request.get("file_path", "")),
-            str(request.get("script_path", "")),
-            str(request.get("tests_root", "tests")),
+            str(normalized.get("file_path", "")),
+            str(normalized.get("script_path", "")),
+            str(normalized.get("tests_root", "tests")),
             analysis_mode,
             None
         );
@@ -562,9 +577,9 @@ def:pub run_optimization_request(request: dict) -> dict {
 
     if operation == "optimize_best_replay_in_repo" {
         ranked = rank_replay_candidates_in_directory(
-            str(request.get("source_root", "")),
-            str(request.get("script_path", "")),
-            str(request.get("tests_root", "tests")),
+            str(normalized.get("source_root", "")),
+            str(normalized.get("script_path", "")),
+            str(normalized.get("tests_root", "tests")),
             1
         );
         if len(ranked) == 0 {
@@ -575,9 +590,9 @@ def:pub run_optimization_request(request: dict) -> dict {
         target_source = str(top_entry.get("source_file", ""));
         target_function = str(top_entry.get("function_name", ""));
         session = build_replay_inputs_from_directory(
-            str(request.get("source_root", "")),
-            str(request.get("script_path", "")),
-            str(request.get("tests_root", "tests")),
+            str(normalized.get("source_root", "")),
+            str(normalized.get("script_path", "")),
+            str(normalized.get("tests_root", "tests")),
             analysis_mode
         );
         candidates = session.get("candidate_inputs", []);
@@ -604,7 +619,7 @@ def:pub run_optimization_request(request: dict) -> dict {
     if operation == "run_repo_agent_job" {
         mod = importlib.import_module("src.core.repo_agent");
         run_job = getattr(mod, "run_repo_agent_job");
-        return run_job(request);
+        return run_job(normalized);
     }
 
     return _error_result("Unsupported optimization operation: " + operation);

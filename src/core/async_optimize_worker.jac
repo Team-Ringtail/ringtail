@@ -4,7 +4,7 @@ import json;
 import os;
 import traceback;
 
-import from interfaces.cli.cli { run_optimization_request }
+import from src.api.optimization_requests { run_optimization_request }
 
 
 def _load_request -> dict {

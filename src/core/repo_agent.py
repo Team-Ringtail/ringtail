@@ -23,6 +23,12 @@ from src.core.github_repo_service import (
     resolve_github_auth,
     verify_repo_access,
 )
+from src.core.optimization_request_contract import (
+    DEFAULT_ANALYSIS_MODE,
+    DEFAULT_CONFIG_NAME,
+    DEFAULT_ENABLE_RUN_LOG,
+    normalize_request_defaults,
+)
 from src.core.reporting import create_repo_job_artifacts
 from src.core.repo_workspace import detect_repo_bootstrap, run_repo_commands, run_ringtail_worker_request
 
@@ -37,15 +43,15 @@ def normalize_repo_job_request(request: dict[str, Any]) -> dict[str, Any]:
     if not prompt:
         raise ValueError("prompt is required")
 
-    normalized = dict(request)
+    normalized = normalize_request_defaults(dict(request))
     normalized["operation"] = "run_repo_agent_job"
     normalized["repo_url"] = repo_url
     normalized["prompt"] = prompt
     normalized["base_branch"] = str(request.get("base_branch", "main"))
     normalized["tests_root"] = str(request.get("tests_root", "tests"))
     normalized["max_targets"] = max(1, int(request.get("max_targets", 3)))
-    normalized["config_name"] = request.get("config_name", "default")
-    normalized["analysis_mode"] = request.get("analysis_mode", "llm")
+    normalized["config_name"] = request.get("config_name", DEFAULT_CONFIG_NAME)
+    normalized["analysis_mode"] = request.get("analysis_mode", DEFAULT_ANALYSIS_MODE)
     normalized["publish_pr"] = bool(request.get("publish_pr", False))
     normalized["setup_commands"] = list(request.get("setup_commands", []))
     normalized["test_command"] = request.get("test_command", None)
@@ -275,7 +281,7 @@ def _evaluate_candidate(
             "config_name": job.get("config_name"),
             "analysis_mode": job.get("analysis_mode"),
             "llm_model": job.get("llm_model", None),
-            "enable_run_log": True,
+            "enable_run_log": DEFAULT_ENABLE_RUN_LOG,
         }
     else:
         request = {
@@ -288,7 +294,7 @@ def _evaluate_candidate(
             "config_name": job.get("config_name"),
             "analysis_mode": job.get("analysis_mode"),
             "llm_model": job.get("llm_model", None),
-            "enable_run_log": True,
+            "enable_run_log": DEFAULT_ENABLE_RUN_LOG,
         }
     result = _run_worker_request(
         request,
@@ -415,7 +421,7 @@ def _candidate_request(
             "config_name": job.get("config_name"),
             "analysis_mode": job.get("analysis_mode"),
             "llm_model": job.get("llm_model", None),
-            "enable_run_log": True,
+            "enable_run_log": DEFAULT_ENABLE_RUN_LOG,
         }
     return {
         "operation": "optimize_file_function",
@@ -427,7 +433,7 @@ def _candidate_request(
         "config_name": job.get("config_name"),
         "analysis_mode": job.get("analysis_mode"),
         "llm_model": job.get("llm_model", None),
-        "enable_run_log": True,
+        "enable_run_log": DEFAULT_ENABLE_RUN_LOG,
     }
 
 

@@ -86,6 +86,19 @@ def:pub get_agent_config(
         return cfg;
     }
 
+    if name == "baseline-measure" {
+        cfg.name = "baseline-measure";
+        cfg.llm_model = resolve_default_llm_model(None);
+        cfg.max_iterations = 3;
+        cfg.max_no_improvement_iters = 2;
+        cfg.candidate_count = 2;
+        cfg.benchmark_min_rounds = 2;
+        cfg.benchmark_warmup = False;
+        cfg.property_test_max_examples = 12;
+        cfg.stop_on_test_failure = False;
+        return cfg;
+    }
+
     if name == "test-fast" {
         cfg.name = "test-fast";
         cfg.llm_model = "__ringtail_test_mock__";

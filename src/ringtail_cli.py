@@ -12,6 +12,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from src.core.optimization_request_contract import DEFAULT_CONFIG_NAME, normalize_request_defaults
 from src.core.reporting import create_optimization_artifacts
 from src.core.product_support import config_doctor
 from src.utils.run_log import LOGS_DIR
@@ -91,7 +92,7 @@ def _build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("function_name")
     optimize_parser.add_argument("--function-call", default="")
     optimize_parser.add_argument("--tests-root", default="tests")
-    optimize_parser.add_argument("--config-name", default="live-fast")
+    optimize_parser.add_argument("--config-name", default=DEFAULT_CONFIG_NAME)
     optimize_parser.add_argument("--json", action="store_true", dest="as_json")
     optimize_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
     optimize_parser.set_defaults(func=_cmd_file_optimize)
@@ -231,7 +232,7 @@ def _build_repo_submit_request(args: argparse.Namespace) -> dict[str, Any]:
         payload["test_command"] = args.test_command.strip()
     if args.setup_command:
         payload["setup_commands"] = [entry.strip() for entry in args.setup_command if entry.strip()]
-    return payload
+    return normalize_request_defaults(payload)
 
 
 def _build_file_optimize_request(args: argparse.Namespace) -> dict[str, Any]:
@@ -245,7 +246,7 @@ def _build_file_optimize_request(args: argparse.Namespace) -> dict[str, Any]:
         payload["config_name"] = str(args.config_name).strip()
     if args.function_call.strip():
         payload["function_call"] = args.function_call.strip()
-    return payload
+    return normalize_request_defaults(payload)
 
 
 def _normalize_repo_input(raw_path: str) -> str:

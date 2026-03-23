@@ -17,10 +17,10 @@ import from src.models.types { FunctionInput, OptimizationResult, Metrics, Optim
 import from src.core.tester { run_tests }
 import from src.core.tester { run_tests_with_coverage }
 import from src.core.profiler { profile_code }
-import from src.core.property_tester { run_property_tests }
 import from src.agents.optimizer_agent { think_and_prep, write_optimized_code, compare, enumerate_candidate_plans }
 
 import importlib;
+import time;
 import from typing { Any }
 
 
@@ -74,6 +74,38 @@ def _with_run_metadata(result: dict, run_log: Any) -> dict {
     result["run_id"] = getattr(run_log, "run_id", "");
     result["run_log_path"] = getattr(run_log, "log_path", "");
     return result;
+}
+
+
+def _run_post_test_checks(
+    optimized_code: str,
+    function_name: str,
+    original_source_code: str,
+    function_call: str,
+    benchmark_min_rounds: int,
+    benchmark_warmup: bool,
+    enable_property_tests: bool,
+    property_test_max_examples: int
+) -> dict {
+    mod = importlib.import_module("src.core.post_test_runner");
+    func = getattr(mod, "run_post_test_checks");
+    return func(
+        optimized_code=optimized_code,
+        function_name=function_name,
+        original_source_code=original_source_code,
+        function_call=function_call,
+        benchmark_min_rounds=benchmark_min_rounds,
+        benchmark_warmup=benchmark_warmup,
+        enable_property_tests=enable_property_tests,
+        property_test_max_examples=property_test_max_examples
+    );
+}
+
+
+def _evaluate_candidates_batch(payloads: list, max_parallel_candidates: int = 1) -> list {
+    mod = importlib.import_module("src.core.parallel_candidate_eval");
+    func = getattr(mod, "evaluate_candidates");
+    return func(payloads, max_parallel_candidates);
 }
 
 
@@ -156,6 +188,7 @@ def _run_optimize(
     stop_on_test_failure = True;
     min_improvement_ratio = 1.0;
     candidate_count = 1;
+    max_parallel_candidates = 1;
     benchmark_min_rounds = 10;
     benchmark_warmup = True;
     property_test_max_examples = 50;
@@ -188,7 +221,17 @@ def _run_optimize(
         }
         if config.candidate_count is not None {
             candidate_count = int(config.candidate_count);
+            max_parallel_candidates = int(config.candidate_count);
         }
+    }
+    if function_input.get("max_parallel_candidates", None) is not None {
+        max_parallel_candidates = int(function_input.get("max_parallel_candidates", 1));
+    }
+    if max_parallel_candidates < 1 {
+        max_parallel_candidates = 1;
+    }
+    if max_parallel_candidates > candidate_count {
+        max_parallel_candidates = candidate_count;
     }
 
     # Initialize: Parse input function and derive metadata
@@ -248,9 +291,10 @@ def _run_optimize(
     }
     function_call: str = str(function_input["function_call"]);
 
-    test_cases = function_input.get("test_cases", []);
-    if test_cases is None {
-        test_cases = [];
+    raw_test_cases = function_input.get("test_cases", None);
+    test_cases: list = [];
+    if raw_test_cases is not None {
+        test_cases = raw_test_cases;
     }
 
     baseline_test_code = _pytest_from_test_cases(function_name, test_cases, function_call);
@@ -340,6 +384,7 @@ def _run_optimize(
         print("Iteration " + str(iteration) + " of " + str(max_iterations));
         if run_log is not None {
             _safe_log(lambda: run_log.event("iteration_start", iteration=iteration));
+            _safe_log(lambda: run_log.event("plan_start", iteration=iteration));
         }
         
         # Agent think/prep phase (dispatch by analysis_mode or config.llm_model)
@@ -358,6 +403,9 @@ def _run_optimize(
             last_feedback,
             run_log
         );
+        if run_log is not None {
+            _safe_log(lambda: run_log.event("plan_end", iteration=iteration));
+        }
         last_feedback = None;
         if run_log is not None {
             _safe_log(lambda: run_log.event(
@@ -376,7 +424,15 @@ def _run_optimize(
         test_code = _pytest_from_test_cases(function_name, merged_cases, function_call);
         best_candidate_eval = None;
         candidate_failures: list = [];
+        candidate_eval_payloads: list = [];
         candidate_idx = 0;
+        if run_log is not None {
+            _safe_log(lambda: run_log.event(
+                    "candidate_eval_mode",
+                    iteration=iteration,
+                    max_parallel_candidates=max_parallel_candidates
+                ));
+        }
         for candidate_plan in candidate_plans {
             candidate_label = str(candidate_plan.get("label", "candidate_" + str(candidate_idx)));
             candidate_idx = candidate_idx + 1;
@@ -400,27 +456,44 @@ def _run_optimize(
                 llm_model,
                 run_log
             );
+            if run_log is not None {
+                _safe_log(lambda: run_log.event(
+                        "codegen_end",
+                        iteration=iteration,
+                        candidate_label=candidate_label
+                    ));
+            }
 
-            candidate_eval = _evaluate_candidate(
-                iteration,
-                candidate_label,
-                optimized_code,
-                candidate_plan,
-                function_name,
-                function_call,
-                original_source_code,
-                test_code,
-                baseline_metrics,
-                baseline_metrics_obj,
-                baseline_stdev_sec,
-                baseline_n,
-                baseline_coverage_pct,
-                benchmark_min_rounds,
-                benchmark_warmup,
-                property_test_max_examples,
-                enable_property_tests,
-                run_log
-            );
+            eval_run_log = run_log;
+            if max_parallel_candidates > 1 {
+                # RunLog writes are not thread-safe today, so parallel candidate
+                # evaluation uses aggregate logs around completed results instead.
+                eval_run_log = None;
+            }
+            candidate_eval_payloads.append({
+                "iteration": iteration,
+                "candidate_label": candidate_label,
+                "optimized_code": optimized_code,
+                "candidate_plan": candidate_plan,
+                "function_name": function_name,
+                "function_call": function_call,
+                "original_source_code": original_source_code,
+                "test_code": test_code,
+                "baseline_metrics": baseline_metrics,
+                "baseline_metrics_obj": baseline_metrics_obj,
+                "baseline_stdev_sec": baseline_stdev_sec,
+                "baseline_n": baseline_n,
+                "baseline_coverage_pct": baseline_coverage_pct,
+                "benchmark_min_rounds": benchmark_min_rounds,
+                "benchmark_warmup": benchmark_warmup,
+                "property_test_max_examples": property_test_max_examples,
+                "enable_property_tests": enable_property_tests,
+                "run_log": eval_run_log
+            });
+        }
+
+        candidate_evals = _evaluate_candidates_batch(candidate_eval_payloads, max_parallel_candidates);
+        for candidate_eval in candidate_evals {
             if run_log is not None {
                 _safe_log(lambda: run_log.event(
                         "candidate_evaluation",
@@ -482,7 +555,8 @@ def _run_optimize(
             "confidence": comparison.get("confidence", 0.0),
             "candidate_label": best_candidate_eval.get("candidate_label", ""),
             "candidate_count_evaluated": len(candidate_plans),
-            "coverage_delta": best_candidate_eval.get("coverage_delta", None)
+            "coverage_delta": best_candidate_eval.get("coverage_delta", None),
+            "stage_timings_ms": best_candidate_eval.get("stage_timings_ms", {})
         };
         results = results + [result];
         best_passing_result = result;
@@ -819,11 +893,28 @@ def _evaluate_candidate(
     enable_property_tests: bool = True,
     run_log: Any = None
 ) -> dict {
+    test_started = time.perf_counter();
+    if run_log is not None {
+        _safe_log(lambda: run_log.event(
+                "tests_start",
+                iteration=iteration,
+                candidate_label=candidate_label
+            ));
+    }
     test_results = run_tests_with_coverage(
         optimized_code,
         test_code
     );
+    tests_elapsed_ms = (time.perf_counter() - test_started) * 1000.0;
     coverage_pct = float(test_results.get("coverage_percent", -1.0));
+    if run_log is not None {
+        _safe_log(lambda: run_log.event(
+                "tests_end",
+                iteration=iteration,
+                candidate_label=candidate_label,
+                passed=bool(test_results.get("passed", False))
+            ));
+    }
 
     if run_log is not None {
         _safe_log(lambda: run_log.event(
@@ -835,6 +926,12 @@ def _evaluate_candidate(
                 passed_count=int(test_results.get("passed_count", 0)),
                 failed_count=int(test_results.get("failed_count", 0)),
                 coverage_percent=coverage_pct
+            ));
+        _safe_log(lambda: run_log.event(
+                "tests_timing",
+                iteration=iteration,
+                candidate_label=candidate_label,
+                elapsed_ms=float(tests_elapsed_ms)
             ));
     }
 
@@ -862,85 +959,130 @@ def _evaluate_candidate(
                 "improvement_ratio": 0.0,
                 "candidate_label": candidate_label,
                 "coverage_delta": feedback.get("coverage_delta", None),
+                "stage_timings_ms": {
+                    "tests": tests_elapsed_ms,
+                    "property_tests": 0.0,
+                    "profile": 0.0,
+                    "post_checks_total": 0.0
+                },
                 "error": "Tests failed: " + str(test_results.get("error", ""))
             }
         };
     }
 
-    if enable_property_tests {
-        prop_results = run_property_tests(
-            optimized_code,
-            function_name,
-            reference_code=original_source_code,
-            max_examples=property_test_max_examples
-        );
-        if run_log is not None {
+    if run_log is not None {
+        _safe_log(lambda: run_log.event(
+                "profile_start",
+                iteration=iteration,
+                candidate_label=candidate_label
+            ));
+        if enable_property_tests {
             _safe_log(lambda: run_log.event(
-                    "property_tests",
+                    "property_tests_start",
                     iteration=iteration,
-                    candidate_label=candidate_label,
-                    passed=bool(prop_results.get("passed", False)),
-                    total=int(prop_results.get("total", 0)),
-                    passed_count=int(prop_results.get("passed_count", 0)),
-                    failed_count=int(prop_results.get("failed_count", 0)),
-                    examples_run=int(prop_results.get("examples_run", 0)),
-                    falsifying_example=str(prop_results.get("falsifying_example", "")),
-                    error=str(prop_results.get("error", ""))
-                ));
-        }
-        if not prop_results.get("passed", True) {
-            falsifying_example = _extract_falsifying_example(prop_results);
-            feedback = _build_failure_feedback(
-                "property_test_failure",
-                iteration,
-                candidate_label,
-                function_name,
-                optimized_code,
-                str(prop_results.get("error", "")),
-                prop_results.get("failures", []),
-                coverage_pct,
-                baseline_coverage_pct,
-                falsifying_example
-            );
-            return {
-                "passed": False,
-                "optimized_code": optimized_code,
-                "feedback": feedback,
-                "result": {
-                    "optimized_code": optimized_code,
-                    "iteration_number": iteration,
-                    "metrics": baseline_metrics,
-                    "test_passed": False,
-                    "improvement_ratio": 0.0,
-                    "candidate_label": candidate_label,
-                    "coverage_delta": feedback.get("coverage_delta", None),
-                    "error": "Property-based test failure"
-                }
-            };
-        }
-    } else {
-        if run_log is not None {
-            _safe_log(lambda: run_log.event(
-                    "property_tests",
-                    iteration=iteration,
-                    candidate_label=candidate_label,
-                    passed=True,
-                    total=0,
-                    passed_count=0,
-                    failed_count=0,
-                    examples_run=0,
-                    falsifying_example="",
-                    error="skipped"
+                    candidate_label=candidate_label
                 ));
         }
     }
 
-    profile = profile_code(
+    post_checks = _run_post_test_checks(
         optimized_code,
+        function_name,
+        original_source_code,
         function_call,
         benchmark_min_rounds,
-        benchmark_warmup
+        benchmark_warmup,
+        enable_property_tests,
+        property_test_max_examples
     );
+    profile = post_checks.get("profile", {});
+    prop_results = post_checks.get("property_tests", {
+        "passed": True,
+        "total": 0,
+        "passed_count": 0,
+        "failed_count": 0,
+        "examples_run": 0,
+        "falsifying_example": "",
+        "error": "skipped"
+    });
+    post_timings = post_checks.get("timings_ms", {
+        "post_checks_total": 0.0,
+        "profile_elapsed": 0.0,
+        "property_elapsed": 0.0
+    });
+
+    if run_log is not None {
+        _safe_log(lambda: run_log.event(
+                "profile_end",
+                iteration=iteration,
+                candidate_label=candidate_label,
+                success=bool(profile.get("success", False))
+            ));
+        _safe_log(lambda: run_log.event(
+                "property_tests_end",
+                iteration=iteration,
+                candidate_label=candidate_label,
+                passed=bool(prop_results.get("passed", True)),
+                skipped=not enable_property_tests
+            ));
+        _safe_log(lambda: run_log.event(
+                "property_tests",
+                iteration=iteration,
+                candidate_label=candidate_label,
+                passed=bool(prop_results.get("passed", True)),
+                total=int(prop_results.get("total", 0)),
+                passed_count=int(prop_results.get("passed_count", 0)),
+                failed_count=int(prop_results.get("failed_count", 0)),
+                examples_run=int(prop_results.get("examples_run", 0)),
+                falsifying_example=str(prop_results.get("falsifying_example", "")),
+                error=str(prop_results.get("error", ""))
+            ));
+        _safe_log(lambda: run_log.event(
+                "post_checks_timing",
+                iteration=iteration,
+                candidate_label=candidate_label,
+                post_checks_total_ms=float(post_timings.get("post_checks_total", 0.0)),
+                profile_elapsed_ms=float(post_timings.get("profile_elapsed", 0.0)),
+                property_elapsed_ms=float(post_timings.get("property_elapsed", 0.0))
+            ));
+    }
+
+    if enable_property_tests and not prop_results.get("passed", True) {
+        falsifying_example = _extract_falsifying_example(prop_results);
+        feedback = _build_failure_feedback(
+            "property_test_failure",
+            iteration,
+            candidate_label,
+            function_name,
+            optimized_code,
+            str(prop_results.get("error", "")),
+            prop_results.get("failures", []),
+            coverage_pct,
+            baseline_coverage_pct,
+            falsifying_example
+        );
+        return {
+            "passed": False,
+            "optimized_code": optimized_code,
+            "feedback": feedback,
+            "result": {
+                "optimized_code": optimized_code,
+                "iteration_number": iteration,
+                "metrics": baseline_metrics,
+                "test_passed": False,
+                "improvement_ratio": 0.0,
+                "candidate_label": candidate_label,
+                "coverage_delta": feedback.get("coverage_delta", None),
+                "stage_timings_ms": {
+                    "tests": tests_elapsed_ms,
+                    "property_tests": float(post_timings.get("property_elapsed", 0.0)),
+                    "profile": float(post_timings.get("profile_elapsed", 0.0)),
+                    "post_checks_total": float(post_timings.get("post_checks_total", 0.0))
+                },
+                "error": "Property-based test failure"
+            }
+        };
+    }
     if run_log is not None {
         _safe_log(lambda: run_log.event(
                 "profile",
@@ -977,6 +1119,12 @@ def _evaluate_candidate(
                 "improvement_ratio": 0.0,
                 "candidate_label": candidate_label,
                 "coverage_delta": feedback.get("coverage_delta", None),
+                "stage_timings_ms": {
+                    "tests": tests_elapsed_ms,
+                    "property_tests": float(post_timings.get("property_elapsed", 0.0)),
+                    "profile": float(post_timings.get("profile_elapsed", 0.0)),
+                    "post_checks_total": float(post_timings.get("post_checks_total", 0.0))
+                },
                 "error": "Profiling failed: " + str(profile.get("error", ""))
             }
         };
@@ -1018,7 +1166,13 @@ def _evaluate_candidate(
         "comparison": comparison,
         "signal": signal,
         "reason": reason,
-        "coverage_delta": _coverage_delta(coverage_pct, baseline_coverage_pct)
+        "coverage_delta": _coverage_delta(coverage_pct, baseline_coverage_pct),
+        "stage_timings_ms": {
+            "tests": tests_elapsed_ms,
+            "property_tests": float(post_timings.get("property_elapsed", 0.0)),
+            "profile": float(post_timings.get("profile_elapsed", 0.0)),
+            "post_checks_total": float(post_timings.get("post_checks_total", 0.0))
+        }
     };
 }
 
@@ -1087,7 +1241,7 @@ def _pytest_from_test_cases(function_name: str, cases: list, function_call: str)
         }
         name = str(name);
         if not name.startswith("test_") {
-            name = "test_" + name;
+            name = "test_" + str(name);
         }
 
         if call_expr is None {

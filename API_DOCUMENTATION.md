@@ -4,7 +4,8 @@
 
 - **Purpose**: Replay-driven optimization surface used by Ringtail CLI and UI.
 - **Current transport**: Replay operations are routed through `POST /function/optimize_sync` using an `operation` field.
-- **Backend module**: `interfaces/cli/cli.jac`.
+- **Backend module**: `src/api/optimization_requests.jac`.
+- **Canonical operation/default contract**: `src/core/optimization_request_contract.py` and `/function/get_optimization_contract`.
 - **Local base URL**: `http://localhost:8000`.
 
 ---
@@ -29,7 +30,7 @@ Supported replay operation names:
 - `optimize_best_replay_function`
 - `optimize_best_replay_in_repo`
 
-Replay inspection helpers also exist as callable public functions in `interfaces/cli/cli.jac`:
+Replay inspection helpers also exist as callable public functions in `src/api/optimization_requests.jac`:
 
 - `inspect_replay_repo(...)`
 - `inspect_replay_function(...)`

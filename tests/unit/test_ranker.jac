@@ -8,7 +8,7 @@ import from src.core.ranker {
     rank_replay_candidates_in_file,
     rank_replay_candidates_in_directory
 }
-import from interfaces.cli.cli {
+import from src.api.optimization_requests {
     discover_and_rank_file,
     discover_and_rank_replay_file,
     discover_and_rank_replay_repo

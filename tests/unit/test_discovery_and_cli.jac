@@ -11,7 +11,7 @@ import from src.core.discovery {
     build_replay_inputs_from_directory,
     infer_replay_source_files
 }
-import from interfaces.cli.cli {
+import from src.api.optimization_requests {
     inspect_file_function,
     optimize_file_function,
     inspect_replay_function,

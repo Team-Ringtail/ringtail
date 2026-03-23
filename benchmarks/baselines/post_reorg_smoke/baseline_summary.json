@@ -1,0 +1,188 @@
+{
+  "case_count": 5,
+  "cases": {
+    "file_async_submit_optimization_job": {
+      "async_overhead_ms": {
+        "queue_mean": 0.0,
+        "worker_runtime_mean": 39000.0
+      },
+      "llm_usage": {
+        "calls": 4,
+        "completion_tokens": 706,
+        "estimated_cost_usd": 0.0,
+        "prompt_tokens": 1499
+      },
+      "samples": 1,
+      "stage_ms": {
+        "codegen_total_mean": 0.0,
+        "plan_mean": 10594.999999999998,
+        "profile_total_mean": 0.0,
+        "property_total_mean": 0.0,
+        "tests_total_mean": 0.0
+      },
+      "status_counts": {
+        "error": 0,
+        "ok": 1
+      },
+      "termination_reasons": [
+        "execution time within target"
+      ],
+      "wall_time_ms": {
+        "cv": 0.0,
+        "mean": 39325.17886161804,
+        "p50": 39325.17886161804,
+        "p95": 39325.17886161804,
+        "stdev": 0.0
+      }
+    },
+    "file_sync_optimize_file_function": {
+      "async_overhead_ms": {
+        "queue_mean": null,
+        "worker_runtime_mean": null
+      },
+      "llm_usage": {
+        "calls": 4,
+        "completion_tokens": 770,
+        "estimated_cost_usd": 0.0,
+        "prompt_tokens": 1521
+      },
+      "samples": 1,
+      "stage_ms": {
+        "codegen_total_mean": 10429.000000000002,
+        "plan_mean": 8134.0,
+        "profile_total_mean": 0.0,
+        "property_total_mean": 3160.0000000000036,
+        "tests_total_mean": 2266.999999999996
+      },
+      "status_counts": {
+        "error": 0,
+        "ok": 1
+      },
+      "termination_reasons": [
+        "execution time within target"
+      ],
+      "wall_time_ms": {
+        "cv": 0.0,
+        "mean": 36301.177978515625,
+        "p50": 36301.177978515625,
+        "p95": 36301.177978515625,
+        "stdev": 0.0
+      }
+    },
+    "function_sync_optimize_input": {
+      "async_overhead_ms": {
+        "queue_mean": null,
+        "worker_runtime_mean": null
+      },
+      "llm_usage": {
+        "calls": 4,
+        "completion_tokens": 788,
+        "estimated_cost_usd": 0.0,
+        "prompt_tokens": 1546
+      },
+      "samples": 1,
+      "stage_ms": {
+        "codegen_total_mean": 10121.999999999998,
+        "plan_mean": 7996.0,
+        "profile_total_mean": 0.0,
+        "property_total_mean": 3280.9999999999986,
+        "tests_total_mean": 2279.0000000000073
+      },
+      "status_counts": {
+        "error": 0,
+        "ok": 1
+      },
+      "termination_reasons": [
+        "execution time within target"
+      ],
+      "wall_time_ms": {
+        "cv": 0.0,
+        "mean": 37005.49101829529,
+        "p50": 37005.49101829529,
+        "p95": 37005.49101829529,
+        "stdev": 0.0
+      }
+    },
+    "replay_sync_optimize_replay_function": {
+      "async_overhead_ms": {
+        "queue_mean": null,
+        "worker_runtime_mean": null
+      },
+      "llm_usage": {
+        "calls": 6,
+        "completion_tokens": 1172,
+        "estimated_cost_usd": 0.0,
+        "prompt_tokens": 3177
+      },
+      "samples": 1,
+      "stage_ms": {
+        "codegen_total_mean": 14984.000000000004,
+        "plan_mean": 9576.0,
+        "profile_total_mean": 0.0,
+        "property_total_mean": 0.0,
+        "tests_total_mean": 4541.999999999987
+      },
+      "status_counts": {
+        "error": 1,
+        "ok": 0
+      },
+      "termination_reasons": [],
+      "wall_time_ms": {
+        "cv": 0.0,
+        "mean": 55826.8620967865,
+        "p50": 55826.8620967865,
+        "p95": 55826.8620967865,
+        "stdev": 0.0
+      }
+    },
+    "repo_sync_run_repo_agent_job": {
+      "async_overhead_ms": {
+        "queue_mean": null,
+        "worker_runtime_mean": null
+      },
+      "llm_usage": {
+        "calls": 0,
+        "completion_tokens": 0,
+        "estimated_cost_usd": 0.0,
+        "prompt_tokens": 0
+      },
+      "samples": 1,
+      "stage_ms": {
+        "codegen_total_mean": 0.0,
+        "plan_mean": null,
+        "profile_total_mean": 0.0,
+        "property_total_mean": 0.0,
+        "tests_total_mean": 0.0
+      },
+      "status_counts": {
+        "error": 0,
+        "ok": 1
+      },
+      "termination_reasons": [],
+      "wall_time_ms": {
+        "cv": 0.0,
+        "mean": 64635.26105880737,
+        "p50": 64635.26105880737,
+        "p95": 64635.26105880737,
+        "stdev": 0.0
+      }
+    }
+  },
+  "config": {
+    "analysis_mode": "llm",
+    "config_name": "baseline-measure",
+    "estimate_input_usd_per_1m_tokens": 0.0,
+    "estimate_output_usd_per_1m_tokens": 0.0,
+    "llm_model": "",
+    "repo_prompt": "Optimize the slowest function without changing behavior.",
+    "repo_url": "/Users/lancebuescher/Umich/course_code/eecs449/ringtail/benchmarks/ranked_pitch_repo",
+    "server_url": "http://127.0.0.1:8000",
+    "tests_root": "/Users/lancebuescher/Umich/course_code/eecs449/ringtail/benchmarks/local_file_suite",
+    "trials": 1,
+    "warmups": 0
+  },
+  "created_at": "2026-03-23T20:28:46.716432+00:00",
+  "notes": {
+    "stage_timing_method": "Best-effort approximation from run_log elapsed_s phase markers. For exact stage timing, add explicit start/end events in optimization_loop."
+  }
+}

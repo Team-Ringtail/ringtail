@@ -8,6 +8,10 @@ standalone `/replay/*` HTTP paths.
 
 This keeps the surface small while the internals are still evolving.
 
+Canonical operation names and defaults are now mirrored in:
+- `src/core/optimization_request_contract.py`
+- `/function/get_optimization_contract`
+
 ## Goals
 
 - Let the UI run a replay script and see what code was actually exercised.

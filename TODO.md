@@ -83,7 +83,7 @@ ringtail/
 
 ### Phase 3: User Interfaces
 
-- [ ] CLI interface (`interfaces/cli/cli.jac`)
+- [ ] CLI interface (`src/api/optimization_requests.jac` + `src/ringtail_cli.py`)
   - [ ] Flesh out `optimize_function` walker to accept source code and options
   - [ ] Wire CLI to `run_optimization` and print summarized metrics/results
 - [ ] Web interface (`interfaces/web/`) with jac-client (planned, directory not yet created)

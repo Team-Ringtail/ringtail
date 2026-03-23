@@ -10,18 +10,17 @@ from __future__ import annotations
 import copy
 import json
 import os
-import subprocess
-import tempfile
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any
 
+from src.core.optimization_request_contract import normalize_request_defaults
+from src.core.worker_runner import run_local_worker_request
 from src.utils.run_log import LOGS_DIR
 
 _WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
-_WORKER_PATH = _WORKSPACE_ROOT / "src" / "core" / "async_optimize_worker.jac"
 _JOBS_DIR = Path(os.environ.get("RINGTAIL_ASYNC_JOBS_DIR", Path(LOGS_DIR) / "async_jobs"))
 _TERMINAL_STATES = {"succeeded", "failed", "interrupted"}
 
@@ -61,20 +60,6 @@ def _request_summary(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _extract_result(stdout: str) -> dict[str, Any] | None:
-    for raw_line in reversed(stdout.splitlines()):
-        line = raw_line.strip()
-        if not line.startswith("{"):
-            continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict):
-            return data
-    return None
-
-
 class AsyncJobManager:
     def __init__(self) -> None:
         self._jobs: dict[str, dict[str, Any]] = {}
@@ -89,12 +74,10 @@ class AsyncJobManager:
         job_id = request.get("job_id") or uuid.uuid4().hex
         run_id = request.get("run_id") or f"async_job_{job_id}"
         run_name = request.get("run_name") or run_id
-        payload = dict(request)
-        payload.setdefault("operation", "optimize_input")
+        payload = normalize_request_defaults(dict(request))
         payload["job_id"] = job_id
         payload["run_id"] = run_id
         payload["run_name"] = run_name
-        payload.setdefault("enable_run_log", True)
 
         job = {
             "job_id": job_id,
@@ -147,33 +130,13 @@ class AsyncJobManager:
             self._persist_job(job)
 
     def _run_job(self, job_id: str, request: dict[str, Any]) -> None:
-        request_file: str | None = None
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w",
-                prefix=f"ringtail_async_{job_id}_",
-                suffix=".json",
-                delete=False,
-            ) as handle:
-                json.dump(request, handle)
-                request_file = handle.name
-
-            env = os.environ.copy()
-            env["RINGTAIL_ASYNC_REQUEST_FILE"] = request_file
             self._update_job(job_id, status="running", started_at=_utc_timestamp())
-            proc = subprocess.Popen(
-                ["jac", "run", str(_WORKER_PATH)],
-                cwd=str(_WORKSPACE_ROOT),
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            self._update_job(job_id, pid=proc.pid)
-            stdout, stderr = proc.communicate()
-            result = _extract_result(stdout)
+            worker = run_local_worker_request(request)
+            self._update_job(job_id, pid=worker.get("pid"))
+            result = worker.get("result")
 
-            if proc.returncode == 0 and result is not None:
+            if int(worker.get("returncode", -1)) == 0 and isinstance(result, dict):
                 self._update_job(
                     job_id,
                     status="succeeded",
@@ -186,8 +149,8 @@ class AsyncJobManager:
                 )
                 return
 
-            error_message = stderr.strip() or "Async worker failed"
-            if result is not None and result.get("error"):
+            error_message = str(worker.get("stderr", "")).strip() or "Async worker failed"
+            if isinstance(result, dict) and result.get("error"):
                 error_message = str(result.get("error"))
             self._update_job(
                 job_id,
@@ -205,9 +168,6 @@ class AsyncJobManager:
                 error=str(exc),
                 pid=None,
             )
-        finally:
-            if request_file and os.path.exists(request_file):
-                os.remove(request_file)
 
     def _persist_job(self, job: dict[str, Any]) -> None:
         path = _job_path(str(job["job_id"]))

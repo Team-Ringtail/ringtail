@@ -8,9 +8,10 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
+
+from src.core.worker_runner import run_local_worker_request
 
 _RINGTAIL_ROOT = Path(__file__).resolve().parents[2]
 
@@ -118,27 +119,13 @@ def _run_repo_commands_local(repo_path: str, commands: list[str], timeout: int) 
 
 
 def _run_ringtail_worker_request_local(request: dict[str, Any]) -> Any:
-    worker_path = _RINGTAIL_ROOT / "src" / "core" / "async_optimize_worker.jac"
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as handle:
-        json.dump(request, handle)
-        request_file = handle.name
-    try:
-        env = os.environ.copy()
-        env["RINGTAIL_ASYNC_REQUEST_FILE"] = request_file
-        proc = subprocess.run(
-            ["jac", "run", str(worker_path)],
-            cwd=str(_RINGTAIL_ROOT),
-            env=env,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        result = _extract_json_result(proc.stdout)
-        if proc.returncode != 0:
-            raise RuntimeError(result.get("error", proc.stderr.strip() or "worker request failed"))
-        return result
-    finally:
-        os.remove(request_file)
+    worker = run_local_worker_request(request)
+    result = worker.get("result")
+    if not isinstance(result, dict):
+        raise RuntimeError("Worker did not produce JSON output")
+    if int(worker.get("returncode", -1)) != 0:
+        raise RuntimeError(str(result.get("error", str(worker.get("stderr", "")).strip() or "worker request failed")))
+    return result
 
 
 def _normalize_local_command(command: str) -> str:

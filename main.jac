@@ -4,7 +4,7 @@
 import from uuid { uuid4 }
 import importlib;
 
-import from interfaces.cli.cli { run_optimization_request }
+import from src.api.optimization_requests { run_optimization_request, get_optimization_operation_contract }
 cl import "./styles.css";
 
 # Public functions become REST endpoints automatically with jac start
@@ -19,6 +19,11 @@ def:pub hello(name: str = "Ringtail") -> dict {
 
 def:pub optimize_sync(request: dict) -> dict {
     return run_optimization_request(request);
+}
+
+
+def:pub get_optimization_contract -> dict {
+    return get_optimization_operation_contract();
 }
 
 
