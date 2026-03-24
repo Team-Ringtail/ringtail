@@ -246,7 +246,8 @@ walker test_walker {
 cl def:pub app -> JsxElement {
     has healthStatus: dict = {};
     has uiMessage: str = "";
-    has activeTab: str = "benchmark";
+    has activeTab: str = "paste";
+    has currentTheme: str = "dark";
     has sessionToken: str = "";
     has githubLogin: str = "";
     has githubAvatarUrl: str = "";
@@ -260,6 +261,28 @@ cl def:pub app -> JsxElement {
     has repoJobId: str = "";
     has repoJobStatus: str = "";
     has repoJobResult: str = "";
+    has pasteSourceCode: str = "def slow_add(n):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n";
+    has pasteFunctionName: str = "slow_add";
+    has pasteFunctionCall: str = "slow_add(5000)";
+    has pasteTestCall: str = "slow_add(5)";
+    has pasteExpected: str = "10";
+    has pasteConfigName: str = "live-fast";
+    has pasteAnalysisMode: str = "llm";
+    has pasteEnableRunLog: bool = True;
+    has pasteJobId: str = "";
+    has pasteJobStatus: str = "";
+    has pasteError: str = "";
+    has pasteImprovementRatio: str = "";
+    has pasteExecutionBeforeMs: str = "";
+    has pasteExecutionAfterMs: str = "";
+    has pasteTerminationReason: str = "";
+    has pasteTestPassed: str = "";
+    has pasteOriginalCode: str = "";
+    has pasteOptimizedCode: str = "";
+    has pasteSubmitting: bool = False;
+    has pasteSubmittedSourceCode: str = "";
+    has pasteExpectedStatus: str = "idle";
+    has pasteExpectedPreview: str = "";
     has demoView: str = "setup";
     has demoServerUrl: str = "";
     has demoBenchmarkId: str = "ranked-pitch-repo";
@@ -376,6 +399,48 @@ cl def:pub app -> JsxElement {
         ts = str(int(globalThis.Date.now()));
         rand = str(int(globalThis.Math.floor(globalThis.Math.random() * 1000000)));
         return "demo-" + ts + "-" + rand;
+    }
+
+    def _new_paste_job_id() -> str {
+        if "crypto" in globalThis and globalThis.crypto != None and "randomUUID" in globalThis.crypto {
+            return "paste-" + str(globalThis.crypto.randomUUID());
+        }
+        ts = str(int(globalThis.Date.now()));
+        rand = str(int(globalThis.Math.floor(globalThis.Math.random() * 1000000)));
+        return "paste-" + ts + "-" + rand;
+    }
+
+    def _set_theme_attr(theme: str) -> None {
+        if theme not in ["light", "dark"] {
+            return;
+        }
+        if "document" not in globalThis or globalThis.document is None {
+            return;
+        }
+        if "documentElement" in globalThis.document and globalThis.document.documentElement != None {
+            globalThis.document.documentElement.setAttribute("data-theme", theme);
+        }
+    }
+
+    def _save_theme(theme: str) -> None {
+        try {
+            globalThis.localStorage.setItem("ringtail_theme", theme);
+        } except Exception as err {
+            ignored = str(err);
+        }
+    }
+
+    def _load_theme(default_theme: str = "dark") -> str {
+        theme = default_theme;
+        try {
+            saved = str(globalThis.localStorage.getItem("ringtail_theme") or "");
+            if saved in ["light", "dark"] {
+                theme = saved;
+            }
+        } except Exception as err {
+            ignored = str(err);
+        }
+        return theme;
     }
 
     def _clear_demo_files() -> None {
@@ -631,6 +696,282 @@ cl def:pub app -> JsxElement {
         }
         if len(rows) > 2 {
             _set_demo_card(3, rows[2]);
+        }
+    }
+
+    def _reset_paste_result() -> None {
+        pasteError = "";
+        pasteImprovementRatio = "";
+        pasteExecutionBeforeMs = "";
+        pasteExecutionAfterMs = "";
+        pasteTerminationReason = "";
+        pasteTestPassed = "";
+        pasteOriginalCode = "";
+        pasteOptimizedCode = "";
+    }
+
+    def _normalize_source_code(raw: str) -> str {
+        text = str(raw).replace("\r\n", "\n").replace("\r", "\n");
+        js_text = globalThis.String(text);
+        has_real_newline = False;
+        has_escaped_newline = False;
+        idx = 0;
+        while idx < int(js_text.length) {
+            code = int(js_text.charCodeAt(idx));
+            if code == 10 {
+                has_real_newline = True;
+            }
+            if idx + 1 < int(js_text.length)
+                and code == 92
+                and int(js_text.charCodeAt(idx + 1)) == 110 {
+                has_escaped_newline = True;
+            }
+            idx = idx + 1;
+        }
+        if not has_real_newline and has_escaped_newline {
+            # Heuristic: user pasted escaped code from JSON/log output.
+            decoded_chars: list = [];
+            i = 0;
+            while i < int(js_text.length) {
+                current_code = int(js_text.charCodeAt(i));
+                if current_code == 92 and i + 1 < int(js_text.length) {
+                    next_code = int(js_text.charCodeAt(i + 1));
+                    if next_code == 110 {
+                        decoded_chars.append("\n");
+                        i = i + 2;
+                        continue;
+                    }
+                    if next_code == 116 {
+                        decoded_chars.append("    ");
+                        i = i + 2;
+                        continue;
+                    }
+                    if next_code == 114 {
+                        i = i + 2;
+                        continue;
+                    }
+                }
+                decoded_chars.append(str(js_text[i]));
+                i = i + 1;
+            }
+            text = "".join(decoded_chars);
+        }
+        trimmed = str(globalThis.String(text).trim());
+        if trimmed.startswith("```") and trimmed.endswith("```") {
+            lines = trimmed.split("\n");
+            if len(lines) >= 2 {
+                return "\n".join(lines[1:len(lines) - 1]);
+            }
+        }
+        return text;
+    }
+
+    def _set_source_cursor(target: any, pos: int) -> None {
+        try {
+            globalThis.setTimeout(lambda -> None {
+                target.selectionStart = pos;
+                target.selectionEnd = pos;
+            }, 0);
+        } except Exception as cursorErr {
+            ignored = str(cursorErr);
+        }
+    }
+
+    def _update_expected_feedback() -> None {
+        expectedText = str(pasteExpected).strip();
+        hasValidationCall = str(pasteTestCall).strip() != "";
+        if expectedText == "" {
+            if hasValidationCall {
+                pasteExpectedStatus = "warn";
+                pasteExpectedPreview = "Validation call is set with no expected value; run will execute without an assert.";
+            } else {
+                pasteExpectedStatus = "idle";
+                pasteExpectedPreview = "Use JSON literals like 10, \"hello\", true, null, or [1, 2].";
+            }
+            return;
+        }
+        try {
+            parsed = globalThis.JSON.parse(expectedText);
+            pasteExpectedStatus = "ok";
+            pasteExpectedPreview = "Valid JSON parsed as: " + str(parsed);
+        } except Exception as parseErr {
+            ignored = str(parseErr);
+            pasteExpectedStatus = "warn";
+            pasteExpectedPreview = "Not valid JSON; this value will be sent as raw text.";
+        }
+    }
+
+    def _parse_expected_value(raw: str) -> dict | list | str | int | float | bool | None {
+        text = str(raw).strip();
+        if text == "" {
+            return None;
+        }
+        try {
+            return globalThis.JSON.parse(text);
+        } except Exception as err {
+            ignored = str(err);
+            return text;
+        }
+    }
+
+    def handleSourceEditorPaste(e: any) -> None {
+        try {
+            clipboard = _value(e, "clipboardData", None);
+            if clipboard is None {
+                return;
+            }
+            rawText = str(clipboard.getData("text") or "");
+            if rawText == "" {
+                return;
+            }
+            normalized = _normalize_source_code(rawText);
+            if normalized == rawText {
+                return;
+            }
+            e.preventDefault();
+            target = e.target;
+            value = str(_value(target, "value", ""));
+            start = int(_value(target, "selectionStart", len(value)));
+            end = int(_value(target, "selectionEnd", start));
+            updated = value[0:start] + normalized + value[end:];
+            pasteSourceCode = updated;
+            _set_source_cursor(target, start + len(normalized));
+        } except Exception as pasteErr {
+            ignored = str(pasteErr);
+        }
+    }
+
+    async def handleSourceEditorKeydown(e: any) -> None {
+        key = str(_value(e, "key", ""));
+        if bool(_value(e, "metaKey", False)) or bool(_value(e, "ctrlKey", False)) {
+            if key == "Enter" {
+                e.preventDefault();
+                await _submit_paste_job();
+                return;
+            }
+        }
+        if key != "Tab" {
+            return;
+        }
+        e.preventDefault();
+        target = e.target;
+        value = str(_value(target, "value", pasteSourceCode));
+        start = int(_value(target, "selectionStart", len(value)));
+        end = int(_value(target, "selectionEnd", start));
+        if bool(_value(e, "shiftKey", False)) {
+            if start == end and start >= 4 and value[start - 4:start] == "    " {
+                updated = value[0:start - 4] + value[start:];
+                pasteSourceCode = updated;
+                _set_source_cursor(target, start - 4);
+            }
+            return;
+        }
+        updated = value[0:start] + "    " + value[end:];
+        pasteSourceCode = updated;
+        _set_source_cursor(target, start + 4);
+    }
+
+    def _toggle_theme() -> None {
+        if currentTheme == "dark" {
+            currentTheme = "light";
+        } else {
+            currentTheme = "dark";
+        }
+        _set_theme_attr(currentTheme);
+        _save_theme(currentTheme);
+    }
+
+    def _apply_paste_result(result: dict) -> None {
+        metrics = _value(result, "metrics", {});
+        baseline = _value(result, "baseline_metrics", {});
+        pasteImprovementRatio = str(_value(result, "improvement_ratio", 0.0));
+        pasteExecutionBeforeMs = str(_value(baseline, "execution_time", 0.0));
+        pasteExecutionAfterMs = str(_value(metrics, "execution_time", 0.0));
+        pasteTerminationReason = str(_value(result, "termination_reason", ""));
+        pasteTestPassed = str(_value(result, "test_passed", False));
+        pasteOriginalCode = pasteSubmittedSourceCode != "" and pasteSubmittedSourceCode or pasteSourceCode;
+        pasteOptimizedCode = str(_value(result, "optimized_code", ""));
+        if "error" in result {
+            pasteError = str(result["error"]);
+        } else {
+            pasteError = "";
+        }
+    }
+
+    async def _submit_paste_job() -> None {
+        if pasteSubmitting {
+            return;
+        }
+        expected_job_id = _new_paste_job_id();
+        pasteSubmitting = True;
+        pasteJobStatus = "submitting";
+        pasteJobId = expected_job_id;
+        _reset_paste_result();
+        uiMessage = "";
+        _update_expected_feedback();
+        try {
+            normalizedSource = _normalize_source_code(pasteSourceCode);
+            pasteSourceCode = normalizedSource;
+            pasteSubmittedSourceCode = normalizedSource;
+            payload = {
+                "operation": "optimize_input",
+                "job_id": expected_job_id,
+                "config_name": pasteConfigName,
+                "analysis_mode": pasteAnalysisMode,
+                "enable_run_log": pasteEnableRunLog,
+                "run_name": "web-paste-optimize",
+                "input": {
+                    "source_code": normalizedSource,
+                    "function_name": pasteFunctionName,
+                    "function_call": pasteFunctionCall,
+                    "test_cases": []
+                }
+            };
+            if str(pasteTestCall).strip() != "" {
+                expected = _parse_expected_value(pasteExpected);
+                payload["input"]["test_cases"] = [
+                    {"call": pasteTestCall, "expected": expected}
+                ];
+            }
+            submitted = await submit_optimization_job(payload);
+            returned_job_id = str(_value(submitted, "job_id", ""));
+            returned_status = str(_value(submitted, "status", "queued"));
+            if returned_job_id == expected_job_id {
+                pasteJobStatus = returned_status;
+            } else {
+                pasteJobStatus = "queued";
+            }
+            if expected_job_id == "" {
+                pasteJobStatus = "failed";
+                pasteError = str(_value(submitted, "error", "No job ID returned"));
+            } else {
+                await pollPasteJob();
+            }
+        } except Exception as err {
+            pasteJobStatus = "failed";
+            pasteError = str(err);
+            uiMessage = "Paste optimization failed to submit: " + str(err);
+        } finally {
+            pasteSubmitting = False;
+        }
+    }
+
+    async def submitPasteJob(e: any) -> None {
+        e.preventDefault();
+        await _submit_paste_job();
+    }
+
+    async def pollPasteJob() -> None {
+        if pasteJobId == "" or pasteJobStatus in ["succeeded", "failed", "not_found", ""] {
+            return;
+        }
+        result = await get_optimization_job(pasteJobId);
+        pasteJobStatus = str(_value(result, "status", "running"));
+        if pasteJobStatus == "succeeded" {
+            _apply_paste_result(_value(result, "result", {}));
+        }
+        if pasteJobStatus == "failed" {
+            pasteError = str(_value(result, "error", "Optimization job failed"));
         }
     }
 
@@ -890,8 +1231,7 @@ cl def:pub app -> JsxElement {
         uiMessage = str(_value(result, "error", "Could not load latest benchmark result"));
     }
 
-    async def startDemoRun(e: any) -> None {
-        e.preventDefault();
+    async def _start_demo_run() -> None {
         try {
             demoJobId = _new_demo_job_id();
             demoView = "running";
@@ -923,6 +1263,11 @@ cl def:pub app -> JsxElement {
             demoLogText = "Benchmark submission failed.\n" + str(err);
             uiMessage = "Could not start benchmark run: " + str(err);
         }
+    }
+
+    async def startDemoRun(e: any) -> None {
+        e.preventDefault();
+        await _start_demo_run();
     }
 
     async def pollDemoProgress() -> None {
@@ -961,6 +1306,8 @@ cl def:pub app -> JsxElement {
 
     async can with entry {
         try {
+            currentTheme = _load_theme("dark");
+            _set_theme_attr(currentTheme);
             if demoServerUrl == "" {
                 demoServerUrl = str(globalThis.location.origin);
             }
@@ -971,10 +1318,11 @@ cl def:pub app -> JsxElement {
             } elif _get_query_param("code") != "" and _get_query_param("installation_id") == "" {
                 await handleOAuthCallback();
             }
+            _update_expected_feedback();
             await refreshBenchmarkContext();
             if not pollingInitialized {
                 pollingInitialized = True;
-                globalThis.setInterval(lambda -> None { tickDemoPolling(); pollRepoJob(); }, 3000);
+                globalThis.setInterval(lambda -> None { tickDemoPolling(); pollRepoJob(); pollPasteJob(); }, 3000);
             }
         } except Exception as e {
             healthStatus = {"status": "error", "message": str(e)};
@@ -983,14 +1331,17 @@ cl def:pub app -> JsxElement {
     }
 
     return
-        <div className="demo-shell">
+        <div className={currentTheme == "dark" and "demo-shell theme-dark" or "demo-shell theme-light"}>
             <div className="demo-hero">
                 <div className="demo-hero-copy">
-                    <span className="version">v0.1.0</span>
-                    <h1>Ringtail</h1>
-                    <p>AI-powered code optimization. Connect your GitHub repos, run benchmarks, and ship faster code.</p>
+                    <span className="version">Ringtail Dashboard</span>
+                    <h1>Professional Optimization Studio</h1>
+                    <p>Paste code for rapid optimization, run benchmark suites, and ship production-grade repository improvements from one polished Jac UI.</p>
                 </div>
                 <div className="hero-right">
+                    <button className="secondary-button theme-toggle" onClick={lambda -> None { _toggle_theme(); }}>
+                        {currentTheme == "dark" and "Switch to Light" or "Switch to Dark"}
+                    </button>
                     {githubLogin == "" and
                         <button className="gh-login-button" onClick={lambda -> None { handleGithubLogin(); }}>
                             Sign in with GitHub
@@ -998,28 +1349,145 @@ cl def:pub app -> JsxElement {
                     }
                     {githubLogin != "" and
                         <div className="gh-user-bar">
-                            {githubAvatarUrl != "" and <img className="gh-avatar" src={githubAvatarUrl} />}
+                            {githubAvatarUrl != "" and <img className="gh-avatar" src={githubAvatarUrl} alt="" />}
                             <span>{githubLogin}</span>
                             <button className="secondary-button gh-logout" onClick={lambda -> None { handleLogout(); }}>
                                 Sign out
                             </button>
                         </div>
                     }
-                    {_value(healthStatus, "status", "") == "healthy" and <div className="status-badge">Service Healthy</div>}
+                    {_value(healthStatus, "status", "") == "healthy" and <div className="status-badge" role="status">Service Healthy</div>}
                 </div>
             </div>
 
-            <div className="tab-bar">
-                <button className={activeTab == "benchmark" and "tab-button active" or "tab-button"}
+            <div className="tab-bar" role="tablist" aria-label="Dashboard views">
+                <button id="tab-paste" role="tab" aria-selected={activeTab == "paste" and "true" or "false"} className={activeTab == "paste" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { activeTab = "paste"; }}>Paste Optimizer</button>
+                <button id="tab-benchmark" role="tab" aria-selected={activeTab == "benchmark" and "true" or "false"} className={activeTab == "benchmark" and "tab-button active" or "tab-button"}
                     onClick={lambda -> None { activeTab = "benchmark"; }}>Benchmark Studio</button>
-                <button className={activeTab == "repo" and "tab-button active" or "tab-button"}
+                <button id="tab-repo" role="tab" aria-selected={activeTab == "repo" and "true" or "false"} className={activeTab == "repo" and "tab-button active" or "tab-button"}
                     onClick={lambda -> None { activeTab = "repo"; if sessionToken != "" and installationId == 0 { loadInstallation(); }; }}>Optimize a Repo</button>
             </div>
 
-            {uiMessage != "" and <div className="info-banner">{uiMessage}</div>}
+            {uiMessage != "" and <div className="info-banner" role="status" aria-live="polite">{uiMessage}</div>}
+
+            {activeTab == "paste" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-paste">
+                    <div className="hero-card" role="region" aria-label="Paste optimizer form">
+                        <h2>Paste Code To Optimize</h2>
+                        <p className="hero-subtitle">Submit a single function with an optional test assertion to get measurable before/after runtime feedback.</p>
+                        <form className="form-grid" onSubmit={lambda e: any -> None { submitPasteJob(e); }}>
+                            <label className="field field-full">
+                                <span>Source Code</span>
+                                <textarea className="code-editor"
+                                    rows={16}
+                                    spellCheck={False}
+                                    wrap="off"
+                                    value={pasteSourceCode}
+                                    onChange={lambda e: any -> None { pasteSourceCode = e.target.value; }}
+                                    onPaste={lambda e: any -> None { handleSourceEditorPaste(e); }}
+                                    onKeyDown={lambda e: any -> None { handleSourceEditorKeydown(e); }} />
+                                <div className="field-help">Shortcuts: Tab indents, Shift+Tab unindents, Cmd/Ctrl+Enter submits. Pasted markdown fences and escaped newline blobs are cleaned automatically.</div>
+                            </label>
+                            <label className="field">
+                                <span>Function Name</span>
+                                <input value={pasteFunctionName} onChange={lambda e: any -> None { pasteFunctionName = e.target.value; }} />
+                            </label>
+                            <label className="field">
+                                <span>Function Call</span>
+                                <input value={pasteFunctionCall} onChange={lambda e: any -> None { pasteFunctionCall = e.target.value; }} />
+                            </label>
+                            <label className="field">
+                                <span>Validation Call (optional)</span>
+                                <input value={pasteTestCall} placeholder="slow_add(5)" onChange={lambda e: any -> None { pasteTestCall = e.target.value; _update_expected_feedback(); }} />
+                            </label>
+                            <label className="field">
+                                <span>Expected Result (JSON literal, optional)</span>
+                                <input value={pasteExpected} placeholder="10, string, true, null, [1,2]" onChange={lambda e: any -> None { pasteExpected = e.target.value; _update_expected_feedback(); }} />
+                                <div className="editor-status">
+                                    <span className={pasteExpectedStatus == "ok" and "validation-chip ok" or pasteExpectedStatus == "warn" and "validation-chip warn" or "validation-chip"}>
+                                        {pasteExpectedStatus == "ok" and "Expected value parsed" or pasteExpectedStatus == "warn" and "Needs attention" or "Optional field"}
+                                    </span>
+                                    <span className="validation-chip">{pasteExpectedPreview}</span>
+                                </div>
+                            </label>
+                            <label className="field">
+                                <span>Config Profile</span>
+                                <input value={pasteConfigName} onChange={lambda e: any -> None { pasteConfigName = e.target.value; }} />
+                            </label>
+                            <label className="field">
+                                <span>Analysis Mode</span>
+                                <select value={pasteAnalysisMode} onChange={lambda e: any -> None { pasteAnalysisMode = e.target.value; }}>
+                                    <option value="llm">llm</option>
+                                    <option value="heuristic">heuristic</option>
+                                </select>
+                            </label>
+                            <label className="checkbox-field">
+                                <input type="checkbox" checked={pasteEnableRunLog} onChange={lambda e: any -> None { pasteEnableRunLog = e.target.checked; }} />
+                                <span>Enable run logs</span>
+                            </label>
+                            <div className="panel-actions field-full">
+                                <button type="submit" className="primary-button" disabled={pasteSubmitting or pasteJobStatus in ["queued", "running", "submitting"]}>
+                                    {pasteSubmitting and "Submitting..." or pasteJobStatus in ["queued", "running"] and "Job In Progress" or "Optimize Pasted Code"}
+                                </button>
+                                {pasteJobId != "" and <button type="button" className="secondary-button" disabled={pasteSubmitting} onClick={lambda -> None { pollPasteJob(); }}>Refresh Status</button>}
+                            </div>
+                        </form>
+                    </div>
+
+                    <div className="stat-grid">
+                        <div className="stat-card">
+                            <span>Job Status</span>
+                            <strong>{pasteJobStatus != "" and pasteJobStatus or "idle"}</strong>
+                        </div>
+                        <div className="stat-card">
+                            <span>Improvement Ratio</span>
+                            <strong>{pasteImprovementRatio != "" and pasteImprovementRatio + "x" or "--"}</strong>
+                        </div>
+                        <div className="stat-card">
+                            <span>Exec Time (Before -> After)</span>
+                            <strong>{pasteExecutionBeforeMs != "" and pasteExecutionBeforeMs + " -> " + pasteExecutionAfterMs or "--"}</strong>
+                        </div>
+                        <div className="stat-card">
+                            <span>Tests Passed</span>
+                            <strong>{pasteTestPassed != "" and pasteTestPassed or "--"}</strong>
+                        </div>
+                    </div>
+
+                    <div className="demo-layout">
+                        <div className="section">
+                            <h3>Job Details</h3>
+                            <div className="simple-list">
+                                {pasteJobId != "" and <div className="simple-list-item">Job ID: {pasteJobId}</div>}
+                                {pasteTerminationReason != "" and <div className="simple-list-item">Termination: {pasteTerminationReason}</div>}
+                                {pasteError != "" and <div className="simple-list-item">Error: {pasteError}</div>}
+                            </div>
+                        </div>
+                        <div className="section">
+                            <h3>Optimization Tips</h3>
+                            <div className="simple-list">
+                                <div className="simple-list-item">Keep function scope small for faster optimization cycles.</div>
+                                <div className="simple-list-item">Use deterministic validation calls to avoid flaky runtime metrics.</div>
+                                <div className="simple-list-item">Switch to benchmark mode for multi-target ranking and richer suite reporting.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="comparison-grid">
+                        <div>
+                            <h4>Original Code</h4>
+                            <pre className="result-box">{pasteOriginalCode}</pre>
+                        </div>
+                        <div>
+                            <h4>Optimized Code</h4>
+                            <pre className="result-box">{pasteOptimizedCode}</pre>
+                        </div>
+                    </div>
+                </div>
+            }
 
             {activeTab == "repo" and
-                <div className="container">
+                <div className="container" role="tabpanel" aria-labelledby="tab-repo">
                     {githubLogin == "" and
                         <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
                             <h2>Connect GitHub</h2>
@@ -1050,16 +1518,16 @@ cl def:pub app -> JsxElement {
                                     </label>
                                     <label className="field field-full">
                                         <span>Optimization Prompt</span>
-                                        <input value={repoPrompt} onChange={lambda e: any -> None { repoPrompt = e.target.value; }} />
+                                        <textarea rows={4} value={repoPrompt} onChange={lambda e: any -> None { repoPrompt = e.target.value; }} />
                                     </label>
                                     <label className="field">
                                         <span>Test Command (optional)</span>
                                         <input value={repoTestCommand} placeholder="python -m pytest tests" onChange={lambda e: any -> None { repoTestCommand = e.target.value; }} />
                                     </label>
-                                    <div className="checkbox-field">
+                                    <label className="checkbox-field">
                                         <input type="checkbox" checked={repoPublishPr} onChange={lambda e: any -> None { repoPublishPr = e.target.checked; }} />
                                         <span>Open a real PR</span>
-                                    </div>
+                                    </label>
                                     <div className="panel-actions field-full">
                                         <button type="submit" className="primary-button">Submit Optimization Job</button>
                                     </div>
@@ -1089,7 +1557,7 @@ cl def:pub app -> JsxElement {
             }
 
             {activeTab == "benchmark" and demoView == "setup" and
-                <div className="container">
+                <div className="container" role="tabpanel" aria-labelledby="tab-benchmark">
                     <div className="demo-layout">
                         <div className="hero-card">
                             <h2>Choose A Benchmark</h2>
@@ -1103,11 +1571,11 @@ cl def:pub app -> JsxElement {
                                 </label>
                                 <label className="field">
                                     <span>Top K Final Targets</span>
-                                    <input value={demoTopK} onChange={lambda e: any -> None { demoTopK = e.target.value; }} />
+                                    <input type="number" min="1" step="1" value={demoTopK} onChange={lambda e: any -> None { demoTopK = e.target.value; }} />
                                 </label>
                                 <label className="field">
                                     <span>Per-File Finalists</span>
-                                    <input value={demoPerFileK} onChange={lambda e: any -> None { demoPerFileK = e.target.value; }} />
+                                    <input type="number" min="1" step="1" value={demoPerFileK} onChange={lambda e: any -> None { demoPerFileK = e.target.value; }} />
                                 </label>
                                 <label className="field">
                                     <span>Latest Result Type</span>
@@ -1144,7 +1612,7 @@ cl def:pub app -> JsxElement {
             }
 
             {activeTab == "benchmark" and demoView == "running" and
-                <div className="container">
+                <div className="container" role="tabpanel" aria-labelledby="tab-benchmark">
                     <div className="run-stage-card">
                         <div className="run-stage-copy">
                             <p className="eyebrow">Benchmark Running</p>
@@ -1152,7 +1620,7 @@ cl def:pub app -> JsxElement {
                             <p>Status: {demoRunStatus}</p>
                         </div>
                         <div className="progress-meter">
-                            <div className="progress-track">
+                            <div className="progress-track" role="progressbar" aria-label="Benchmark progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={str(demoProgressPct)}>
                                 <div className="progress-fill" style={{"width": str(demoProgressPct) + "%"}}></div>
                             </div>
                             <span className="progress-label">{str(demoProgressPct)}%</span>
@@ -1187,13 +1655,13 @@ cl def:pub app -> JsxElement {
                             <h3>Live Activity</h3>
                             <button className="secondary-button" onClick={lambda -> None { pollDemoProgress(); }}>Refresh Now</button>
                         </div>
-                        <pre className="log-feed">{demoLogText}</pre>
+                        <pre className="log-feed" role="log" aria-live="polite">{demoLogText}</pre>
                     </div>
                 </div>
             }
 
             {activeTab == "benchmark" and demoView == "results" and
-                <div className="container">
+                <div className="container" role="tabpanel" aria-labelledby="tab-benchmark">
                     <div className="results-header">
                         <div>
                             <p className="eyebrow">Benchmark Complete</p>
@@ -1204,8 +1672,8 @@ cl def:pub app -> JsxElement {
                             <button className="secondary-button" onClick={lambda -> None { resetToSetup(); }}>
                                 Back To Setup
                             </button>
-                            <button className="primary-button" onClick={lambda -> None { resetToSetup(); }}>
-                                Run Another Benchmark
+                            <button className="primary-button" onClick={lambda -> None { _start_demo_run(); }}>
+                                Run Benchmark Again
                             </button>
                         </div>
                     </div>
@@ -1263,7 +1731,7 @@ cl def:pub app -> JsxElement {
                     {demoOverviewSvg != "" and
                         <div className="section">
                             <h3>Suite Overview</h3>
-                            <img className="suite-graph" src={"data:image/svg+xml;base64," + demoOverviewSvg} />
+                            <img className="suite-graph" src={"data:image/svg+xml;base64," + demoOverviewSvg} alt="Benchmark suite overview graph" />
                         </div>
                     }
 
@@ -1273,7 +1741,7 @@ cl def:pub app -> JsxElement {
                                 <h3>#1 {demoCard1Title}</h3>
                                 <p className="suite-meta">{demoCard1Meta}</p>
                                 {demoCard1GraphSvg != "" and
-                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + demoCard1GraphSvg} />
+                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + demoCard1GraphSvg} alt={"Timing graph for " + demoCard1Title} />
                                 }
                                 <div className="comparison-grid">
                                     <div>
@@ -1293,7 +1761,7 @@ cl def:pub app -> JsxElement {
                                 <h3>#2 {demoCard2Title}</h3>
                                 <p className="suite-meta">{demoCard2Meta}</p>
                                 {demoCard2GraphSvg != "" and
-                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + demoCard2GraphSvg} />
+                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + demoCard2GraphSvg} alt={"Timing graph for " + demoCard2Title} />
                                 }
                                 <div className="comparison-grid">
                                     <div>
@@ -1313,7 +1781,7 @@ cl def:pub app -> JsxElement {
                                 <h3>#3 {demoCard3Title}</h3>
                                 <p className="suite-meta">{demoCard3Meta}</p>
                                 {demoCard3GraphSvg != "" and
-                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + demoCard3GraphSvg} />
+                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + demoCard3GraphSvg} alt={"Timing graph for " + demoCard3Title} />
                                 }
                                 <div className="comparison-grid">
                                     <div>

@@ -58,6 +58,22 @@ def _make_error(msg: str) -> dict {
 }
 
 
+def _pytest_output_hint(run_result: any) -> str {
+    stdout_text = str(run_result.stdout or "").strip();
+    stderr_text = str(run_result.stderr or "").strip();
+    if stdout_text != "" and stderr_text != "" {
+        return stdout_text + "\n" + stderr_text;
+    }
+    if stdout_text != "" {
+        return stdout_text;
+    }
+    if stderr_text != "" {
+        return stderr_text;
+    }
+    return "pytest produced no output";
+}
+
+
 def _parse_benchmark_json(bench_path: str, memory_path: str) -> dict {
     """Parse pytest-benchmark JSON output + memory JSON into our result dict."""
     try {
@@ -171,15 +187,13 @@ def profile_code(
         );
 
         if not os.path.exists(json_path) {
-            return _make_error(
-                result.stderr.strip() or result.stdout.strip() or "pytest-benchmark produced no output"
-            );
+            return _make_error(_pytest_output_hint(result));
         }
 
         if result.returncode != 0 {
             parsed = _parse_benchmark_json(json_path, memory_path);
-            stderr_hint = result.stderr.strip() or result.stdout.strip();
-            parsed["error"] = f"pytest exited with code {result.returncode}: {stderr_hint}";
+            output_hint = _pytest_output_hint(result);
+            parsed["error"] = f"pytest exited with code {result.returncode}: {output_hint}";
             parsed["success"] = False;
             return parsed;
         }

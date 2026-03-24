@@ -18,16 +18,16 @@ _WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
 _WORKER_PATH = _WORKSPACE_ROOT / "src" / "core" / "async_optimize_worker.jac"
 
 
-def extract_json_result(stdout: str) -> dict[str, Any] | None:
+def extract_json_result(stdout: str) -> Any | None:
     for raw_line in reversed(stdout.splitlines()):
         line = raw_line.strip()
-        if not line.startswith("{"):
+        if not (line.startswith("{") or line.startswith("[")):
             continue
         try:
             data = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if isinstance(data, dict):
+        if isinstance(data, (dict, list)):
             return data
     return None
 

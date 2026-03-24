@@ -14,6 +14,7 @@ from typing import Any
 from src.core.worker_runner import run_local_worker_request
 
 _RINGTAIL_ROOT = Path(__file__).resolve().parents[2]
+_LOCAL_WORKER_MAX_ATTEMPTS = 3
 
 
 def detect_repo_bootstrap(
@@ -119,13 +120,21 @@ def _run_repo_commands_local(repo_path: str, commands: list[str], timeout: int) 
 
 
 def _run_ringtail_worker_request_local(request: dict[str, Any]) -> Any:
-    worker = run_local_worker_request(request)
-    result = worker.get("result")
-    if not isinstance(result, dict):
-        raise RuntimeError("Worker did not produce JSON output")
-    if int(worker.get("returncode", -1)) != 0:
-        raise RuntimeError(str(result.get("error", str(worker.get("stderr", "")).strip() or "worker request failed")))
-    return result
+    last_worker: dict[str, Any] | None = None
+    for attempt in range(_LOCAL_WORKER_MAX_ATTEMPTS):
+        worker = run_local_worker_request(request)
+        last_worker = worker
+        result = worker.get("result")
+        if isinstance(result, dict):
+            if int(worker.get("returncode", -1)) != 0:
+                raise RuntimeError(str(result.get("error", str(worker.get("stderr", "")).strip() or "worker request failed")))
+            return result
+        # Jac worker startup can intermittently fail without emitting JSON when many
+        # subprocesses are spawned; retry before surfacing a hard error.
+        if attempt + 1 < _LOCAL_WORKER_MAX_ATTEMPTS:
+            continue
+
+    raise RuntimeError(_local_worker_json_error(last_worker))
 
 
 def _normalize_local_command(command: str) -> str:
@@ -135,6 +144,27 @@ def _normalize_local_command(command: str) -> str:
     if stripped == "python":
         return sys.executable
     return command
+
+
+def _local_worker_json_error(worker: dict[str, Any] | None) -> str:
+    if not isinstance(worker, dict):
+        return "Worker did not produce JSON output"
+    returncode = int(worker.get("returncode", -1))
+    stderr = str(worker.get("stderr", "")).strip()
+    stdout = str(worker.get("stdout", "")).strip()
+    details: list[str] = [f"Worker did not produce JSON output (returncode={returncode})"]
+    if stderr:
+        details.append("stderr: " + _truncate_for_error(stderr))
+    elif stdout:
+        details.append("stdout: " + _truncate_for_error(stdout))
+    return " | ".join(details)
+
+
+def _truncate_for_error(text: str, limit: int = 400) -> str:
+    compact = " ".join(text.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[:limit] + "...(truncated)"
 
 
 def _extract_json_result(stdout: str) -> Any:

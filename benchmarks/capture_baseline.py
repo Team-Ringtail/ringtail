@@ -291,22 +291,30 @@ def _run_case(
     async_timeout: float,
 ) -> dict[str, Any]:
     started_at = time.time()
-    if case["mode"] == "sync":
-        response = _unwrap_response(_post_json(server_url, "/function/optimize_sync", {"request": case["request"]}))
-        finished_at = time.time()
-        job_payload = None
-    else:
-        submitted = _unwrap_response(
-            _post_json(server_url, "/function/submit_optimization_job", {"request": case["request"]})
-        )
-        job_id = str(submitted.get("job_id", ""))
-        job_payload = _wait_for_job(
-            server_url=server_url,
-            job_id=job_id,
-            poll_interval=poll_interval,
-            timeout_seconds=async_timeout,
-        )
-        response = dict(job_payload.get("result", {})) if isinstance(job_payload.get("result"), dict) else {}
+    job_payload: dict[str, Any] | None = None
+    response: dict[str, Any]
+    transport_error = ""
+    try:
+        if case["mode"] == "sync":
+            response = _unwrap_response(_post_json(server_url, "/function/optimize_sync", {"request": case["request"]}))
+            finished_at = time.time()
+        else:
+            submitted = _unwrap_response(
+                _post_json(server_url, "/function/submit_optimization_job", {"request": case["request"]})
+            )
+            job_id = str(submitted.get("job_id", ""))
+            job_payload = _wait_for_job(
+                server_url=server_url,
+                job_id=job_id,
+                poll_interval=poll_interval,
+                timeout_seconds=async_timeout,
+            )
+            response = dict(job_payload.get("result", {})) if isinstance(job_payload.get("result"), dict) else {}
+            finished_at = time.time()
+    except Exception as exc:
+        # Keep baseline capture progressing even when a single endpoint call fails.
+        transport_error = str(exc)
+        response = {"error": transport_error}
         finished_at = time.time()
 
     run_log_path = str(response.get("run_log_path", ""))
@@ -318,8 +326,8 @@ def _run_case(
         "case": case["name"],
         "mode": case["mode"],
         "wall_time_ms": (finished_at - started_at) * 1000.0,
-        "status": "ok" if not response.get("error") else "error",
-        "error": str(response.get("error", "")),
+        "status": "ok" if not response.get("error") and transport_error == "" else "error",
+        "error": transport_error or str(response.get("error", "")),
         "termination_reason": str(response.get("termination_reason", "")),
         "iteration_number": int(response.get("iteration_number", 0) or 0),
         "candidate_count_evaluated": int(response.get("candidate_count_evaluated", 0) or 0),

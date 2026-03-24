@@ -155,6 +155,40 @@ def _normalize_operation_request(request: dict) -> dict {
 }
 
 
+def _normalize_source_code_text(raw: str) -> str {
+    text = str(raw).replace("\r\n", "\n").replace("\r", "\n");
+    text_len = len(str(text));
+    if "\n" not in text and "\\n" in text {
+        decoded: list = [];
+        i = 0;
+        while i < text_len {
+            ch = text[i];
+            if ch == "\\" and i + 1 < text_len {
+                nxt = text[i + 1];
+                if nxt == "n" {
+                    decoded.append("\n");
+                    i = i + 2;
+                    continue;
+                }
+                if nxt == "t" {
+                    decoded.append("    ");
+                    i = i + 2;
+                    continue;
+                }
+                if nxt == "r" {
+                    i = i + 2;
+                    continue;
+                }
+            }
+            decoded.append(ch);
+            i = i + 1;
+        }
+        text = "".join(decoded);
+    }
+    return text;
+}
+
+
 def:pub get_optimization_operation_contract() -> dict {
     mod = importlib.import_module("src.core.optimization_request_contract");
     get_payload = getattr(mod, "get_contract_payload");
@@ -442,6 +476,7 @@ def:pub run_optimization_request(request: dict) -> dict | list {
         if input is None {
             return _error_result("optimize_input request must include input");
         }
+        input["source_code"] = _normalize_source_code_text(str(input.get("source_code", "")));
         input = _with_runtime_overrides(
             dict(input),
             analysis_mode,
