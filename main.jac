@@ -1,7 +1,6 @@
 # Ringtail - AI Agent-Based Code Optimizer
 # Main application entry point
 
-import from uuid { uuid4 }
 import importlib;
 
 import from src.api.optimization_requests { run_optimization_request, get_optimization_operation_contract }
@@ -197,6 +196,13 @@ def:pub get_recent_jobs(limit: int = 10) -> list {
 }
 
 
+def:pub get_latest_run(kind: str = "any") -> dict {
+    mod = importlib.import_module("src.core.run_registry");
+    func = getattr(mod, "get_latest_run");
+    return func(kind);
+}
+
+
 def:pub get_ranked_demo_suite_catalog(benchmark_id: str = "") -> dict {
     mod = importlib.import_module("src.core.ranked_demo_suite");
     func = getattr(mod, "get_demo_suite_catalog");
@@ -258,6 +264,7 @@ cl def:pub app -> JsxElement {
     has demoServerUrl: str = "";
     has demoBenchmarkId: str = "ranked-pitch-repo";
     has demoBenchmarkText: str = "";
+    has demoLatestBrowseKind: str = "any";
     has demoTopK: str = "3";
     has demoPerFileK: str = "1";
     has demoJobId: str = "";
@@ -362,6 +369,15 @@ cl def:pub app -> JsxElement {
         return "";
     }
 
+    def _new_demo_job_id() -> str {
+        if "crypto" in globalThis and globalThis.crypto != None and "randomUUID" in globalThis.crypto {
+            return "demo-" + str(globalThis.crypto.randomUUID());
+        }
+        ts = str(int(globalThis.Date.now()));
+        rand = str(int(globalThis.Math.floor(globalThis.Math.random() * 1000000)));
+        return "demo-" + ts + "-" + rand;
+    }
+
     def _clear_demo_files() -> None {
         demoFile1Visible = False;
         demoFile1Text = "";
@@ -463,6 +479,59 @@ cl def:pub app -> JsxElement {
             return "Live run events will appear here.";
         }
         return "\n".join(lines);
+    }
+
+    def _apply_single_latest_run_result(meta: dict) -> None {
+        functionName = str(_value(meta, "function_name", ""));
+        runId = str(_value(meta, "run_id", "latest-run"));
+        filePath = str(_value(meta, "file_path", ""));
+        rankedMs = _value(meta, "optimized_time_ms", 0.0);
+        speedup = _value(meta, "improvement_ratio", 0.0);
+        savedPct = _value(meta, "time_saved_pct", 0.0);
+        graphSvg = str(_value(meta, "timing_graph_svg_base64", ""));
+        label = functionName;
+        if label == "" {
+            label = runId;
+        }
+        source = filePath;
+        if source == "" {
+            source = runId;
+        }
+        synthesized = {
+            "summary": {
+                "pass_count": 1,
+                "target_count": 1,
+                "average_speedup": speedup,
+                "average_time_saved_pct": savedPct,
+                "results": [
+                    {
+                        "name": label,
+                        "improvement_ratio": speedup,
+                        "time_saved_pct": savedPct,
+                        "median_ms_ranked": rankedMs,
+                        "graph_svg_base64": graphSvg,
+                        "original_code": "",
+                        "optimized_code": "",
+                    }
+                ],
+            },
+            "final_ranked_targets": [
+                {
+                    "function_name": label,
+                    "source_file": source,
+                    "median_ms": rankedMs,
+                }
+            ],
+            "per_file_finalists": [
+                {
+                    "function_name": label,
+                    "source_file": source,
+                    "median_ms": rankedMs,
+                }
+            ],
+            "suite_overview_svg_base64": graphSvg,
+        };
+        _apply_demo_result(synthesized);
     }
 
     def _clear_demo_cards() -> None {
@@ -772,6 +841,43 @@ cl def:pub app -> JsxElement {
     }
 
     async def loadLatestDemoSuite() -> None {
+        selectedKind = str(demoLatestBrowseKind).strip();
+        if selectedKind == "" {
+            selectedKind = "any";
+        }
+        latest = await get_latest_run(selectedKind);
+        if not bool(_value(latest, "success", False)) {
+            uiMessage = str(_value(latest, "error", "Could not locate latest run for kind '" + selectedKind + "'"));
+            return;
+        }
+        latestMeta = _value(latest, "latest", {});
+        latestKind = str(_value(latestMeta, "kind", ""));
+        latestJobId = str(_value(latestMeta, "job_id", ""));
+        latestRunId = str(_value(latestMeta, "run_id", ""));
+        if latestKind == "ranked_demo_suite" and latestJobId != "" {
+            progress = await get_ranked_demo_job_progress(latestJobId);
+            if "result" in progress {
+                _apply_demo_result(progress["result"]);
+                demoRunStatus = "succeeded";
+                demoRunStage = "Showing latest benchmark run";
+                demoProgressPct = 100;
+                demoView = "results";
+                return;
+            }
+        }
+        if latestKind != "ranked_demo_suite" {
+            _apply_single_latest_run_result(latestMeta);
+            demoRunStatus = str(_value(latestMeta, "status", "succeeded"));
+            demoRunStage = "Showing latest " + latestKind + " run";
+            demoProgressPct = 100;
+            demoView = "results";
+            if latestRunId != "" {
+                uiMessage = "Showing latest " + latestKind + " run " + latestRunId + " in unified results view.";
+            } else {
+                uiMessage = "Showing latest " + latestKind + " run in unified results view.";
+            }
+            return;
+        }
         result = await get_latest_ranked_demo_suite();
         if bool(_value(result, "success", False)) or "summary" in result {
             _apply_demo_result(result);
@@ -779,32 +885,44 @@ cl def:pub app -> JsxElement {
             demoRunStage = "Showing latest verified benchmark run";
             demoProgressPct = 100;
             demoView = "results";
-        } else {
-            uiMessage = str(_value(result, "error", "Could not load latest benchmark result"));
+            return;
         }
+        uiMessage = str(_value(result, "error", "Could not load latest benchmark result"));
     }
 
     async def startDemoRun(e: any) -> None {
         e.preventDefault();
-        demoJobId = str(uuid4());
-        demoView = "running";
-        demoRunStatus = "queued";
-        demoRunStage = "Submitting benchmark run";
-        demoProgressPct = 6;
-        demoLogText = "Submitting benchmark run...";
-        uiMessage = "";
-        _clear_demo_cards();
-        demoOverviewSvg = "";
-        payload = {
-            "operation": "run_ranked_demo_suite",
-            "job_id": demoJobId,
-            "server_url": demoServerUrl,
-            "benchmark_id": demoBenchmarkId,
-            "top_k": int(demoTopK),
-            "per_file_k": int(demoPerFileK)
-        };
-        await submit_optimization_job(payload);
-        await pollDemoProgress();
+        try {
+            demoJobId = _new_demo_job_id();
+            demoView = "running";
+            demoRunStatus = "queued";
+            demoRunStage = "Submitting benchmark run";
+            demoProgressPct = 6;
+            demoLogText = "Submitting benchmark run...";
+            uiMessage = "";
+            _clear_demo_cards();
+            demoOverviewSvg = "";
+            serverUrl = demoServerUrl;
+            if str(serverUrl).strip() == "" {
+                serverUrl = str(globalThis.window.location.origin or "");
+            }
+            payload = {
+                "operation": "run_ranked_demo_suite",
+                "job_id": demoJobId,
+                "server_url": serverUrl,
+                "benchmark_id": demoBenchmarkId,
+                "top_k": int(demoTopK),
+                "per_file_k": int(demoPerFileK)
+            };
+            await submit_optimization_job(payload);
+            await pollDemoProgress();
+        } except Exception as err {
+            demoRunStatus = "failed";
+            demoRunStage = "Benchmark submission failed";
+            demoProgressPct = 0;
+            demoLogText = "Benchmark submission failed.\n" + str(err);
+            uiMessage = "Could not start benchmark run: " + str(err);
+        }
     }
 
     async def pollDemoProgress() -> None {
@@ -990,6 +1108,18 @@ cl def:pub app -> JsxElement {
                                 <label className="field">
                                     <span>Per-File Finalists</span>
                                     <input value={demoPerFileK} onChange={lambda e: any -> None { demoPerFileK = e.target.value; }} />
+                                </label>
+                                <label className="field">
+                                    <span>Latest Result Type</span>
+                                    <select value={demoLatestBrowseKind} onChange={lambda e: any -> None { demoLatestBrowseKind = e.target.value; }}>
+                                        <option value="any">Any</option>
+                                        <option value="ranked_demo_suite">Ranked Demo Suite</option>
+                                        <option value="file_optimize">File Optimize</option>
+                                        <option value="replay_optimize">Replay Optimize</option>
+                                        <option value="repo_agent">Repo Agent</option>
+                                        <option value="async_job">Async Job</option>
+                                        <option value="run">Run</option>
+                                    </select>
                                 </label>
                                 <div className="panel-actions field-full">
                                     <button type="button" className="secondary-button" onClick={lambda -> None { loadLatestDemoSuite(); }}>

@@ -51,6 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
     submit_parser.add_argument("--poll-interval", type=float, default=5.0)
     submit_parser.add_argument("--json", action="store_true", dest="as_json")
     submit_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
+    submit_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
     submit_parser.set_defaults(func=_cmd_repo_submit)
 
     run_parser = repo_subparsers.add_parser("run", help="Run a repo-agent job and wait for completion")
@@ -59,6 +60,7 @@ def _build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--poll-interval", type=float, default=5.0)
     run_parser.add_argument("--json", action="store_true", dest="as_json")
     run_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
+    run_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
     run_parser.set_defaults(func=_cmd_repo_run)
 
     status_parser = repo_subparsers.add_parser("status", help="Poll a repo-agent job")
@@ -68,6 +70,7 @@ def _build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--poll-interval", type=float, default=5.0)
     status_parser.add_argument("--json", action="store_true", dest="as_json")
     status_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
+    status_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
     status_parser.set_defaults(func=_cmd_repo_status)
 
     watch_parser = repo_subparsers.add_parser("watch", help="Watch a repo-agent job until completion")
@@ -76,12 +79,14 @@ def _build_parser() -> argparse.ArgumentParser:
     watch_parser.add_argument("--poll-interval", type=float, default=5.0)
     watch_parser.add_argument("--json", action="store_true", dest="as_json")
     watch_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
+    watch_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
     watch_parser.set_defaults(func=_cmd_repo_watch)
 
     logs_parser = repo_subparsers.add_parser("logs", help="Stream async repo job logs")
     logs_parser.add_argument("job_id")
     logs_parser.add_argument("--poll-interval", type=float, default=2.0)
     logs_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
+    logs_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
     logs_parser.set_defaults(func=_cmd_repo_logs)
 
     file_parser = subparsers.add_parser("file", help="Optimize a single function")
@@ -95,6 +100,7 @@ def _build_parser() -> argparse.ArgumentParser:
     optimize_parser.add_argument("--config-name", default=DEFAULT_CONFIG_NAME)
     optimize_parser.add_argument("--json", action="store_true", dest="as_json")
     optimize_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
+    optimize_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
     optimize_parser.set_defaults(func=_cmd_file_optimize)
 
     return parser
@@ -116,12 +122,22 @@ def _cmd_config_doctor(args: argparse.Namespace) -> int:
 
 def _cmd_repo_submit(args: argparse.Namespace) -> int:
     payload = _build_repo_submit_request(args)
-    response = _unwrap_function_response(
-        _post_json(args.server_url, _function_route("submit_repo_agent_job"), {"request": payload})
-    )
+    if bool(args.local):
+        response = _submit_repo_job_local(payload)
+    else:
+        response = _unwrap_function_response(
+            _post_json(args.server_url, _function_route("submit_repo_agent_job"), {"request": payload})
+        )
     if args.wait:
         if not args.as_json:
             print(f"submitted repo job {response.get('job_id', '')}")
+        if bool(args.local):
+            return _watch_repo_job_local(
+                str(response.get("job_id", "")),
+                poll_interval=float(args.poll_interval),
+                as_json=bool(args.as_json),
+                verbose=bool(args.verbose),
+            )
         return _watch_repo_job(
             args.server_url,
             str(response.get("job_id", "")),
@@ -135,6 +151,11 @@ def _cmd_repo_submit(args: argparse.Namespace) -> int:
 
 def _cmd_repo_run(args: argparse.Namespace) -> int:
     payload = _build_repo_submit_request(args)
+    if bool(args.local):
+        sync_result = _run_repo_job_sync_local(payload)
+        wrapped = {"status": "succeeded" if sync_result.get("success", False) else "failed", "result": sync_result}
+        _print_output(wrapped, as_json=bool(args.as_json), formatter=_format_repo_job_payload)
+        return 0 if sync_result.get("success", False) else 1
     response = _unwrap_function_response(
         _post_json(args.server_url, _function_route("submit_repo_agent_job"), {"request": payload})
     )
@@ -151,6 +172,13 @@ def _cmd_repo_run(args: argparse.Namespace) -> int:
 
 def _cmd_repo_status(args: argparse.Namespace) -> int:
     if args.watch:
+        if bool(args.local):
+            return _watch_repo_job_local(
+                args.job_id,
+                poll_interval=float(args.poll_interval),
+                as_json=bool(args.as_json),
+                verbose=bool(args.verbose),
+            )
         return _watch_repo_job(
             args.server_url,
             args.job_id,
@@ -158,12 +186,19 @@ def _cmd_repo_status(args: argparse.Namespace) -> int:
             as_json=bool(args.as_json),
             verbose=bool(args.verbose),
         )
-    response = _fetch_repo_job(args.server_url, args.job_id)
+    response = _fetch_repo_job_local(args.job_id) if bool(args.local) else _fetch_repo_job(args.server_url, args.job_id)
     _print_output(response, as_json=bool(args.as_json), formatter=_format_repo_job_payload)
     return 0 if response.get("status", "") != "failed" else 1
 
 
 def _cmd_repo_watch(args: argparse.Namespace) -> int:
+    if bool(args.local):
+        return _watch_repo_job_local(
+            args.job_id,
+            poll_interval=float(args.poll_interval),
+            as_json=bool(args.as_json),
+            verbose=bool(args.verbose),
+        )
     return _watch_repo_job(
         args.server_url,
         args.job_id,
@@ -174,6 +209,11 @@ def _cmd_repo_watch(args: argparse.Namespace) -> int:
 
 
 def _cmd_repo_logs(args: argparse.Namespace) -> int:
+    if bool(args.local):
+        return _stream_repo_logs_local(
+            args.job_id,
+            poll_interval=float(args.poll_interval),
+        )
     return _stream_repo_logs(
         args.server_url,
         args.job_id,
@@ -183,7 +223,7 @@ def _cmd_repo_logs(args: argparse.Namespace) -> int:
 
 def _cmd_file_optimize(args: argparse.Namespace) -> int:
     payload = _build_file_optimize_request(args)
-    response = _unwrap_function_response(
+    response = _run_optimize_sync_local(payload) if bool(args.local) else _unwrap_function_response(
         _post_json(args.server_url, _function_route("optimize_sync"), {"request": payload})
     )
     artifacts = create_optimization_artifacts(
@@ -323,6 +363,90 @@ def _fetch_repo_job(server_url: str, job_id: str) -> dict[str, Any]:
     return _unwrap_function_response(
         _post_json(server_url, _function_route("get_repo_agent_job"), {"job_id": job_id})
     )
+
+
+def _run_optimize_sync_local(request: dict[str, Any]) -> dict[str, Any]:
+    from src.core.worker_runner import run_local_worker_request
+
+    worker = run_local_worker_request(request)
+    result = worker.get("result")
+    if not isinstance(result, dict):
+        raise RuntimeError(str(worker.get("stderr", "local optimize failed")))
+    if worker.get("returncode", 1) != 0 and result.get("error"):
+        raise RuntimeError(str(result.get("error")))
+    return result
+
+
+def _submit_repo_job_local(request: dict[str, Any]) -> dict[str, Any]:
+    from src.core.async_jobs import submit_job
+
+    payload = dict(request)
+    payload["operation"] = "run_repo_agent_job"
+    return submit_job(payload)
+
+
+def _run_repo_job_sync_local(request: dict[str, Any]) -> dict[str, Any]:
+    from src.core.repo_agent import run_repo_agent_job
+
+    payload = dict(request)
+    payload["operation"] = "run_repo_agent_job"
+    return run_repo_agent_job(payload)
+
+
+def _fetch_repo_job_local(job_id: str) -> dict[str, Any]:
+    from src.core.async_jobs import get_job
+
+    return get_job(job_id)
+
+
+def _watch_repo_job_local(job_id: str, *, poll_interval: float, as_json: bool, verbose: bool) -> int:
+    last_status = ""
+    positions: dict[str, int] = {}
+    announced: set[str] = set()
+    waiting_notice_printed = False
+    while True:
+        response = _fetch_repo_job_local(job_id)
+        status = str(response.get("status", "unknown"))
+        if verbose and not as_json:
+            _, waiting_notice_printed = _stream_repo_logs_iteration(
+                response,
+                positions=positions,
+                announced=announced,
+                waiting_notice_printed=waiting_notice_printed,
+            )
+        if status != last_status and not as_json:
+            print(f"[{status}] job_id={job_id}")
+        last_status = status
+        if status in {"succeeded", "failed", "interrupted", "not_found"}:
+            _print_output(response, as_json=as_json, formatter=_format_repo_job_payload)
+            return 0 if status == "succeeded" else 1
+        time.sleep(max(0.5, poll_interval))
+
+
+def _stream_repo_logs_local(job_id: str, *, poll_interval: float) -> int:
+    positions: dict[str, int] = {}
+    announced: set[str] = set()
+    terminal_quiet_cycles = 0
+    waiting_notice_printed = False
+    while True:
+        response = _fetch_repo_job_local(job_id)
+        status = str(response.get("status", "unknown"))
+        progress, waiting_notice_printed = _stream_repo_logs_iteration(
+            response,
+            positions=positions,
+            announced=announced,
+            waiting_notice_printed=waiting_notice_printed,
+        )
+        if status in {"succeeded", "failed", "interrupted", "not_found"}:
+            if not progress:
+                terminal_quiet_cycles += 1
+            else:
+                terminal_quiet_cycles = 0
+            if terminal_quiet_cycles >= 2:
+                _emit("")
+                _emit(_format_repo_job_payload(response))
+                return 0 if status == "succeeded" else 1
+        time.sleep(max(0.5, poll_interval))
 
 
 def _watch_repo_job(server_url: str, job_id: str, *, poll_interval: float, as_json: bool, verbose: bool) -> int:

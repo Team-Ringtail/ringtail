@@ -203,7 +203,14 @@ def get_latest_demo_suite_result() -> dict[str, Any]:
             "success": False,
             "error": "No ranked demo suite runs found yet.",
         }
-    payload = load_demo_suite_result(str(latest))
+    try:
+        payload = load_demo_suite_result(str(latest))
+    except Exception as exc:
+        return {
+            "success": False,
+            "error": f"Latest ranked demo suite run is invalid: {exc}",
+            "output_dir": str(latest),
+        }
     payload["success"] = int(payload.get("summary", {}).get("fail_count", 1)) == 0
     return payload
 
@@ -244,11 +251,28 @@ def _new_output_dir() -> Path:
 def _latest_output_dir() -> Path | None:
     if not RUNS_ROOT.exists():
         return None
-    runs = [path for path in RUNS_ROOT.iterdir() if path.is_dir()]
+    runs = [
+        path
+        for path in RUNS_ROOT.iterdir()
+        if path.is_dir() and _is_valid_demo_run_dir(path)
+    ]
     if not runs:
         return None
     runs.sort(key=lambda path: path.stat().st_mtime, reverse=True)
     return runs[0]
+
+
+def _is_valid_demo_run_dir(path: Path) -> bool:
+    # Ignore support directories like `_progress` and partial outputs.
+    if not path.name.startswith(DEFAULT_SUITE_NAME + "_"):
+        return False
+    required_files = (
+        "suite_summary.json",
+        "ranking.json",
+        "per_file_finalists.json",
+        "final_ranked_targets.json",
+    )
+    return all((path / filename).exists() for filename in required_files)
 
 
 def _probe_server(server_url: str) -> None:
