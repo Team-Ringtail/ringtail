@@ -1,207 +1,132 @@
-## Ringtail Replay API - Current Server Contract
+# Ringtail HTTP API (Live Contract)
 
-### Overview
+This document describes the live HTTP surface exposed by `jac start main.jac`.
 
-- **Purpose**: Replay-driven optimization surface used by Ringtail CLI and UI.
-- **Current transport**: Replay operations are routed through `POST /function/optimize_sync` using an `operation` field.
-- **Backend module**: `src/api/optimization_requests.jac`.
-- **Canonical operation/default contract**: `src/core/optimization_request_contract.py` and `/function/get_optimization_contract`.
-- **Local base URL**: `http://localhost:8000`.
+## Base URL
 
----
+- Local default: `http://localhost:8000`
 
-## Architecture and Routing
+All calls are `POST /function/<public-function-name>` with JSON payload.
 
-When running `jac start main.jac`, public API functions are exposed under `/function/<name>`.
+## Endpoint Groups
 
-Replay-specific operations are handled by `run_optimization_request(...)` and selected with:
+### Diagnostics
 
-```json
-{
-  "operation": "<operation-name>",
-  "...": "operation-specific fields"
-}
-```
+- `health()`
+- `hello(name="Ringtail")`
+- `get_auth_readiness()`
+- `get_config_doctor()`
+- `get_latest_run(kind="any")`
 
-Supported replay operation names:
+### Optimization / contract
 
-- `discover_and_rank_replay_repo`
-- `optimize_replay_function`
-- `optimize_best_replay_function`
-- `optimize_best_replay_in_repo`
+- `optimize_sync(request)`
+- `get_optimization_contract()`
 
-Replay inspection helpers also exist as callable public functions in `src/api/optimization_requests.jac`:
+### Async jobs
 
-- `inspect_replay_repo(...)`
-- `inspect_replay_function(...)`
-- `inspect_replay_session(...)`
-- `discover_and_rank_replay_file(...)`
+- `submit_optimization_job(request)`
+- `get_optimization_job(job_id)`
+- `run_repo_agent_sync(request)`
+- `submit_repo_agent_job(request)`
+- `get_repo_agent_job(job_id)`
+- `get_recent_jobs(limit=10)`
 
----
+### Demo / benchmark
 
-## Conventions
+- `get_ranked_demo_suite_catalog(benchmark_id="")`
+- `get_ranked_demo_benchmarks()`
+- `get_latest_ranked_demo_suite()`
+- `get_ranked_demo_job_progress(job_id)`
 
-- **Content type**: `application/json`
-- **HTTP method**: `POST`
-- **Paths**:
-  - `POST /function/optimize_sync` (primary replay operations)
-  - Optional direct function route for inspect helpers (depends on Jac runtime/module loading): `POST /function/<public-function-name>`
-- **File paths**: `source_root`, `script_path`, and `file_path` should be absolute paths on the server host.
+### GitHub auth/session/install
 
----
+- `get_github_app_install_info(state="")`
+- `handle_github_app_install_callback(installation_id, setup_action="", state="")`
+- `verify_github_repo_access(request)`
+- `get_github_login_url(redirect_uri="")`
+- `exchange_github_code(code, state)`
+- `get_session(session_token)`
+- `logout(session_token)`
+- `save_github_installation(session_token, installation_id, account_login="")`
 
-## Error Handling
+## Payload Shape Rules
 
-- Failures should include a top-level `error` string.
-- Optimization-style failures usually keep the normal response shape and set a non-empty `error`.
+### Rule 1: parameter name matching
 
-Minimum failure shape:
+For each route, send a JSON object whose keys match the function parameters.
 
-```json
-{
-  "error": "Replay trace captured no replay-backed repo candidates"
-}
-```
+Examples:
 
----
+- `health()` -> `{}`
+- `get_optimization_job(job_id)` -> `{"job_id": "..."}`
+- `optimize_sync(request)` -> `{"request": { ...operation payload... }}`
 
-## Replay Operations via `/function/optimize_sync`
+### Rule 2: optimization operations are nested in `request`
 
-### 1) Rank replay-backed repo candidates
-
-Request:
+`optimize_sync` and async submit routes expect a `request` dict whose `operation` controls behavior.
 
 ```json
 {
-  "operation": "discover_and_rank_replay_repo",
-  "source_root": "/absolute/path/to/repo-or-subdir",
-  "script_path": "/absolute/path/to/driver.py",
-  "tests_root": "tests",
-  "limit": 10
-}
-```
-
-Response shape:
-
-```json
-[
-  {
-    "source_file": "/abs/repo/pkg/b.py",
-    "function_name": "beta",
-    "function_call": "beta(2)",
-    "median_ms": 0.12,
-    "peak_memory_kb": 8.0,
-    "cyclomatic_complexity": 2,
-    "discovered_test_count": 1,
-    "replay_trace_count": 2,
-    "replay_unique_call_count": 2,
-    "replay_partial_success": false,
-    "replay_script": "/abs/repo/drive.py"
+  "request": {
+    "operation": "optimize_input",
+    "config_name": "live-fast",
+    "analysis_mode": "llm",
+    "input": {
+      "source_code": "def f(x): return x",
+      "function_name": "f",
+      "function_call": "f(1)",
+      "test_cases": [{"call": "f(1)", "expected": 1}]
+    }
   }
-]
-```
-
-### 2) Optimize one replay-backed function
-
-Request:
-
-```json
-{
-  "operation": "optimize_replay_function",
-  "file_path": "/absolute/path/to/file.py",
-  "function_name": "target_fn",
-  "script_path": "/absolute/path/to/driver.py",
-  "tests_root": "tests"
 }
 ```
 
-Response shape:
+## Operation Names
 
-```json
-{
-  "optimized_code": "def target_fn(...): ...",
-  "iteration_number": 1,
-  "metrics": {
-    "execution_time": 0.12,
-    "memory_usage": 8.0,
-    "cpu_usage": null,
-    "code_complexity": 2,
-    "test_coverage": 100.0
-  },
-  "baseline_metrics": {
-    "execution_time": 0.14,
-    "memory_usage": 8.5,
-    "cpu_usage": null,
-    "code_complexity": 3,
-    "test_coverage": 100.0
-  },
-  "test_passed": true,
-  "improvement_ratio": 1.16,
-  "termination_reason": "execution time within target",
-  "converged": true,
-  "error": ""
-}
+Source of truth:
+
+- `src/core/optimization_request_contract.py`
+- `POST /function/get_optimization_contract`
+
+Current discovery operations include `discover_and_rank_file` and `discover_and_rank_directory`.
+
+## cURL Examples
+
+### Health
+
+```bash
+curl -s -X POST http://localhost:8000/function/health \
+  -H 'Content-Type: application/json' -d '{}'
 ```
 
-### 3) Optimize best replay-backed function in one file
+### Sync optimize
 
-Request:
-
-```json
-{
-  "operation": "optimize_best_replay_function",
-  "file_path": "/absolute/path/to/file.py",
-  "script_path": "/absolute/path/to/driver.py",
-  "tests_root": "tests"
-}
+```bash
+curl -s -X POST http://localhost:8000/function/optimize_sync \
+  -H 'Content-Type: application/json' \
+  -d '{"request":{"operation":"optimize_input","config_name":"test-fast","analysis_mode":"mock","input":{"source_code":"def slow_add(n):\\n    s=0\\n    for i in range(n):\\n        s+=i\\n    return s\\n","function_name":"slow_add","function_call":"slow_add(1000)","test_cases":[{"call":"slow_add(5)","expected":10}]}}}'
 ```
 
-Response is the optimization shape above plus:
+### Submit async optimize + poll
 
-- `selected_function`
-- `replay_trace_count`
+```bash
+curl -s -X POST http://localhost:8000/function/submit_optimization_job \
+  -H 'Content-Type: application/json' \
+  -d '{"request":{"operation":"optimize_input","config_name":"test-fast","analysis_mode":"mock","input":{"source_code":"def f(x): return x","function_name":"f","function_call":"f(1)","test_cases":[{"call":"f(1)","expected":1}]}}}'
 
-### 4) Optimize best replay-backed target in a repo
-
-Request:
-
-```json
-{
-  "operation": "optimize_best_replay_in_repo",
-  "source_root": "/absolute/path/to/repo-or-subdir",
-  "script_path": "/absolute/path/to/driver.py",
-  "tests_root": "tests"
-}
+curl -s -X POST http://localhost:8000/function/get_optimization_job \
+  -H 'Content-Type: application/json' \
+  -d '{"job_id":"<job-id>"}'
 ```
 
-Response is the optimization shape above plus:
+## Errors
 
-- `selected_source_file`
-- `selected_function`
-- `replay_trace_count`
-- `selection_score`
+- Most failures return a dict containing top-level `error`.
+- Some routes can return FastAPI/Jaseci validation errors if required body keys are missing.
 
----
+## Related Docs
 
-## Optional Direct Inspect Calls
-
-If your runtime exposes imported public functions as REST routes, these can be called directly:
-
-- `POST /function/inspect_replay_repo`
-- `POST /function/inspect_replay_function`
-- `POST /function/inspect_replay_session`
-- `POST /function/discover_and_rank_replay_file`
-
-For maximum compatibility across environments, prefer routing replay actions through `POST /function/optimize_sync` with `operation`.
-
----
-
-## Suggested UI Flow
-
-1. Rank repo candidates using `discover_and_rank_replay_repo`.
-2. Let the user choose either:
-   - one function (`optimize_replay_function`), or
-   - one-click best-in-repo (`optimize_best_replay_in_repo`).
-3. Show before/after metrics and optimized code.
-4. Only auto-apply when `test_passed` is true and `error` is empty.
-
+- `interfaces.md` for user-oriented workflows
+- `OPTIMIZATION_CONTRACT.md` for operation semantics
+- `REPLAY_API_CONTRACT.md` for replay-specific logical contract

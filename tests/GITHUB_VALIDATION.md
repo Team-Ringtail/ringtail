@@ -1,41 +1,53 @@
-# GitHub integration validation
+# GitHub Integration Validation
 
-## Automated (no GitHub account)
+This guide covers how to validate GitHub auth/install and repo-agent integration.
 
-From the repo root:
+## 1) Offline / local checks (no GitHub account required)
+
+From repo root:
 
 ```bash
 python -m pytest tests/unit/test_github_repo_service.py -v
+python -m pytest tests/unit/test_github_oauth_and_sessions.py -v
 jac test tests/unit/test_repo_agent_workflow.jac
 ```
 
-Or:
+These validate parsing, auth resolution, session persistence, and core repo-agent wiring without live GitHub calls.
 
-```bash
-python scripts/validate_github_integration.py
-```
+## 2) Live smoke check (real GitHub App install)
 
-## Human / staging (real GitHub App)
+Requires a GitHub App and installation on a test repo.
 
-Requires a [GitHub App](https://docs.github.com/en/apps/creating-github-apps) with a private key, and an installation on a test repo.
+Set:
 
-1. Set `RINGTAIL_REPO_AGENT_CONFIG` (JSON or path to JSON) with at least `app_id`, `private_key` or `private_key_path`, and `installation_id` for a test install.
-2. Set `RINGTAIL_GITHUB_SMOKE_REPO_URL` to that repo’s HTTPS URL.
-3. Run:
+- `RINGTAIL_REPO_AGENT_CONFIG` (JSON string or path)
+- `RINGTAIL_GITHUB_SMOKE_REPO_URL`
+
+Then run:
 
 ```bash
 python -m pytest tests/optimization/with_llm/test_github_app_smoke.py -v
 ```
 
-Success means installation tokens mint correctly and `verify_repo_access` sees the repo.
+Success means installation token minting and repo access checks work.
+
+## 3) Product path check (web/api)
+
+Start server:
+
+```bash
+jac start main.jac --port 8000
+```
+
+Then validate:
+
+- `POST /function/get_auth_readiness`
+- `POST /function/get_config_doctor`
+- `POST /function/get_github_app_install_info`
+- `POST /function/verify_github_repo_access`
 
 ## Not covered by automation yet
 
-These need product implementation plus optional new tests:
-
-- OAuth “Sign in with GitHub” session (identity) — separate from App installation tokens.
-- Persisting `installation_id` per user/team after install (database).
-- Webhook signature verification for `installation` events.
-- End-to-end: `jac start` → `get_github_app_install_info` → browser install → callback URL → `submit_repo_agent_job` with stored `installation_id` and `publish_pr: true`.
-
-When those exist, extend `tests/unit/test_github_repo_service.py` or add integration tests under `tests/integration/`.
+- Full browser OAuth login flow with callback and cookie/session restoration.
+- End-to-end publish-PR flow against a real repo with `publish_pr: true`.
+- Webhook signature validation for installation events.

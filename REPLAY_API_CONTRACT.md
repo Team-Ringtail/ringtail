@@ -1,213 +1,55 @@
-# Replay API Contract (Logical)
+# Replay API Contract (Logical + Live Mapping)
 
-Minimum backend contract for the replay-driven CLI/web flow.
+This document describes replay-specific operations and how they map onto the live API.
 
-Note: the live server currently routes replay operations through
-`POST /function/optimize_sync` using an `operation` field, rather than exposing
-standalone `/replay/*` HTTP paths.
+## Live Transport
 
-This keeps the surface small while the internals are still evolving.
+Replay actions are currently executed through:
 
-Canonical operation names and defaults are now mirrored in:
+- `POST /function/optimize_sync` with `{"request": {"operation": ...}}`
+
+Canonical operation names/defaults:
+
 - `src/core/optimization_request_contract.py`
-- `/function/get_optimization_contract`
+- `POST /function/get_optimization_contract`
 
-## Goals
+## Replay Operations
 
-- Let the UI run a replay script and see what code was actually exercised.
-- Let the UI show ranked replay-backed optimization targets.
-- Let the UI optimize either the best target automatically or one chosen target.
-- Avoid exposing lots of tuning knobs for now.
+- `discover_and_rank_replay_repo`
+- `optimize_replay_function`
+- `optimize_best_replay_function`
+- `optimize_best_replay_in_repo`
 
-## Logical Endpoint 1: Inspect Replay Repo
+Replay inspection helpers in `src/api/optimization_requests.jac`:
 
-`POST /replay/inspect` (logical path)
+- `inspect_replay_repo(...)`
+- `inspect_replay_function(...)`
+- `inspect_replay_session(...)`
+- `discover_and_rank_replay_file(...)`
 
-Purpose: run the replay trace and return the observed repo candidates.
-
-Request:
-
-```json
-{
-  "source_root": "/absolute/path/to/repo-or-subdir",
-  "script_path": "/absolute/path/to/driver.py"
-}
-```
-
-Response:
+## Request Envelope
 
 ```json
 {
-  "source_files": [
-    "/abs/repo/pkg/a.py",
-    "/abs/repo/pkg/b.py"
-  ],
-  "replay_script": "/abs/repo/drive.py",
-  "observed_source_files": [
-    "/abs/repo/pkg/a.py",
-    "/abs/repo/pkg/b.py"
-  ],
-  "observed_function_keys": [
-    "/abs/repo/pkg/a.py::alpha",
-    "/abs/repo/pkg/b.py::beta"
-  ],
-  "candidate_count": 2,
-  "candidates": [
-    {
-      "source_file": "/abs/repo/pkg/a.py",
-      "function_name": "alpha",
-      "function_call": "alpha(1)",
-      "replay_trace_count": 1,
-      "discovered_test_count": 0
-    },
-    {
-      "source_file": "/abs/repo/pkg/b.py",
-      "function_name": "beta",
-      "function_call": "beta(2)",
-      "replay_trace_count": 2,
-      "discovered_test_count": 1
-    }
-  ],
-  "replay_trace": {
-    "success": true,
-    "total_trace_count": 3,
-    "observed_source_files": [
-      "/abs/repo/pkg/a.py",
-      "/abs/repo/pkg/b.py"
-    ],
-    "run_error": "",
-    "partial_success": false
+  "request": {
+    "operation": "discover_and_rank_replay_repo",
+    "source_root": "/abs/path/to/repo",
+    "script_path": "/abs/path/to/driver.py",
+    "tests_root": "tests",
+    "limit": 10
   }
 }
 ```
 
-Notes:
+## Response Shape
 
-- This should back `inspect_replay_repo(...)`.
-- The UI can use this as the first screen after a replay run.
+Replay ranking operations return a list of candidate dicts (source file, function name/call, timing/complexity, replay counts).
 
-## Logical Endpoint 2: Rank Replay Repo Candidates
+Replay optimization operations return standard optimization result dicts with additional replay selection fields where relevant.
 
-`POST /replay/rank` (logical path)
+## Error Contract
 
-Purpose: return replay-backed repo candidates in best-first order.
-
-Request:
-
-```json
-{
-  "source_root": "/absolute/path/to/repo-or-subdir",
-  "script_path": "/absolute/path/to/driver.py"
-}
-```
-
-Response:
-
-```json
-[
-  {
-    "source_file": "/abs/repo/pkg/b.py",
-    "function_name": "beta",
-    "function_call": "beta(2)",
-    "median_ms": 0.12,
-    "peak_memory_kb": 8.0,
-    "cyclomatic_complexity": 2,
-    "discovered_test_count": 1,
-    "replay_trace_count": 2,
-    "replay_unique_call_count": 2,
-    "replay_partial_success": false,
-    "replay_script": "/abs/repo/drive.py"
-  }
-]
-```
-
-Notes:
-
-- This should back `discover_and_rank_replay_repo(...)`.
-- The backend owns the ranking formula.
-
-## Logical Endpoint 3: Optimize Best Replay Target
-
-`POST /replay/optimize-best` (logical path)
-
-Purpose: one-click workflow for the UI: trace, rank, choose, and optimize.
-
-Request:
-
-```json
-{
-  "source_root": "/absolute/path/to/repo-or-subdir",
-  "script_path": "/absolute/path/to/driver.py"
-}
-```
-
-Response:
-
-```json
-{
-  "selected_source_file": "/abs/repo/pkg/b.py",
-  "selected_function": "beta",
-  "replay_trace_count": 2,
-  "optimized_code": "def beta(...): ...",
-  "iteration_number": 1,
-  "metrics": {
-    "execution_time": 0.12,
-    "memory_usage": 8.0,
-    "cpu_usage": null,
-    "code_complexity": 2,
-    "test_coverage": 100.0
-  },
-  "baseline_metrics": {
-    "execution_time": 0.14,
-    "memory_usage": 8.5,
-    "cpu_usage": null,
-    "code_complexity": 3,
-    "test_coverage": 100.0
-  },
-  "test_passed": true,
-  "improvement_ratio": 1.16,
-  "termination_reason": "execution time within target",
-  "converged": true,
-  "error": ""
-}
-```
-
-Notes:
-
-- This should back `optimize_best_replay_in_repo(...)`.
-- This is the simplest “do the thing” entrypoint for the web UI.
-
-## Logical Endpoint 4: Optimize One Replay Target
-
-`POST /replay/optimize-one` (logical path)
-
-Purpose: optimize a specific replay-backed function chosen by the user.
-
-Request:
-
-```json
-{
-  "source_file": "/absolute/path/to/file.py",
-  "function_name": "target_fn",
-  "script_path": "/absolute/path/to/driver.py"
-}
-```
-
-Response:
-
-Same shape as `POST /replay/optimize-best`, but `selected_source_file` and
-`selected_function` should match the requested target.
-
-Notes:
-
-- This should back `optimize_replay_function(...)` for now.
-- We can later add a repo-aware version if needed, but this is enough for MVP.
-
-## Error Shape
-
-All replay endpoints should return a top-level `error` string on failure.
-
-Suggested minimum failure response:
+Replay failures should include top-level `error`, for example:
 
 ```json
 {
@@ -215,22 +57,16 @@ Suggested minimum failure response:
 }
 ```
 
-If the endpoint normally returns optimization results, it can keep the current
-result-shaped error object as long as `error` is present and non-empty.
+## Recommended UI Flow
 
-## Mapping To Current Backend Functions
+1. Discover/rank replay candidates.
+2. Let user choose one target or one-click best target.
+3. Run replay-backed optimization.
+4. Display before/after metrics and code.
+5. Apply only when `test_passed=true` and `error` is empty.
 
-- Prefer live API usage documented in `API_DOCUMENTATION.md`.
-- `inspect_replay_repo(...)` can be called directly if your runtime exposes the imported function route.
-- `POST /function/optimize_sync` with `operation=discover_and_rank_replay_repo` -> `discover_and_rank_replay_repo(...)`
-- `POST /function/optimize_sync` with `operation=optimize_best_replay_in_repo` -> `optimize_best_replay_in_repo(...)`
-- `POST /function/optimize_sync` with `operation=optimize_replay_function` -> `optimize_replay_function(...)`
+## Related Docs
 
-## Suggested UI Flow
-
-1. Call inspect/rank using the live endpoints in `API_DOCUMENTATION.md`
-2. Show observed candidates
-3. Optionally run ranking before optimize
-4. Either:
-   - call best-in-repo optimization, or
-   - let the user choose one candidate and optimize that target
+- `API_DOCUMENTATION.md` (full live API)
+- `OPTIMIZATION_CONTRACT.md` (all operation names/defaults)
+- `interfaces.md` (user-facing usage)

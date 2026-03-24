@@ -1,5 +1,9 @@
 """
 Optimization request routing and helper API surface.
+
+All optimization logic lives in run_optimization_request. The standalone
+def:pub functions are thin convenience wrappers that build a request dict
+and delegate to the dispatcher, keeping behavior in one place.
 """
 
 import from src.core.discovery {
@@ -22,75 +26,6 @@ import importlib;
 walker optimize_function {
     # Reserved Jac entrypoint. The public helper functions below provide
     # the currently testable API-facing surface.
-}
-
-
-def:pub list_file_functions(file_path: str) -> list {
-    return discover_functions_in_file(file_path);
-}
-
-
-def:pub inspect_file_function(
-    file_path: str,
-    function_name: str,
-    function_call: str | None = None,
-    tests_root: str = "tests",
-    analysis_mode: str | None = None
-) -> dict {
-    return build_function_input_from_file(
-        file_path,
-        function_name,
-        function_call,
-        tests_root,
-        analysis_mode
-    );
-}
-
-
-def:pub optimize_file_function(
-    file_path: str,
-    function_name: str,
-    function_call: str | None = None,
-    tests_root: str = "tests",
-    criteria_name: str | None = None,
-    config_name: str | None = None,
-    analysis_mode: str | None = None,
-    llm_model: str | None = None
-) -> dict {
-    input = build_function_input_from_file(
-        file_path,
-        function_name,
-        function_call,
-        tests_root,
-        analysis_mode
-    );
-    if "error" in input {
-        return {
-            "optimized_code": "",
-            "iteration_number": 0,
-            "metrics": {
-                "execution_time": 0.0,
-                "memory_usage": 0.0,
-                "cpu_usage": None,
-                "code_complexity": None,
-                "test_coverage": None
-            },
-            "test_passed": False,
-            "improvement_ratio": 0.0,
-            "baseline_metrics": {
-                "execution_time": 0.0,
-                "memory_usage": 0.0,
-                "cpu_usage": None,
-                "code_complexity": None,
-                "test_coverage": None
-            },
-            "termination_reason": input["error"],
-            "converged": False,
-            "error": input["error"]
-        };
-    }
-    input = _with_runtime_overrides(input, analysis_mode, llm_model, None, None, None);
-    return run_optimization(input, criteria_name, config_name);
 }
 
 
@@ -189,6 +124,69 @@ def _normalize_source_code_text(raw: str) -> str {
 }
 
 
+def _run_request_dict(request: dict) -> dict {
+    result: dict = run_optimization_request(request);
+    return result;
+}
+
+
+def _run_request_list(request: dict) -> list {
+    result: list = run_optimization_request(request);
+    return result;
+}
+
+
+# ---------------------------------------------------------------------------
+# Convenience wrappers -- delegate to run_optimization_request
+# ---------------------------------------------------------------------------
+
+def:pub list_file_functions(file_path: str) -> list {
+    return discover_functions_in_file(file_path);
+}
+
+
+def:pub inspect_file_function(
+    file_path: str,
+    function_name: str,
+    function_call: str | None = None,
+    tests_root: str = "tests",
+    analysis_mode: str | None = None
+) -> dict {
+    return build_function_input_from_file(
+        file_path,
+        function_name,
+        function_call,
+        tests_root,
+        analysis_mode
+    );
+}
+
+
+def:pub optimize_file_function(
+    file_path: str,
+    function_name: str,
+    function_call: str | None = None,
+    tests_root: str = "tests",
+    criteria_name: str | None = None,
+    config_name: str | None = None,
+    analysis_mode: str | None = None,
+    llm_model: str | None = None
+) -> dict {
+    request: dict = {
+        "operation": "optimize_file_function",
+        "file_path": file_path,
+        "function_name": function_name,
+        "tests_root": tests_root
+    };
+    if function_call is not None { request["function_call"] = function_call; }
+    if criteria_name is not None { request["criteria_name"] = criteria_name; }
+    if config_name is not None { request["config_name"] = config_name; }
+    if analysis_mode is not None { request["analysis_mode"] = analysis_mode; }
+    if llm_model is not None { request["llm_model"] = llm_model; }
+    return _run_request_dict(request);
+}
+
+
 def:pub get_optimization_operation_contract() -> dict {
     mod = importlib.import_module("src.core.optimization_request_contract");
     get_payload = getattr(mod, "get_contract_payload");
@@ -228,7 +226,12 @@ def:pub discover_and_rank_directory(
     tests_root: str = "tests",
     limit: int = 10
 ) -> list {
-    return rank_functions_in_directory(source_root, tests_root, limit);
+    return _run_request_list({
+        "operation": "discover_and_rank_directory",
+        "source_root": source_root,
+        "tests_root": tests_root,
+        "limit": limit
+    });
 }
 
 
@@ -349,27 +352,18 @@ def:pub optimize_replay_function(
     analysis_mode: str | None = None,
     llm_model: str | None = None
 ) -> dict {
-    input = build_function_input_from_replay_script(
-        file_path,
-        function_name,
-        script_path,
-        tests_root,
-        analysis_mode
-    );
-    if "error" in input {
-        return _error_result(input["error"]);
-    }
-
-    trace_result = input.get("extra", {}).get("replay_trace", {});
-    if not trace_result.get("success", False) {
-        return _error_result("Replay trace failed: " + str(trace_result.get("error", "")));
-    }
-    if len(input.get("test_cases", [])) == 0 {
-        return _error_result("Replay trace captured no test cases");
-    }
-
-    input = _with_runtime_overrides(input, analysis_mode, llm_model, None, None, None);
-    return run_optimization(input, criteria_name, config_name);
+    request: dict = {
+        "operation": "optimize_replay_function",
+        "file_path": file_path,
+        "function_name": function_name,
+        "script_path": script_path,
+        "tests_root": tests_root
+    };
+    if criteria_name is not None { request["criteria_name"] = criteria_name; }
+    if config_name is not None { request["config_name"] = config_name; }
+    if analysis_mode is not None { request["analysis_mode"] = analysis_mode; }
+    if llm_model is not None { request["llm_model"] = llm_model; }
+    return _run_request_dict(request);
 }
 
 
@@ -382,35 +376,17 @@ def:pub optimize_best_replay_function(
     analysis_mode: str | None = None,
     llm_model: str | None = None
 ) -> dict {
-    session = build_replay_inputs_from_script(
-        file_path,
-        script_path,
-        tests_root,
-        analysis_mode,
-        None
-    );
-    candidates = session.get("candidate_inputs", []);
-    if len(candidates) == 0 {
-        return _error_result("Replay trace captured no replay-backed function candidates");
-    }
-
-    selected_input = candidates[0];
-    selected_name = selected_input.get("function_name", "");
-    selected_trace_count = int(selected_input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
-    for input in candidates {
-        trace_count = int(input.get("extra", {}).get("replay_trace", {}).get("trace_count", 0));
-        if trace_count > selected_trace_count {
-            selected_input = input;
-            selected_name = input.get("function_name", "");
-            selected_trace_count = trace_count;
-        }
-    }
-
-    selected_input = _with_runtime_overrides(selected_input, analysis_mode, llm_model, None, None, None);
-    result = run_optimization(selected_input, criteria_name, config_name);
-    result["selected_function"] = selected_name;
-    result["replay_trace_count"] = selected_trace_count;
-    return result;
+    request: dict = {
+        "operation": "optimize_best_replay_function",
+        "file_path": file_path,
+        "script_path": script_path,
+        "tests_root": tests_root
+    };
+    if criteria_name is not None { request["criteria_name"] = criteria_name; }
+    if config_name is not None { request["config_name"] = config_name; }
+    if analysis_mode is not None { request["analysis_mode"] = analysis_mode; }
+    if llm_model is not None { request["llm_model"] = llm_model; }
+    return _run_request_dict(request);
 }
 
 
@@ -423,42 +399,23 @@ def:pub optimize_best_replay_in_repo(
     analysis_mode: str | None = None,
     llm_model: str | None = None
 ) -> dict {
-    ranked = rank_replay_candidates_in_directory(source_root, script_path, tests_root, 1);
-    if len(ranked) == 0 {
-        return _error_result("Replay trace captured no replay-backed repo candidates");
-    }
-
-    top_entry = ranked[0];
-    target_source = str(top_entry.get("source_file", ""));
-    target_function = str(top_entry.get("function_name", ""));
-
-    session = build_replay_inputs_from_directory(
-        source_root,
-        script_path,
-        tests_root,
-        analysis_mode
-    );
-    candidates = session.get("candidate_inputs", []);
-    selected_input = candidates[0];
-    for input in candidates {
-        if (
-            str(input.get("function_name", "")) == target_function
-            and str(input.get("extra", {}).get("source_file", "")) == target_source
-        ) {
-            selected_input = input;
-            break;
-        }
-    }
-
-    selected_input = _with_runtime_overrides(selected_input, analysis_mode, llm_model, None, None, None);
-    result = run_optimization(selected_input, criteria_name, config_name);
-    result["selected_function"] = target_function;
-    result["selected_source_file"] = target_source;
-    result["replay_trace_count"] = int(top_entry.get("replay_trace_count", 0));
-    result["selection_score"] = float(top_entry.get("selection_score", 0.0));
-    return result;
+    request: dict = {
+        "operation": "optimize_best_replay_in_repo",
+        "source_root": source_root,
+        "script_path": script_path,
+        "tests_root": tests_root
+    };
+    if criteria_name is not None { request["criteria_name"] = criteria_name; }
+    if config_name is not None { request["config_name"] = config_name; }
+    if analysis_mode is not None { request["analysis_mode"] = analysis_mode; }
+    if llm_model is not None { request["llm_model"] = llm_model; }
+    return _run_request_dict(request);
 }
 
+
+# ---------------------------------------------------------------------------
+# Central dispatcher -- single source of truth for all operation logic
+# ---------------------------------------------------------------------------
 
 def:pub run_optimization_request(request: dict) -> dict | list {
     normalized = _normalize_operation_request(request);
@@ -489,8 +446,16 @@ def:pub run_optimization_request(request: dict) -> dict | list {
     }
 
     if operation == "discover_and_rank_directory" {
-        return discover_and_rank_directory(
+        return rank_functions_in_directory(
             str(normalized.get("source_root", "")),
+            str(normalized.get("tests_root", "tests")),
+            int(normalized.get("limit", 10))
+        );
+    }
+
+    if operation == "discover_and_rank_file" {
+        return rank_functions_in_file(
+            str(normalized.get("file_path", "")),
             str(normalized.get("tests_root", "tests")),
             int(normalized.get("limit", 10))
         );
@@ -533,7 +498,7 @@ def:pub run_optimization_request(request: dict) -> dict | list {
     }
 
     if operation == "discover_and_rank_replay_repo" {
-        return discover_and_rank_replay_repo(
+        return rank_replay_candidates_in_directory(
             str(normalized.get("source_root", "")),
             str(normalized.get("script_path", "")),
             str(normalized.get("tests_root", "tests")),

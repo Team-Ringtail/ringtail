@@ -18,9 +18,10 @@ from typing import Any
 
 from src.core.optimization_request_contract import normalize_request_defaults
 from src.core.worker_runner import run_local_worker_request
-from src.utils.run_log import LOGS_DIR
+from src.utils.run_log import LOGS_DIR, RunLog
 
 _WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+_LOGS_ROOT = Path(LOGS_DIR).resolve()
 _JOBS_DIR = Path(os.environ.get("RINGTAIL_ASYNC_JOBS_DIR", Path(LOGS_DIR) / "async_jobs"))
 _TERMINAL_STATES = {"succeeded", "failed", "interrupted"}
 
@@ -39,6 +40,102 @@ def _ensure_jobs_dir() -> None:
 
 def _job_path(job_id: str) -> Path:
     return _JOBS_DIR / f"{job_id}.json"
+
+
+def _resolve_safe_log_path(log_path: str) -> Path | None:
+    """Return a path under LOGS_DIR only (basename for relative paths)."""
+    raw = str(log_path or "").strip()
+    if not raw:
+        return None
+    candidate = Path(raw)
+    if not candidate.is_absolute():
+        candidate = _LOGS_ROOT / candidate.name
+    try:
+        resolved = candidate.resolve()
+    except OSError:
+        return None
+    try:
+        resolved.relative_to(_LOGS_ROOT)
+    except ValueError:
+        return None
+    if resolved.suffix != ".jsonl":
+        return None
+    return resolved
+
+
+def _tail_jsonl_activity(log_path: str, *, max_lines: int = 100) -> list[str]:
+    path = _resolve_safe_log_path(log_path)
+    if path is None or not path.is_file():
+        return []
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    tail = lines[-max_lines:] if len(lines) > max_lines else lines
+    out: list[str] = []
+    for raw in tail:
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            out.append(raw[:240])
+            continue
+        if not isinstance(obj, dict):
+            out.append(str(obj)[:240])
+            continue
+        kind = str(obj.get("kind", "event"))
+        elapsed = obj.get("elapsed_s", "")
+        payload = {k: v for k, v in obj.items() if k not in ("ts", "seq", "kind", "elapsed_s")}
+        summary = RunLog._summary(kind, payload)
+        out.append(f"+{elapsed}s  [{kind}]  {summary}")
+    return out
+
+
+def _activity_overlay_for_job(job: dict[str, Any]) -> list[str]:
+    """Human-readable job status + tail of structured run log for pollers / UI."""
+    lines: list[str] = []
+    status = str(job.get("status", ""))
+    run_id = str(job.get("run_id", ""))
+    run_log_path = str(job.get("run_log_path", "")).strip()
+
+    wm = str(job.get("worker_message", "")).strip()
+    if wm:
+        lines.append(f"[job] {wm}")
+
+    if status == "queued":
+        lines.append(f"[job] Queued — starting background worker (run_id={run_id})")
+    elif status == "running":
+        lines.append(
+            "[job] Running — Jac worker subprocess is executing (LLM calls can take several minutes)."
+        )
+    elif status == "succeeded":
+        lines.append("[job] Succeeded — optimization finished.")
+    elif status == "failed":
+        err = str(job.get("error", "")).strip()
+        if err:
+            lines.append(f"[job] Failed — {err[:800]}")
+    elif status == "interrupted":
+        lines.append("[job] Interrupted — server restarted or job was orphaned.")
+
+    tail = _tail_jsonl_activity(run_log_path, max_lines=100)
+    if tail:
+        lines.append("--- run log (latest) ---")
+        lines.extend(tail)
+    elif status in ("queued", "running") and run_log_path:
+        lines.append(
+            "[job] No run-log lines yet — they appear once the optimizer creates the log file."
+        )
+
+    return lines
+
+
+def _attach_activity_view(job: dict[str, Any]) -> dict[str, Any]:
+    view = copy.deepcopy(job)
+    if view.get("status") == "not_found":
+        view["activity_log_lines"] = []
+        return view
+    view["activity_log_lines"] = _activity_overlay_for_job(view)
+    return view
 
 
 def _request_summary(request: dict[str, Any]) -> dict[str, Any]:
@@ -113,13 +210,15 @@ class AsyncJobManager:
                 persisted = self._read_persisted_job(job_id)
                 if persisted is not None:
                     self._jobs[job_id] = persisted
-                    return copy.deepcopy(persisted)
-                return {
-                    "job_id": job_id,
-                    "status": "not_found",
-                    "error": f"Unknown job_id: {job_id}",
-                }
-            return copy.deepcopy(job)
+                    return _attach_activity_view(copy.deepcopy(persisted))
+                return _attach_activity_view(
+                    {
+                        "job_id": job_id,
+                        "status": "not_found",
+                        "error": f"Unknown job_id: {job_id}",
+                    }
+                )
+            return _attach_activity_view(copy.deepcopy(job))
 
     def _update_job(self, job_id: str, **changes: Any) -> None:
         with self._lock:
@@ -131,7 +230,12 @@ class AsyncJobManager:
 
     def _run_job(self, job_id: str, request: dict[str, Any]) -> None:
         try:
-            self._update_job(job_id, status="running", started_at=_utc_timestamp())
+            self._update_job(
+                job_id,
+                status="running",
+                started_at=_utc_timestamp(),
+                worker_message="Worker thread started; invoking `jac run async_optimize_worker.jac`…",
+            )
             worker = run_local_worker_request(request)
             self._update_job(job_id, pid=worker.get("pid"))
             result = worker.get("result")
@@ -144,6 +248,7 @@ class AsyncJobManager:
                     result=result,
                     error="",
                     pid=None,
+                    worker_message="",
                     run_id=result.get("run_id", request.get("run_id")),
                     run_log_path=result.get("run_log_path", _log_path_for_run_id(request["run_id"])),
                 )
@@ -159,6 +264,7 @@ class AsyncJobManager:
                 result=result,
                 error=error_message,
                 pid=None,
+                worker_message="",
             )
         except Exception as exc:  # pragma: no cover - defensive bridge path
             self._update_job(
@@ -167,6 +273,7 @@ class AsyncJobManager:
                 finished_at=_utc_timestamp(),
                 error=str(exc),
                 pid=None,
+                worker_message="",
             )
 
     def _persist_job(self, job: dict[str, Any]) -> None:

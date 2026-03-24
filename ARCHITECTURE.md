@@ -9,6 +9,11 @@ Ringtail is a **Jac/Jaseci-based system for automated code optimization**.
 
 The core idea: **let an LLM (or other agents) do the optimization work, while Ringtail handles safety, tests, metrics, and iteration.**
 
+Reference docs for interface usage and contracts:
+- `interfaces.md` (Web/API/CLI/SDK usage)
+- `API_DOCUMENTATION.md` (live HTTP surface)
+- `OPTIMIZATION_CONTRACT.md` (operation contract)
+
 ---
 
 ## Key Terminology

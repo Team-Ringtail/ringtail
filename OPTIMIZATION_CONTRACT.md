@@ -22,6 +22,7 @@ Defaults are applied for optimization operations only.
 
 ## Discovery / Metadata Operations
 
+- `discover_and_rank_file`
 - `discover_and_rank_directory`
 - `discover_and_rank_replay_repo`
 - `get_ranked_demo_suite_catalog`

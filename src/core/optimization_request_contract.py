@@ -23,6 +23,7 @@ OPTIMIZATION_OPERATION_SEQUENCE: tuple[str, ...] = (
     "run_repo_agent_job",
 )
 DISCOVERY_OPERATION_SEQUENCE: tuple[str, ...] = (
+    "discover_and_rank_file",
     "discover_and_rank_directory",
     "discover_and_rank_replay_repo",
     "get_ranked_demo_suite_catalog",

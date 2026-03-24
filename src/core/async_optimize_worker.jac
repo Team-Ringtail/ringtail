@@ -2,6 +2,7 @@
 
 import json;
 import os;
+import sys;
 import traceback;
 
 import from src.api.optimization_requests { run_optimization_request }
@@ -20,8 +21,12 @@ def _load_request -> dict {
 
 with entry {
     try {
+        print("[ringtail_worker] loading request from RINGTAIL_ASYNC_REQUEST_FILE", file=sys.stderr);
         request = _load_request();
+        op = str(request.get("operation", "optimize_input"));
+        print("[ringtail_worker] starting operation=" + op, file=sys.stderr);
         result = run_optimization_request(request);
+        print("[ringtail_worker] optimization finished; emitting JSON result to stdout", file=sys.stderr);
         print(json.dumps(result));
     } except Exception as e {
         failure = {

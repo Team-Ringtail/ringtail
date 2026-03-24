@@ -1,247 +1,176 @@
 # Ringtail - AI Agent-Based Code Optimizer
 # Main application entry point
+#
+# Public functions below become REST endpoints via `jac start main.jac`.
+# Implementation lives in src/api/ modules; main.jac re-exports them so
+# the Jac server exposes a flat endpoint namespace.
 
-import importlib;
-
-import from src.api.optimization_requests { run_optimization_request, get_optimization_operation_contract }
 cl import "./styles.css";
 
-# Public functions become REST endpoints automatically with jac start
-def:pub health -> dict {
-    return {"status": "healthy", "service": "ringtail", "version": "0.1.0"};
+# --- Optimization -----------------------------------------------------------
+import from src.api.optimization_requests {
+    run_optimization_request,
+    get_optimization_operation_contract
 }
 
-def:pub hello(name: str = "Ringtail") -> dict {
-    return {"message": f"Hello from {name}!", "status": "ok"};
-}
-
-
-def:pub optimize_sync(request: dict) -> dict {
+def:pub optimize_sync(request: dict) -> dict | list {
     return run_optimization_request(request);
 }
-
 
 def:pub get_optimization_contract -> dict {
     return get_optimization_operation_contract();
 }
 
+# --- Jobs --------------------------------------------------------------------
+import from src.api.jobs_api {
+    submit_optimization_job as _jobs_submit_optimization_job,
+    get_optimization_job as _jobs_get_optimization_job,
+    run_repo_agent_sync as _jobs_run_repo_agent_sync,
+    submit_repo_agent_job as _jobs_submit_repo_agent_job,
+    get_repo_agent_job as _jobs_get_repo_agent_job,
+    get_recent_jobs as _jobs_get_recent_jobs
+}
 
 def:pub submit_optimization_job(request: dict) -> dict {
-    mod = importlib.import_module("src.core.async_jobs");
-    submit_job = getattr(mod, "submit_job");
-    return submit_job(request);
+    return _jobs_submit_optimization_job(request);
 }
-
 
 def:pub get_optimization_job(job_id: str) -> dict {
-    mod = importlib.import_module("src.core.async_jobs");
-    get_job = getattr(mod, "get_job");
-    return get_job(job_id);
+    return _jobs_get_optimization_job(job_id);
 }
-
 
 def:pub run_repo_agent_sync(request: dict) -> dict {
-    payload = dict(request);
-    payload["operation"] = "run_repo_agent_job";
-    return run_optimization_request(payload);
+    return _jobs_run_repo_agent_sync(request);
 }
-
 
 def:pub submit_repo_agent_job(request: dict) -> dict {
-    payload = dict(request);
-    payload["operation"] = "run_repo_agent_job";
-    # Auto-resolve installation_id from session when not explicitly provided
-    session_token = payload.get("session_token", "");
-    auth = payload.get("auth", {});
-    if auth is None or not isinstance(auth, dict) {
-        auth = {};
-    }
-    if session_token != "" and "installation_id" not in auth {
-        sessions = importlib.import_module("src.core.session_store");
-        install = getattr(sessions, "get_installation_for_session")(session_token);
-        if install is not None {
-            auth["installation_id"] = install["installation_id"];
-            payload["auth"] = auth;
-        }
-    }
-    return submit_optimization_job(payload);
+    return _jobs_submit_repo_agent_job(request);
 }
-
 
 def:pub get_repo_agent_job(job_id: str) -> dict {
-    return get_optimization_job(job_id);
+    return _jobs_get_repo_agent_job(job_id);
 }
 
+def:pub get_recent_jobs(limit: int = 10) -> list {
+    return _jobs_get_recent_jobs(limit);
+}
+
+# --- GitHub ------------------------------------------------------------------
+import from src.api.github_api {
+    get_github_app_install_info as _gh_get_github_app_install_info,
+    handle_github_app_install_callback as _gh_handle_github_app_install_callback,
+    verify_github_repo_access as _gh_verify_github_repo_access,
+    get_github_login_url as _gh_get_github_login_url,
+    exchange_github_code as _gh_exchange_github_code,
+    get_session as _gh_get_session,
+    logout as _gh_logout,
+    save_github_installation as _gh_save_github_installation
+}
 
 def:pub get_github_app_install_info(state: str = "") -> dict {
-    mod = importlib.import_module("src.core.github_repo_service");
-    install_info = getattr(mod, "get_github_app_install_info");
-    return install_info(state if state != "" else None, None);
+    return _gh_get_github_app_install_info(state);
 }
-
 
 def:pub handle_github_app_install_callback(
     installation_id: int,
     setup_action: str = "",
     state: str = ""
 ) -> dict {
-    mod = importlib.import_module("src.core.github_repo_service");
-    callback = getattr(mod, "handle_github_app_install_callback");
-    return callback(
+    return _gh_handle_github_app_install_callback(
         installation_id,
-        setup_action if setup_action != "" else None,
-        state if state != "" else None,
-        None
+        setup_action,
+        state
     );
 }
-
 
 def:pub verify_github_repo_access(request: dict) -> dict {
-    mod = importlib.import_module("src.core.github_repo_service");
-    verify_access = getattr(mod, "verify_repo_access");
-    auth = request.get("auth", {});
-    if auth is None or not isinstance(auth, dict) {
-        auth = {};
-    }
-    return verify_access(
-        str(request.get("repo_url", "")),
-        dict(auth),
-        request.get("token", None)
-    );
+    return _gh_verify_github_repo_access(request);
 }
-
 
 def:pub get_github_login_url(redirect_uri: str = "") -> dict {
-    mod = importlib.import_module("src.core.github_oauth");
-    return getattr(mod, "get_login_url")(redirect_uri);
+    return _gh_get_github_login_url(redirect_uri);
 }
-
 
 def:pub exchange_github_code(code: str, state: str) -> dict {
-    oauth = importlib.import_module("src.core.github_oauth");
-    sessions = importlib.import_module("src.core.session_store");
-    result = getattr(oauth, "exchange_code")(code, state);
-    if "error" in result {
-        return result;
-    }
-    session = getattr(sessions, "create_session")(result["github_user"]);
-    return {
-        "session_token": session["session_token"],
-        "github_login": session["github_login"],
-        "github_user_id": session["github_user_id"],
-        "github_avatar_url": session.get("github_avatar_url", "")
-    };
+    return _gh_exchange_github_code(code, state);
 }
-
 
 def:pub get_session(session_token: str) -> dict {
-    mod = importlib.import_module("src.core.session_store");
-    session = getattr(mod, "validate_session")(session_token);
-    if session is None {
-        return {"error": "Invalid or expired session"};
-    }
-    install = getattr(mod, "get_installation")(session["github_user_id"]);
-    if install is None {
-        install = {};
-    }
-    return {
-        "github_login": session["github_login"],
-        "github_user_id": session["github_user_id"],
-        "github_avatar_url": session.get("github_avatar_url", ""),
-        "installation": install
-    };
+    return _gh_get_session(session_token);
 }
-
 
 def:pub logout(session_token: str) -> dict {
-    mod = importlib.import_module("src.core.session_store");
-    getattr(mod, "delete_session")(session_token);
-    return {"success": True};
+    return _gh_logout(session_token);
 }
 
-
-def:pub save_github_installation(session_token: str, installation_id: int, account_login: str = "") -> dict {
-    sessions = importlib.import_module("src.core.session_store");
-    session = getattr(sessions, "validate_session")(session_token);
-    if session is None {
-        return {"error": "Invalid or expired session"};
-    }
-    record = getattr(sessions, "save_installation")(
-        session["github_user_id"],
+def:pub save_github_installation(
+    session_token: str,
+    installation_id: int,
+    account_login: str = ""
+) -> dict {
+    return _gh_save_github_installation(
+        session_token,
         installation_id,
         account_login
     );
-    return {"success": True, "installation": record};
 }
 
+# --- Diagnostics -------------------------------------------------------------
+import from src.api.diagnostics_api {
+    health as _diag_health,
+    hello as _diag_hello,
+    get_auth_readiness as _diag_get_auth_readiness,
+    get_config_doctor as _diag_get_config_doctor,
+    get_latest_run as _diag_get_latest_run
+}
+
+def:pub health -> dict {
+    return _diag_health();
+}
+
+def:pub hello(name: str = "Ringtail") -> dict {
+    return _diag_hello(name);
+}
 
 def:pub get_auth_readiness -> dict {
-    mod = importlib.import_module("src.core.product_support");
-    func = getattr(mod, "get_auth_readiness");
-    return func();
+    return _diag_get_auth_readiness();
 }
-
 
 def:pub get_config_doctor -> dict {
-    mod = importlib.import_module("src.core.product_support");
-    func = getattr(mod, "config_doctor");
-    return func();
+    return _diag_get_config_doctor();
 }
-
-
-def:pub get_recent_jobs(limit: int = 10) -> list {
-    mod = importlib.import_module("src.core.product_support");
-    func = getattr(mod, "list_recent_jobs");
-    return func(limit);
-}
-
 
 def:pub get_latest_run(kind: str = "any") -> dict {
-    mod = importlib.import_module("src.core.run_registry");
-    func = getattr(mod, "get_latest_run");
-    return func(kind);
+    return _diag_get_latest_run(kind);
 }
 
+# --- Demo / Benchmarks -------------------------------------------------------
+import from src.api.demo_api {
+    get_ranked_demo_suite_catalog as _demo_get_ranked_demo_suite_catalog,
+    get_ranked_demo_benchmarks as _demo_get_ranked_demo_benchmarks,
+    get_latest_ranked_demo_suite as _demo_get_latest_ranked_demo_suite,
+    get_ranked_demo_job_progress as _demo_get_ranked_demo_job_progress
+}
 
 def:pub get_ranked_demo_suite_catalog(benchmark_id: str = "") -> dict {
-    mod = importlib.import_module("src.core.ranked_demo_suite");
-    func = getattr(mod, "get_demo_suite_catalog");
-    if benchmark_id != "" {
-        return func(benchmark_id);
-    }
-    return func(None);
+    return _demo_get_ranked_demo_suite_catalog(benchmark_id);
 }
-
 
 def:pub get_ranked_demo_benchmarks -> dict {
-    mod = importlib.import_module("src.core.ranked_demo_suite");
-    func = getattr(mod, "get_demo_benchmarks");
-    return func();
+    return _demo_get_ranked_demo_benchmarks();
 }
-
 
 def:pub get_latest_ranked_demo_suite -> dict {
-    mod = importlib.import_module("src.core.ranked_demo_suite");
-    func = getattr(mod, "get_latest_demo_suite_result");
-    return func();
+    return _demo_get_latest_ranked_demo_suite();
 }
-
 
 def:pub get_ranked_demo_job_progress(job_id: str) -> dict {
-    mod = importlib.import_module("src.core.ranked_demo_suite");
-    func = getattr(mod, "get_demo_job_progress");
-    return func(job_id);
+    return _demo_get_ranked_demo_job_progress(job_id);
 }
 
-
-walker test_walker {
-    has message: str = "Walker is working";
-
-    can with entry {
-        report {"walker_message": self.message, "status": "ok"};
-    }
-}
-
+# --- Dashboard UI ------------------------------------------------------------
+# Client HTTP: ringtail_* helpers POST to /function/<name>. Component must stay
+# in this entry module so `jac start` registers `app` (submodules omit JSX in Python).
 
 cl def:pub app -> JsxElement {
     has healthStatus: dict = {};
@@ -271,6 +200,9 @@ cl def:pub app -> JsxElement {
     has pasteEnableRunLog: bool = True;
     has pasteJobId: str = "";
     has pasteJobStatus: str = "";
+    has pasteActivityText: str = "Submit a job to stream live status and run-log events from the server.";
+    has pasteRunLogPath: str = "";
+    has pasteRunId: str = "";
     has pasteError: str = "";
     has pasteImprovementRatio: str = "";
     has pasteExecutionBeforeMs: str = "";
@@ -345,14 +277,198 @@ cl def:pub app -> JsxElement {
     has demoCard3Optimized: str = "";
     has pollingInitialized: bool = False;
 
-    def _value(data: any, key: str, fallback: any) -> any {
+    def _http_unwrap_response(raw: dict | list | str | int | float | bool | None) -> dict | list | str | int | float | bool | None {
+        if raw is None {
+            return {};
+        }
+        if globalThis.Array.isArray(raw) {
+            return raw;
+        }
+        try {
+            if "data" in raw {
+                data = raw["data"];
+                if data is not None
+                    and (not globalThis.Array.isArray(data))
+                    and ("result" in data) {
+                    return data["result"];
+                }
+            }
+        } except Exception {
+            ignored = "";
+        }
+        return raw;
+    }
+
+    async def ringtail_post_function(name: str, body: dict) -> dict | list | str | int | float | bool | None {
+        origin = str(globalThis.window.location.origin or "");
+        url = origin + "/function/" + name;
+        headers = {};
+        headers["Content-Type"] = "application/json";
+        init = {};
+        init["method"] = "POST";
+        init["headers"] = headers;
+        init["body"] = globalThis.JSON.stringify(body);
+        resp = await globalThis.fetch(url, init);
+        text = await resp.text();
+        parsed: dict | list | str | int | float | bool | None = None;
+        try {
+            parsed = globalThis.JSON.parse(text);
+        } except Exception {
+            return {"error": "invalid_json", "status": resp.status, "raw": text};
+        }
+        if not resp.ok {
+            detail = parsed;
+            try {
+                if parsed is not None
+                    and (not globalThis.Array.isArray(parsed))
+                    and ("detail" in parsed) {
+                    detail = parsed["detail"];
+                }
+            } except Exception {
+                ignored = "";
+            }
+            return {"error": ("http_" + str(resp.status)), "message": str(detail)};
+        }
+        return _http_unwrap_response(parsed);
+    }
+
+    async def ringtail_health -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("health", {});
+    }
+
+    async def ringtail_submit_optimization_job(request: dict) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("submit_optimization_job", {"request": request});
+    }
+
+    async def ringtail_get_optimization_job(job_id: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_optimization_job", {"job_id": job_id});
+    }
+
+    async def ringtail_submit_repo_agent_job(request: dict) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("submit_repo_agent_job", {"request": request});
+    }
+
+    async def ringtail_get_repo_agent_job(job_id: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_repo_agent_job", {"job_id": job_id});
+    }
+
+    async def ringtail_get_github_login_url(redirect_uri: str = "") -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_github_login_url", {"redirect_uri": redirect_uri});
+    }
+
+    async def ringtail_exchange_github_code(code: str, state: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("exchange_github_code", {"code": code, "state": state});
+    }
+
+    async def ringtail_get_session(session_token: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_session", {"session_token": session_token});
+    }
+
+    async def ringtail_logout(session_token: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("logout", {"session_token": session_token});
+    }
+
+    async def ringtail_save_github_installation(
+        session_token: str,
+        installation_id: int,
+        account_login: str = ""
+    ) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function(
+            "save_github_installation",
+            {
+                "session_token": session_token,
+                "installation_id": installation_id,
+                "account_login": account_login
+            }
+        );
+    }
+
+    async def ringtail_get_github_app_install_info(state: str = "") -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_github_app_install_info", {"state": state});
+    }
+
+    async def ringtail_get_ranked_demo_benchmarks -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_ranked_demo_benchmarks", {});
+    }
+
+    async def ringtail_get_ranked_demo_suite_catalog(benchmark_id: str = "") -> dict | list | str | int | float | bool | None {
+        if str(benchmark_id).strip() == "" {
+            return await ringtail_post_function("get_ranked_demo_suite_catalog", {});
+        }
+        return await ringtail_post_function(
+            "get_ranked_demo_suite_catalog",
+            {"benchmark_id": benchmark_id}
+        );
+    }
+
+    async def ringtail_get_latest_ranked_demo_suite -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_latest_ranked_demo_suite", {});
+    }
+
+    async def ringtail_get_ranked_demo_job_progress(job_id: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_ranked_demo_job_progress", {"job_id": job_id});
+    }
+
+    async def ringtail_get_latest_run(kind: str = "any") -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("get_latest_run", {"kind": kind});
+    }
+
+    def _value(
+        data: dict | list | str | int | float | bool | None,
+        key: str,
+        fallback: dict | list | str | int | float | bool | None
+    ) -> dict | list | str | int | float | bool | None {
         if data is None {
             return fallback;
         }
-        if key in data {
-            return data[key];
+        if globalThis.Array.isArray(data) {
+            return fallback;
+        }
+        try {
+            if key in data {
+                return data[key];
+            }
+        } except Exception {
+            ignored = "";
         }
         return fallback;
+    }
+
+    def _coerce_list(value: dict | list | str | int | float | bool | None) {
+        if globalThis.Array.isArray(value) {
+            return value;
+        }
+        return [];
+    }
+
+    def _coerce_plain_object(value: dict | list | str | int | float | bool | None) {
+        if value is None {
+            return {};
+        }
+        if globalThis.Array.isArray(value) {
+            return {};
+        }
+        return value;
+    }
+
+    def _flatten_function_job_payload(raw: dict | list | str | int | float | bool | None) -> dict {
+        base = _coerce_plain_object(raw);
+        if str(_value(base, "job_id", "")) != "" {
+            return base;
+        }
+        data = _coerce_plain_object(_value(base, "data", {}));
+        if str(_value(data, "job_id", "")) != "" {
+            return data;
+        }
+        inner = _coerce_plain_object(_value(data, "result", {}));
+        if str(_value(inner, "job_id", "")) != "" {
+            return inner;
+        }
+        top_result = _coerce_plain_object(_value(base, "result", {}));
+        if str(_value(top_result, "job_id", "")) != "" {
+            return top_result;
+        }
+        return base;
     }
 
     def _format_demo_benchmarks(data: dict) -> str {
@@ -411,7 +527,7 @@ cl def:pub app -> JsxElement {
     }
 
     def _set_theme_attr(theme: str) -> None {
-        if theme not in ["light", "dark"] {
+        if theme != "light" and theme != "dark" {
             return;
         }
         if "document" not in globalThis or globalThis.document is None {
@@ -434,7 +550,7 @@ cl def:pub app -> JsxElement {
         theme = default_theme;
         try {
             saved = str(globalThis.localStorage.getItem("ringtail_theme") or "");
-            if saved in ["light", "dark"] {
+            if saved == "light" or saved == "dark" {
                 theme = saved;
             }
         } except Exception as err {
@@ -546,6 +662,17 @@ cl def:pub app -> JsxElement {
         return "\n".join(lines);
     }
 
+    def _format_error_display(val: dict | list | str | int | float | bool | None) -> str {
+        if val is None {
+            return "";
+        }
+        s = str(val).strip();
+        if s == "" or s == "None" or s == "null" {
+            return "";
+        }
+        return s;
+    }
+
     def _apply_single_latest_run_result(meta: dict) -> None {
         functionName = str(_value(meta, "function_name", ""));
         runId = str(_value(meta, "run_id", "latest-run"));
@@ -655,15 +782,15 @@ cl def:pub app -> JsxElement {
     }
 
     def _apply_demo_result(result: dict) -> None {
-        summary = _value(result, "summary", {});
-        rows = _value(summary, "results", []);
+        summary = _coerce_plain_object(_value(result, "summary", {}));
+        rows = _coerce_list(_value(summary, "results", []));
         demoOverviewSvg = str(_value(result, "suite_overview_svg_base64", ""));
         demoPassCount = str(_value(summary, "pass_count", 0));
         demoTargetCount = str(_value(summary, "target_count", 0));
         demoAverageSpeedup = str(_value(summary, "average_speedup", 0.0));
         demoAverageSaved = str(_value(summary, "average_time_saved_pct", 0.0));
         _clear_selected_targets();
-        selectedTargets = _value(result, "final_ranked_targets", []);
+        selectedTargets = _coerce_list(_value(result, "final_ranked_targets", []));
         if len(selectedTargets) > 0 {
             _set_selected_target(1, selectedTargets[0]);
         }
@@ -674,7 +801,7 @@ cl def:pub app -> JsxElement {
             _set_selected_target(3, selectedTargets[2]);
         }
         _clear_finalists();
-        finalists = _value(result, "per_file_finalists", []);
+        finalists = _coerce_list(_value(result, "per_file_finalists", []));
         if len(finalists) > 0 {
             _set_finalist(1, finalists[0]);
         }
@@ -700,6 +827,9 @@ cl def:pub app -> JsxElement {
     }
 
     def _reset_paste_result() -> None {
+        pasteActivityText = "Submit a job to stream live status and run-log events from the server.";
+        pasteRunLogPath = "";
+        pasteRunId = "";
         pasteError = "";
         pasteImprovementRatio = "";
         pasteExecutionBeforeMs = "";
@@ -766,7 +896,7 @@ cl def:pub app -> JsxElement {
         return text;
     }
 
-    def _set_source_cursor(target: any, pos: int) -> None {
+    def _set_source_cursor(target: dict | None, pos: int) -> None {
         try {
             globalThis.setTimeout(lambda -> None {
                 target.selectionStart = pos;
@@ -814,7 +944,7 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    def handleSourceEditorPaste(e: any) -> None {
+    def handleSourceEditorPaste(e: dict | None) -> None {
         try {
             clipboard = _value(e, "clipboardData", None);
             if clipboard is None {
@@ -841,7 +971,7 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    async def handleSourceEditorKeydown(e: any) -> None {
+    async def handleSourceEditorKeydown(e: dict | None) -> None {
         key = str(_value(e, "key", ""));
         if bool(_value(e, "metaKey", False)) or bool(_value(e, "ctrlKey", False)) {
             if key == "Enter" {
@@ -891,8 +1021,10 @@ cl def:pub app -> JsxElement {
         pasteTestPassed = str(_value(result, "test_passed", False));
         pasteOriginalCode = pasteSubmittedSourceCode != "" and pasteSubmittedSourceCode or pasteSourceCode;
         pasteOptimizedCode = str(_value(result, "optimized_code", ""));
-        if "error" in result {
-            pasteError = str(result["error"]);
+        er = _value(result, "error", None);
+        fe = _format_error_display(er);
+        if fe != "" {
+            pasteError = fe;
         } else {
             pasteError = "";
         }
@@ -933,19 +1065,31 @@ cl def:pub app -> JsxElement {
                     {"call": pasteTestCall, "expected": expected}
                 ];
             }
-            submitted = await submit_optimization_job(payload);
+            submitted = await ringtail_submit_optimization_job(payload);
+            submitted = _flatten_function_job_payload(submitted);
             returned_job_id = str(_value(submitted, "job_id", ""));
             returned_status = str(_value(submitted, "status", "queued"));
-            if returned_job_id == expected_job_id {
-                pasteJobStatus = returned_status;
-            } else {
-                pasteJobStatus = "queued";
+            if returned_job_id == "" {
+                probe = _flatten_function_job_payload(
+                    await ringtail_get_optimization_job(expected_job_id)
+                );
+                probe_id = str(_value(probe, "job_id", ""));
+                probe_st = str(_value(probe, "status", ""));
+                if probe_id != "" and probe_st != "not_found" {
+                    returned_job_id = probe_id;
+                    returned_status = probe_st;
+                }
             }
-            if expected_job_id == "" {
+            if returned_job_id != "" and returned_job_id != expected_job_id {
+                pasteJobId = returned_job_id;
+            }
+            if returned_job_id == "" {
                 pasteJobStatus = "failed";
-                pasteError = str(_value(submitted, "error", "No job ID returned"));
+                fe = _format_error_display(_value(submitted, "error", None));
+                pasteError = fe != "" and fe or "No job ID returned";
             } else {
-                await pollPasteJob();
+                pasteJobStatus = returned_status;
+                await pollPasteJobForce();
             }
         } except Exception as err {
             pasteJobStatus = "failed";
@@ -956,27 +1100,60 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    async def submitPasteJob(e: any) -> None {
-        e.preventDefault();
+    async def submitPasteJob -> None {
         await _submit_paste_job();
     }
 
-    async def pollPasteJob() -> None {
-        if pasteJobId == "" or pasteJobStatus in ["succeeded", "failed", "not_found", ""] {
+    async def pollPasteJob -> None {
+        await _poll_paste_job_impl(False);
+    }
+
+    async def pollPasteJobForce -> None {
+        await _poll_paste_job_impl(True);
+    }
+
+    async def _poll_paste_job_impl(force: bool) -> None {
+        if pasteJobId == "" {
             return;
         }
-        result = await get_optimization_job(pasteJobId);
+        if not force {
+            if pasteJobStatus in ["succeeded", "not_found"] {
+                return;
+            }
+            if pasteJobStatus == "failed" {
+                return;
+            }
+            if pasteJobStatus == "" {
+                return;
+            }
+        }
+        result = await ringtail_get_optimization_job(pasteJobId);
+        result = _flatten_function_job_payload(result);
         pasteJobStatus = str(_value(result, "status", "running"));
+        pasteRunId = str(_value(result, "run_id", ""));
+        pasteRunLogPath = str(_value(result, "run_log_path", ""));
+        act_lines = _coerce_list(_value(result, "activity_log_lines", []));
+        if len(act_lines) > 0 {
+            pasteActivityText = _format_log_text(act_lines);
+        }
+        if pasteJobStatus in ["queued", "running", "submitting"] {
+            pasteError = "";
+        }
         if pasteJobStatus == "succeeded" {
-            _apply_paste_result(_value(result, "result", {}));
+            _apply_paste_result(_coerce_plain_object(_value(result, "result", {})));
         }
         if pasteJobStatus == "failed" {
-            pasteError = str(_value(result, "error", "Optimization job failed"));
+            fe = _format_error_display(_value(result, "error", None));
+            pasteError = fe != "" and fe or "Optimization job failed";
+        }
+        if pasteJobStatus == "not_found" {
+            fe = _format_error_display(_value(result, "error", None));
+            pasteError = fe != "" and fe or "Job not found on server";
         }
     }
 
     async def handleGithubLogin() -> None {
-        result = await get_github_login_url("");
+        result = await ringtail_get_github_login_url("");
         url = _value(result, "url", "");
         if url != "" {
             globalThis.window.location.href = url;
@@ -1015,7 +1192,7 @@ cl def:pub app -> JsxElement {
             uiMessage = "OAuth callback missing code or state.";
             return;
         }
-        result = await exchange_github_code(code, state);
+        result = await ringtail_exchange_github_code(code, state);
         if "error" in result {
             uiMessage = str(result["error"]);
             return;
@@ -1038,7 +1215,7 @@ cl def:pub app -> JsxElement {
         if saved == "" {
             return;
         }
-        result = await get_session(saved);
+        result = await ringtail_get_session(saved);
         if "error" in result {
             _clear_session_cookie();
             return;
@@ -1056,7 +1233,7 @@ cl def:pub app -> JsxElement {
 
     async def handleLogout() -> None {
         if sessionToken != "" {
-            await logout(sessionToken);
+            await ringtail_logout(sessionToken);
         }
         _clear_session_cookie();
         sessionToken = "";
@@ -1068,7 +1245,7 @@ cl def:pub app -> JsxElement {
     }
 
     async def handleInstallApp() -> None {
-        result = await get_github_app_install_info(sessionToken);
+        result = await ringtail_get_github_app_install_info(sessionToken);
         url = _value(result, "install_url", "");
         if url != "" {
             globalThis.window.location.href = url;
@@ -1081,7 +1258,7 @@ cl def:pub app -> JsxElement {
         if sessionToken == "" {
             return;
         }
-        result = await get_session(sessionToken);
+        result = await ringtail_get_session(sessionToken);
         iid = int(_value(_value(result, "installation", {}), "installation_id", 0));
         if iid != 0 {
             installationId = iid;
@@ -1097,7 +1274,7 @@ cl def:pub app -> JsxElement {
         if sessionToken == "" {
             stateToken = _get_query_param("state");
             if stateToken != "" {
-                saved = await get_session(stateToken);
+                saved = await ringtail_get_session(stateToken);
                 if "error" not in saved {
                     sessionToken = stateToken;
                     githubLogin = str(_value(saved, "github_login", ""));
@@ -1110,7 +1287,7 @@ cl def:pub app -> JsxElement {
             uiMessage = "Session expired. Please sign in again.";
             return;
         }
-        result = await save_github_installation(sessionToken, int(iid), "");
+        result = await ringtail_save_github_installation(sessionToken, int(iid), "");
         if _value(result, "success", False) {
             installationId = int(iid);
         }
@@ -1118,8 +1295,7 @@ cl def:pub app -> JsxElement {
         activeTab = "repo";
     }
 
-    async def submitRepoJob(e: any) -> None {
-        e.preventDefault();
+    async def submitRepoJob -> None {
         repoJobStatus = "submitting";
         repoJobResult = "";
         uiMessage = "";
@@ -1133,7 +1309,7 @@ cl def:pub app -> JsxElement {
             if repoTestCommand != "" {
                 payload["test_command"] = repoTestCommand;
             }
-            submitted = await submit_repo_agent_job(payload);
+            submitted = await ringtail_submit_repo_agent_job(payload);
             repoJobId = str(_value(submitted, "job_id", ""));
             repoJobStatus = str(_value(submitted, "status", "queued"));
             if repoJobId == "" {
@@ -1151,7 +1327,7 @@ cl def:pub app -> JsxElement {
         if repoJobId == "" or repoJobStatus in ["succeeded", "failed", ""] {
             return;
         }
-        result = await get_repo_agent_job(repoJobId);
+        result = await ringtail_get_repo_agent_job(repoJobId);
         repoJobStatus = str(_value(result, "status", "running"));
         if repoJobStatus == "succeeded" {
             repoJobResult = "Optimization complete. Check the repo for a new PR or preview.";
@@ -1162,11 +1338,11 @@ cl def:pub app -> JsxElement {
     }
 
     async def refreshBenchmarkContext() -> None {
-        benchmarks = await get_ranked_demo_benchmarks();
-        catalog = await get_ranked_demo_suite_catalog(demoBenchmarkId);
-        demoBenchmarkText = _format_demo_benchmarks(benchmarks);
+        benchmarks = await ringtail_get_ranked_demo_benchmarks();
+        catalog = await ringtail_get_ranked_demo_suite_catalog(demoBenchmarkId);
+        demoBenchmarkText = _format_demo_benchmarks(_coerce_plain_object(benchmarks));
         _clear_demo_files();
-        files = _value(catalog, "files", []);
+        files = _coerce_list(_value(catalog, "files", []));
         if len(files) > 0 {
             _set_demo_file(1, files[0]);
         }
@@ -1186,19 +1362,20 @@ cl def:pub app -> JsxElement {
         if selectedKind == "" {
             selectedKind = "any";
         }
-        latest = await get_latest_run(selectedKind);
+        latest = await ringtail_get_latest_run(selectedKind);
         if not bool(_value(latest, "success", False)) {
             uiMessage = str(_value(latest, "error", "Could not locate latest run for kind '" + selectedKind + "'"));
             return;
         }
-        latestMeta = _value(latest, "latest", {});
+        latestMeta = _coerce_plain_object(_value(latest, "latest", {}));
         latestKind = str(_value(latestMeta, "kind", ""));
         latestJobId = str(_value(latestMeta, "job_id", ""));
         latestRunId = str(_value(latestMeta, "run_id", ""));
         if latestKind == "ranked_demo_suite" and latestJobId != "" {
-            progress = await get_ranked_demo_job_progress(latestJobId);
-            if "result" in progress {
-                _apply_demo_result(progress["result"]);
+            progress = await ringtail_get_ranked_demo_job_progress(latestJobId);
+            prog_latest = _coerce_plain_object(progress);
+            if "result" in prog_latest {
+                _apply_demo_result(_coerce_plain_object(prog_latest["result"]));
                 demoRunStatus = "succeeded";
                 demoRunStage = "Showing latest benchmark run";
                 demoProgressPct = 100;
@@ -1219,16 +1396,17 @@ cl def:pub app -> JsxElement {
             }
             return;
         }
-        result = await get_latest_ranked_demo_suite();
-        if bool(_value(result, "success", False)) or "summary" in result {
-            _apply_demo_result(result);
+        result = await ringtail_get_latest_ranked_demo_suite();
+        result_dict = _coerce_plain_object(result);
+        if bool(_value(result_dict, "success", False)) or "summary" in result_dict {
+            _apply_demo_result(result_dict);
             demoRunStatus = "succeeded";
             demoRunStage = "Showing latest verified benchmark run";
             demoProgressPct = 100;
             demoView = "results";
             return;
         }
-        uiMessage = str(_value(result, "error", "Could not load latest benchmark result"));
+        uiMessage = str(_value(result_dict, "error", "Could not load latest benchmark result"));
     }
 
     async def _start_demo_run() -> None {
@@ -1254,7 +1432,7 @@ cl def:pub app -> JsxElement {
                 "top_k": int(demoTopK),
                 "per_file_k": int(demoPerFileK)
             };
-            await submit_optimization_job(payload);
+            await ringtail_submit_optimization_job(payload);
             await pollDemoProgress();
         } except Exception as err {
             demoRunStatus = "failed";
@@ -1265,8 +1443,7 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    async def startDemoRun(e: any) -> None {
-        e.preventDefault();
+    async def startDemoRun -> None {
         await _start_demo_run();
     }
 
@@ -1274,19 +1451,20 @@ cl def:pub app -> JsxElement {
         if demoJobId == "" {
             return;
         }
-        progress = await get_ranked_demo_job_progress(demoJobId);
-        demoRunStatus = str(_value(progress, "job_status", _value(progress, "status", "running")));
-        demoRunStage = str(_value(progress, "stage", "Running benchmark"));
-        demoProgressPct = int(_value(progress, "progress_pct", 0));
-        demoLogText = _format_log_text(_value(progress, "log_lines", []));
-        if str(_value(progress, "job_status", "")) == "succeeded" and "result" in progress {
-            _apply_demo_result(_value(progress, "result", {}));
+        progress = await ringtail_get_ranked_demo_job_progress(demoJobId);
+        prog = _coerce_plain_object(progress);
+        demoRunStatus = str(_value(prog, "job_status", _value(prog, "status", "running")));
+        demoRunStage = str(_value(prog, "stage", "Running benchmark"));
+        demoProgressPct = int(_value(prog, "progress_pct", 0));
+        demoLogText = _format_log_text(_coerce_list(_value(prog, "log_lines", [])));
+        if str(_value(prog, "job_status", "")) == "succeeded" and "result" in prog {
+            _apply_demo_result(_coerce_plain_object(_value(prog, "result", {})));
             demoProgressPct = 100;
             demoView = "results";
         }
-        if str(_value(progress, "job_status", "")) == "failed" {
+        if str(_value(prog, "job_status", "")) == "failed" {
             demoRunStage = "Benchmark run failed";
-            uiMessage = str(_value(progress, "error", _value(progress, "job_error", "Benchmark run failed")));
+            uiMessage = str(_value(prog, "error", _value(prog, "job_error", "Benchmark run failed")));
         }
     }
 
@@ -1294,6 +1472,12 @@ cl def:pub app -> JsxElement {
         if demoView == "running" and demoJobId != "" {
             await pollDemoProgress();
         }
+    }
+
+    async def _run_background_pollers() -> None {
+        await tickDemoPolling();
+        await pollRepoJob();
+        await pollPasteJob();
     }
 
     async def resetToSetup() -> None {
@@ -1306,12 +1490,13 @@ cl def:pub app -> JsxElement {
 
     async can with entry {
         try {
-            currentTheme = _load_theme("dark");
-            _set_theme_attr(currentTheme);
+            loaded_theme = _load_theme("dark");
+            currentTheme = loaded_theme;
+            _set_theme_attr(loaded_theme);
             if demoServerUrl == "" {
                 demoServerUrl = str(globalThis.location.origin);
             }
-            healthStatus = await health();
+            healthStatus = await ringtail_health();
             await restoreSession();
             if _get_query_param("installation_id") != "" {
                 await handleInstallCallback();
@@ -1322,7 +1507,8 @@ cl def:pub app -> JsxElement {
             await refreshBenchmarkContext();
             if not pollingInitialized {
                 pollingInitialized = True;
-                globalThis.setInterval(lambda -> None { tickDemoPolling(); pollRepoJob(); pollPasteJob(); }, 3000);
+                # Subscribes all tabs to periodic refresh (paste job activity + run-log tail from server).
+                globalThis.setInterval(lambda -> None { _run_background_pollers(); }, 2000);
             }
         } except Exception as e {
             healthStatus = {"status": "error", "message": str(e)};
@@ -1376,7 +1562,10 @@ cl def:pub app -> JsxElement {
                     <div className="hero-card" role="region" aria-label="Paste optimizer form">
                         <h2>Paste Code To Optimize</h2>
                         <p className="hero-subtitle">Submit a single function with an optional test assertion to get measurable before/after runtime feedback.</p>
-                        <form className="form-grid" onSubmit={lambda e: any -> None { submitPasteJob(e); }}>
+                        <form className="form-grid" onSubmit={lambda e -> None {
+                            try { e.preventDefault(); } except Exception { ignored = ""; }
+                            submitPasteJob();
+                        }}>
                             <label className="field field-full">
                                 <span>Source Code</span>
                                 <textarea className="code-editor"
@@ -1384,26 +1573,26 @@ cl def:pub app -> JsxElement {
                                     spellCheck={False}
                                     wrap="off"
                                     value={pasteSourceCode}
-                                    onChange={lambda e: any -> None { pasteSourceCode = e.target.value; }}
-                                    onPaste={lambda e: any -> None { handleSourceEditorPaste(e); }}
-                                    onKeyDown={lambda e: any -> None { handleSourceEditorKeydown(e); }} />
+                                    onChange={lambda e -> None { pasteSourceCode = e.target.value; }}
+                                    onPaste={lambda e -> None { handleSourceEditorPaste(e); }}
+                                    onKeyDown={lambda e -> None { handleSourceEditorKeydown(e); }} />
                                 <div className="field-help">Shortcuts: Tab indents, Shift+Tab unindents, Cmd/Ctrl+Enter submits. Pasted markdown fences and escaped newline blobs are cleaned automatically.</div>
                             </label>
                             <label className="field">
                                 <span>Function Name</span>
-                                <input value={pasteFunctionName} onChange={lambda e: any -> None { pasteFunctionName = e.target.value; }} />
+                                <input value={pasteFunctionName} onChange={lambda e -> None { pasteFunctionName = e.target.value; }} />
                             </label>
                             <label className="field">
                                 <span>Function Call</span>
-                                <input value={pasteFunctionCall} onChange={lambda e: any -> None { pasteFunctionCall = e.target.value; }} />
+                                <input value={pasteFunctionCall} onChange={lambda e -> None { pasteFunctionCall = e.target.value; }} />
                             </label>
                             <label className="field">
                                 <span>Validation Call (optional)</span>
-                                <input value={pasteTestCall} placeholder="slow_add(5)" onChange={lambda e: any -> None { pasteTestCall = e.target.value; _update_expected_feedback(); }} />
+                                <input value={pasteTestCall} placeholder="slow_add(5)" onChange={lambda e -> None { pasteTestCall = e.target.value; _update_expected_feedback(); }} />
                             </label>
                             <label className="field">
                                 <span>Expected Result (JSON literal, optional)</span>
-                                <input value={pasteExpected} placeholder="10, string, true, null, [1,2]" onChange={lambda e: any -> None { pasteExpected = e.target.value; _update_expected_feedback(); }} />
+                                <input value={pasteExpected} placeholder="10, string, true, null, [1,2]" onChange={lambda e -> None { pasteExpected = e.target.value; _update_expected_feedback(); }} />
                                 <div className="editor-status">
                                     <span className={pasteExpectedStatus == "ok" and "validation-chip ok" or pasteExpectedStatus == "warn" and "validation-chip warn" or "validation-chip"}>
                                         {pasteExpectedStatus == "ok" and "Expected value parsed" or pasteExpectedStatus == "warn" and "Needs attention" or "Optional field"}
@@ -1413,24 +1602,24 @@ cl def:pub app -> JsxElement {
                             </label>
                             <label className="field">
                                 <span>Config Profile</span>
-                                <input value={pasteConfigName} onChange={lambda e: any -> None { pasteConfigName = e.target.value; }} />
+                                <input value={pasteConfigName} onChange={lambda e -> None { pasteConfigName = e.target.value; }} />
                             </label>
                             <label className="field">
                                 <span>Analysis Mode</span>
-                                <select value={pasteAnalysisMode} onChange={lambda e: any -> None { pasteAnalysisMode = e.target.value; }}>
+                                <select value={pasteAnalysisMode} onChange={lambda e -> None { pasteAnalysisMode = e.target.value; }}>
                                     <option value="llm">llm</option>
                                     <option value="heuristic">heuristic</option>
                                 </select>
                             </label>
                             <label className="checkbox-field">
-                                <input type="checkbox" checked={pasteEnableRunLog} onChange={lambda e: any -> None { pasteEnableRunLog = e.target.checked; }} />
+                                <input type="checkbox" checked={pasteEnableRunLog} onChange={lambda e -> None { pasteEnableRunLog = e.target.checked; }} />
                                 <span>Enable run logs</span>
                             </label>
                             <div className="panel-actions field-full">
                                 <button type="submit" className="primary-button" disabled={pasteSubmitting or pasteJobStatus in ["queued", "running", "submitting"]}>
                                     {pasteSubmitting and "Submitting..." or pasteJobStatus in ["queued", "running"] and "Job In Progress" or "Optimize Pasted Code"}
                                 </button>
-                                {pasteJobId != "" and <button type="button" className="secondary-button" disabled={pasteSubmitting} onClick={lambda -> None { pollPasteJob(); }}>Refresh Status</button>}
+                                {pasteJobId != "" and <button type="button" className="secondary-button" disabled={pasteSubmitting} onClick={lambda -> None { pollPasteJobForce(); }}>Refresh now</button>}
                             </div>
                         </form>
                     </div>
@@ -1454,11 +1643,21 @@ cl def:pub app -> JsxElement {
                         </div>
                     </div>
 
+                    <div className="section field-full" style={{"marginTop": "0.5rem"}}>
+                        <h3>Live activity</h3>
+                        <p className="field-help" style={{"marginBottom": "0.6rem"}}>
+                            The dashboard polls the server about every 2s while a job is queued or running and appends the latest lines from the structured run log when available (no manual refresh needed).
+                        </p>
+                        <pre className="result-box log-feed" role="log" aria-live="polite">{pasteActivityText}</pre>
+                    </div>
+
                     <div className="demo-layout">
                         <div className="section">
                             <h3>Job Details</h3>
                             <div className="simple-list">
                                 {pasteJobId != "" and <div className="simple-list-item">Job ID: {pasteJobId}</div>}
+                                {pasteRunId != "" and <div className="simple-list-item">Run ID: {pasteRunId}</div>}
+                                {pasteRunLogPath != "" and <div className="simple-list-item">Run log file: {pasteRunLogPath}</div>}
                                 {pasteTerminationReason != "" and <div className="simple-list-item">Termination: {pasteTerminationReason}</div>}
                                 {pasteError != "" and <div className="simple-list-item">Error: {pasteError}</div>}
                             </div>
@@ -1511,25 +1710,29 @@ cl def:pub app -> JsxElement {
                             <div className="hero-card">
                                 <h2>Optimize a Repository</h2>
                                 <p className="hero-subtitle">Point Ringtail at a repo, describe what to optimize, and we'll open a PR with the results.</p>
-                                <form className="form-grid" onSubmit={lambda e: any -> None { submitRepoJob(e); }}>
+                                <form className="form-grid" onSubmit={lambda e -> None {
+                                    try { e.preventDefault(); } except Exception { ignored = ""; }
+                                    submitRepoJob();
+                                }}>
                                     <label className="field field-full">
                                         <span>Repository URL</span>
-                                        <input value={repoUrl} placeholder="https://github.com/org/repo" onChange={lambda e: any -> None { repoUrl = e.target.value; }} />
+                                        <input value={repoUrl} placeholder="https://github.com/org/repo" onChange={lambda e -> None { repoUrl = e.target.value; }} />
                                     </label>
                                     <label className="field field-full">
                                         <span>Optimization Prompt</span>
-                                        <textarea rows={4} value={repoPrompt} onChange={lambda e: any -> None { repoPrompt = e.target.value; }} />
+                                        <textarea rows={4} value={repoPrompt} onChange={lambda e -> None { repoPrompt = e.target.value; }} />
                                     </label>
                                     <label className="field">
                                         <span>Test Command (optional)</span>
-                                        <input value={repoTestCommand} placeholder="python -m pytest tests" onChange={lambda e: any -> None { repoTestCommand = e.target.value; }} />
+                                        <input value={repoTestCommand} placeholder="python -m pytest tests" onChange={lambda e -> None { repoTestCommand = e.target.value; }} />
                                     </label>
                                     <label className="checkbox-field">
-                                        <input type="checkbox" checked={repoPublishPr} onChange={lambda e: any -> None { repoPublishPr = e.target.checked; }} />
+                                        <input type="checkbox" checked={repoPublishPr} onChange={lambda e -> None { repoPublishPr = e.target.checked; }} />
                                         <span>Open a real PR</span>
                                     </label>
                                     <div className="panel-actions field-full">
                                         <button type="submit" className="primary-button">Submit Optimization Job</button>
+                                        {repoJobId != "" and <button type="button" className="secondary-button" onClick={lambda -> None { pollRepoJob(); }}>Refresh Job Status</button>}
                                     </div>
                                 </form>
                             </div>
@@ -1562,24 +1765,27 @@ cl def:pub app -> JsxElement {
                         <div className="hero-card">
                             <h2>Choose A Benchmark</h2>
                             <p className="hero-subtitle">Pick an engineer-designed benchmark suite, choose how many ranked targets to optimize, and run the demo.</p>
-                            <form className="form-grid" onSubmit={lambda e: any -> None { startDemoRun(e); }}>
+                            <form className="form-grid" onSubmit={lambda e -> None {
+                                try { e.preventDefault(); } except Exception { ignored = ""; }
+                                startDemoRun();
+                            }}>
                                 <label className="field field-full">
                                     <span>Benchmark</span>
-                                    <select value={demoBenchmarkId} onChange={lambda e: any -> None { demoBenchmarkId = e.target.value; refreshBenchmarkContext(); }}>
+                                    <select value={demoBenchmarkId} onChange={lambda e -> None { demoBenchmarkId = e.target.value; refreshBenchmarkContext(); }}>
                                         <option value="ranked-pitch-repo">Ranked Pitch Repo</option>
                                     </select>
                                 </label>
                                 <label className="field">
                                     <span>Top K Final Targets</span>
-                                    <input type="number" min="1" step="1" value={demoTopK} onChange={lambda e: any -> None { demoTopK = e.target.value; }} />
+                                    <input type="number" min="1" step="1" value={demoTopK} onChange={lambda e -> None { demoTopK = e.target.value; }} />
                                 </label>
                                 <label className="field">
                                     <span>Per-File Finalists</span>
-                                    <input type="number" min="1" step="1" value={demoPerFileK} onChange={lambda e: any -> None { demoPerFileK = e.target.value; }} />
+                                    <input type="number" min="1" step="1" value={demoPerFileK} onChange={lambda e -> None { demoPerFileK = e.target.value; }} />
                                 </label>
                                 <label className="field">
                                     <span>Latest Result Type</span>
-                                    <select value={demoLatestBrowseKind} onChange={lambda e: any -> None { demoLatestBrowseKind = e.target.value; }}>
+                                    <select value={demoLatestBrowseKind} onChange={lambda e -> None { demoLatestBrowseKind = e.target.value; }}>
                                         <option value="any">Any</option>
                                         <option value="ranked_demo_suite">Ranked Demo Suite</option>
                                         <option value="file_optimize">File Optimize</option>
@@ -1800,6 +2006,14 @@ cl def:pub app -> JsxElement {
             }
         </div>
     ;
+}
+# --- Walker (test / demo) ----------------------------------------------------
+walker test_walker {
+    has message: str = "Walker is working";
+
+    can with entry {
+        report {"walker_message": self.message, "status": "ok"};
+    }
 }
 
 # Main entry point for direct execution (jac run)
