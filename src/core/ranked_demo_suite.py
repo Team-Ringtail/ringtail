@@ -314,6 +314,12 @@ def _progress_path(job_id: str) -> Path:
 
 def _write_progress(job_id: str, payload: dict[str, Any]) -> None:
     _progress_path(job_id).write_text(json.dumps(payload, indent=2, sort_keys=True))
+    try:
+        from src.core.job_event_hub import get_hub
+
+        get_hub().notify(job_id)
+    except Exception:
+        pass
 
 
 def _read_progress(job_id: str) -> dict[str, Any] | None:

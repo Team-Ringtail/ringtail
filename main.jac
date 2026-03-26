@@ -22,13 +22,17 @@ def:pub get_optimization_contract -> dict {
 }
 
 # --- Jobs --------------------------------------------------------------------
+# jac-scale treats only entry-module `def:pub` as public HTTP routes; importing
+# `def:pub` symbols from submodules without re-declaring them here leaves them
+# JWT-protected (401 from the browser). Mirror the demo_api / diagnostics_api pattern.
 import from src.api.jobs_api {
     submit_optimization_job as _jobs_submit_optimization_job,
     get_optimization_job as _jobs_get_optimization_job,
     run_repo_agent_sync as _jobs_run_repo_agent_sync,
     submit_repo_agent_job as _jobs_submit_repo_agent_job,
     get_repo_agent_job as _jobs_get_repo_agent_job,
-    get_recent_jobs as _jobs_get_recent_jobs
+    get_recent_jobs as _jobs_get_recent_jobs,
+    wait_job_notification as _jobs_wait_job_notification,
 }
 
 def:pub submit_optimization_job(request: dict) -> dict {
@@ -53,6 +57,14 @@ def:pub get_repo_agent_job(job_id: str) -> dict {
 
 def:pub get_recent_jobs(limit: int = 10) -> list {
     return _jobs_get_recent_jobs(limit);
+}
+
+def:pub wait_job_notification(
+    job_id: str,
+    since_seq: int = 0,
+    timeout_s: float = 25.0
+) -> dict {
+    return _jobs_wait_job_notification(job_id, since_seq, timeout_s);
 }
 
 # --- GitHub ------------------------------------------------------------------
@@ -276,6 +288,27 @@ cl def:pub app -> JsxElement {
     has demoCard3Original: str = "";
     has demoCard3Optimized: str = "";
     has pollingInitialized: bool = False;
+    # Coalesce duplicate refreshBenchmarkContext calls (e.g. React 18 Strict Mode
+    # double-mount in dev) for the same benchmark_id within a short window.
+    has benchmarkContextRefreshSig: str = "";
+    has benchmarkContextRefreshAtMs: int = 0;
+    has pasteStreamGen: int = 0;
+    has demoStreamSeq: int = 0;
+    has demoStreamGen: int = 0;
+    has repoStreamSeq: int = 0;
+    has repoStreamGen: int = 0;
+    has pasteActivityVersion: int = 0;
+    has demoActivityVersion: int = 0;
+    has liveActivityTextById: dict = {
+        "paste-live-activity-log": "Submit a job to stream live status and run-log events from the server.",
+        "demo-live-log-feed": "Live run events will appear here.",
+    };
+    has liveActivityVersionById: dict = {
+        "paste-live-activity-log": 0,
+        "demo-live-log-feed": 0,
+    };
+    has liveActivityEls: dict = {};
+    has liveActivityDomSyncPending: dict = {};
 
     def _http_unwrap_response(raw: dict | list | str | int | float | bool | None) -> dict | list | str | int | float | bool | None {
         if raw is None {
@@ -311,25 +344,157 @@ cl def:pub app -> JsxElement {
         resp = await globalThis.fetch(url, init);
         text = await resp.text();
         parsed: dict | list | str | int | float | bool | None = None;
+        parsed_js = None;
         try {
-            parsed = globalThis.JSON.parse(text);
+            parsed_js = globalThis.JSON.parse(text);
+            parsed = parsed_js;
         } except Exception {
             return {"error": "invalid_json", "status": resp.status, "raw": text};
         }
+        parsed_plain = parsed_js;
         if not resp.ok {
-            detail = parsed;
+            detail = parsed_plain;
             try {
-                if parsed is not None
-                    and (not globalThis.Array.isArray(parsed))
-                    and ("detail" in parsed) {
-                    detail = parsed["detail"];
+                if parsed_plain is not None
+                    and (not globalThis.Array.isArray(parsed_plain))
+                    and ("detail" in parsed_plain) {
+                    detail = parsed_plain["detail"];
                 }
             } except Exception {
                 ignored = "";
             }
             return {"error": ("http_" + str(resp.status)), "message": str(detail)};
         }
-        return _http_unwrap_response(parsed);
+        def _is_nullish(v) -> bool {
+            # Prefer direct None check; also treat literal JS null/undefined as nullish
+            # (but do NOT treat objects that merely stringify oddly as nullish).
+            if v is None {
+                return True;
+            }
+            try {
+                if globalThis.Object.is(v, globalThis.null) {
+                    return True;
+                }
+            } except Exception { ignored = ""; }
+            try {
+                if globalThis.Object.is(v, globalThis.undefined) {
+                    return True;
+                }
+            } except Exception { ignored = ""; }
+            return False;
+        }
+        def _is_json_nullish(v) -> bool {
+            # Some Jac/JS proxy objects behave oddly for direct comparisons; use
+            # JSON.stringify as a coarse "is this real data?" check.
+            if v is None {
+                return True;
+            }
+            try {
+                sv = str(globalThis.JSON.stringify(v));
+                return sv == "" or sv == "null" or sv == "undefined";
+            } except Exception {
+                return True;
+            }
+        }
+        # The Jaseci HTTP layer can return multiple wrapper shapes. We want the
+        # actual function result object:
+        # - {"ok":true,"type":"response","data":{"result":<X>,"reports":[...]}}
+        # - {"data":{"result":<X>}}
+        # - {"result":<X>}
+        # Fall back to the parsed object if no wrapper is present.
+        def _safe_get(obj, key: str) -> dict | list | str | int | float | bool | None {
+            if obj is None {
+                return None;
+            }
+            if globalThis.Array.isArray(obj) {
+                return None;
+            }
+            try {
+                v = obj[key];
+                if v is None {
+                    return None;
+                }
+                sv = str(v);
+                if sv == "undefined" or sv == "null" {
+                    return None;
+                }
+                return v;
+            } except Exception {
+                ignored = "";
+            }
+            return None;
+        }
+        unwrapped = parsed_plain;
+        # Prefer direct indexing for parsed.data.result (this has proven reliable
+        # in earlier runs), but guard against JS undefined/null.
+        d0 = _safe_get(parsed_plain, "data");
+        r0 = None;
+        r0_direct = None;
+        r0_direct_ok = False;
+        try { r0_direct = parsed_plain["data"]["result"]; r0_direct_ok = True; } except Exception { r0_direct = None; r0_direct_ok = False; }
+        r0_direct_json = "";
+        try { r0_direct_json = str(globalThis.JSON.stringify(r0_direct)); } except Exception { r0_direct_json = ""; }
+        r0_source = "none";
+        globalThis.console.log("r01_direct_json: ", r0_direct_json);
+        if r0_direct_json != "" and r0_direct_json != "null" and r0_direct_json != "undefined" {
+            r0 = r0_direct; 
+            globalThis.console.log("r01: ", r0);
+            r0_source = "direct";
+        } elif d0 is not None and (not globalThis.Array.isArray(d0)) {
+            r0 = _safe_get(d0, "result");
+            globalThis.console.log("r02: ", r0);
+            if r0 is not None { r0_source = "safe"; }
+        }
+        top_r = _safe_get(parsed_plain, "result");
+        globalThis.console.log("top_r: ", top_r);
+        reports0 = None;
+        reports0_len = -1;
+        reports0_r = None;
+        reports0_dr = None;
+        if d0 is not None and (not globalThis.Array.isArray(d0)) {
+            try { reports0 = d0["reports"]; } except Exception { reports0 = None; }
+            try { reports0_len = int(reports0.length); } except Exception { reports0_len = -1; }
+            if reports0_len > 0 {
+                try { reports0_r = reports0[0]["result"]; } except Exception { reports0_r = None; }
+                try { reports0_dr = reports0[0]["data"]["result"]; } except Exception { reports0_dr = None; }
+            }
+        }
+        # Prefer parsed.data.result when present.
+        if r0 is not None {
+            unwrapped = r0;
+        } elif top_r is not None {
+            unwrapped = top_r;
+        } elif not _is_json_nullish(reports0_dr) {
+            # Some responses carry the true result only in reports[0].data.result
+            unwrapped = reports0_dr;
+        } else {
+            # Last resort: return the full parsed envelope rather than `null`
+            # so downstream code can still recover.
+            unwrapped = parsed;
+        }
+        # Normalize potentially-proxied objects into plain JSON.
+        # IMPORTANT: We have runtime evidence that JSON.stringify(unwrapped) can
+        # collapse to "null" even when JSON.stringify(parsed.data.result) is fine.
+        # If we selected the direct path, use the already-good JSON string.
+       unwrapped_json = globalThis.JSON.stringify(unwrapped);
+       globalThis.console.log("unwrapped_json: ", unwrapped_json);
+        try {
+            if r0_source == "direct"
+                and r0_direct_json != ""
+                and r0_direct_json != "null"
+                and r0_direct_json != "undefined" {
+                unwrapped = globalThis.JSON.parse(r0_direct_json);
+            } else {
+                s_unwrapped = globalThis.JSON.stringify(unwrapped);
+                if str(s_unwrapped) != "" and str(s_unwrapped) != "null" and str(s_unwrapped) != "undefined" {
+                    unwrapped = globalThis.JSON.parse(s_unwrapped);
+                }
+            }
+        } except Exception {
+            ignored = "";
+        }
+        globalThis.console.log("unwrapped final: ", unwrapped);
+        return unwrapped;
     }
 
     async def ringtail_health -> dict | list | str | int | float | bool | None {
@@ -413,6 +578,17 @@ cl def:pub app -> JsxElement {
         return await ringtail_post_function("get_latest_run", {"kind": kind});
     }
 
+    async def ringtail_wait_job_notification(
+        job_id: str,
+        since_seq: int,
+        timeout_s: float
+    ) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function(
+            "wait_job_notification",
+            {"job_id": job_id, "since_seq": since_seq, "timeout_s": timeout_s}
+        );
+    }
+
     def _value(
         data: dict | list | str | int | float | bool | None,
         key: str,
@@ -425,9 +601,16 @@ cl def:pub app -> JsxElement {
             return fallback;
         }
         try {
-            if key in data {
-                return data[key];
+            # Use Reflect.get to avoid proxy/indexing quirks.
+            v = globalThis.Reflect.get(data, key);
+            if v is None {
+                return fallback;
             }
+            sv = str(v);
+            if sv == "null" or sv == "undefined" {
+                return fallback;
+            }
+            return v;
         } except Exception {
             ignored = "";
         }
@@ -452,23 +635,38 @@ cl def:pub app -> JsxElement {
     }
 
     def _flatten_function_job_payload(raw: dict | list | str | int | float | bool | None) -> dict {
-        base = _coerce_plain_object(raw);
-        if str(_value(base, "job_id", "")) != "" {
-            return base;
+        # Peel nested {data:{result:...}} / {result:...} until the async job dict
+        # (job_id + activity_log_lines) is at the top. Single-pass flatten missed
+        # double-wrapped /function responses (same class of bug as wait_job unwrap).
+        cur = _coerce_plain_object(raw);
+        try { cur = globalThis.JSON.parse(globalThis.JSON.stringify(cur)); } except Exception { ignored = ""; }
+        peel = 0;
+        while peel < 8 {
+            if str(_value(cur, "job_id", "")) != "" {
+                return cur;
+            }
+            d0 = None;
+            r0 = None;
+            top_r = None;
+            try { d0 = cur["data"]; } except Exception { d0 = None; }
+            if d0 is not None and (not globalThis.Array.isArray(d0)) {
+                try { r0 = d0["result"]; } except Exception { r0 = None; }
+            }
+            try { top_r = cur["result"]; } except Exception { top_r = None; }
+            nxt = None;
+            if r0 is not None and str(r0) != "undefined" and str(r0) != "null" {
+                nxt = r0;
+            } elif top_r is not None and str(top_r) != "undefined" and str(top_r) != "null" {
+                nxt = top_r;
+            }
+            if nxt is None {
+                return cur;
+            }
+            cur = _coerce_plain_object(nxt);
+            try { cur = globalThis.JSON.parse(globalThis.JSON.stringify(cur)); } except Exception { ignored = ""; }
+            peel = peel + 1;
         }
-        data = _coerce_plain_object(_value(base, "data", {}));
-        if str(_value(data, "job_id", "")) != "" {
-            return data;
-        }
-        inner = _coerce_plain_object(_value(data, "result", {}));
-        if str(_value(inner, "job_id", "")) != "" {
-            return inner;
-        }
-        top_result = _coerce_plain_object(_value(base, "result", {}));
-        if str(_value(top_result, "job_id", "")) != "" {
-            return top_result;
-        }
-        return base;
+        return cur;
     }
 
     def _format_demo_benchmarks(data: dict) -> str {
@@ -659,8 +857,76 @@ cl def:pub app -> JsxElement {
         if len(lines) == 0 {
             return "Live run events will appear here.";
         }
-        return "\n".join(lines);
+        # Some payloads stringify newlines; normalize for <pre> display.
+        norm: list = [];
+        for ln in lines {
+            norm.append(str(ln).replace("\\n", "\n"));
+        }
+        out = "\n".join(norm);
+        return out;
     }
+
+    def LiveActivityBox(
+        title: str,
+        help_text: str,
+        pre_id: str,
+        body_text: str,
+        update_version: int = 0,
+        refresh_label: str = "Refresh Now",
+        on_refresh: Any = None,
+        header_right: Any = None,
+    ) -> Any {
+        return <div className="log-card">
+            <div className="log-card-header">
+                <div>
+                    <h3>{title}</h3>
+                    {help_text != "" and <p className="field-help">{help_text}</p>}
+                </div>
+                {header_right is not None and header_right}
+                {on_refresh is not None and
+                    <button className="secondary-button" onClick={lambda -> None { on_refresh(); }}>
+                        {refresh_label}
+                    </button>
+                }
+            </div>
+            <pre
+                key={pre_id}
+                id={pre_id}
+                data-live-id={pre_id}
+                data-activity-version={str(update_version)}
+                className="log-feed"
+                role="log"
+                aria-live="polite"
+                ref={lambda el -> None {
+                    try {
+                        # Register the in-document node; clear on unmount so we never
+                        # hold a detached element (version-based keys used to remount
+                        # and stale the cache).
+                        if el != None {
+                            liveActivityEls[pre_id] = el;
+                            # If live activity was updated before this <pre> mounted,
+                            # catch up immediately by writing the latest cached text.
+                            # This avoids timing where _sync_live_activity_dom runs
+                            # while the tab is not rendered, yielding undefined/null.
+                            try {
+                                latest_txt = _live_activity_text(pre_id, "");
+                                if latest_txt != "" {
+                                    el.textContent = latest_txt;
+                                    el.scrollTop = el.scrollHeight;
+                                }
+                            } except Exception { ignored = ""; }
+                        } else {
+                            try {
+                                globalThis.Reflect.deleteProperty(liveActivityEls, pre_id);
+                            } except Exception { ignored = ""; }
+                        }
+                    } except Exception { ignored = ""; }
+                }}
+            >{body_text}</pre>
+        </div>;
+    }
+
+    # Imperative DOM sync is centralized via reusable activity helpers.
 
     def _format_error_display(val: dict | list | str | int | float | bool | None) -> str {
         if val is None {
@@ -671,6 +937,237 @@ cl def:pub app -> JsxElement {
             return "";
         }
         return s;
+    }
+
+    def _scroll_element_to_bottom(element_id: str) -> None {
+        try {
+            el = globalThis.document.getElementById(element_id);
+            if el != None {
+                el.scrollTop = el.scrollHeight;
+            }
+        } except Exception {
+            ignored = "";
+        }
+    }
+
+    def _sync_live_activity_dom(element_id: str, text: str) -> None {
+        # Target the live in-document node: id is stable; getElementById avoids a
+        # stale liveActivityEls entry pointing at a detached <pre> after remounts.
+        try {
+            el = None;
+            try {
+                el = globalThis.document.getElementById(element_id);
+            } except Exception {
+                el = None;
+            }
+            if el is None {
+                try {
+                    el = liveActivityEls[element_id];
+                } except Exception {
+                    el = None;
+                }
+            }
+            # IMPORTANT: In JS, missing dict keys often yield `undefined` (no exception).
+            # Treat undefined/null the same as None so we don't think we have a node.
+            try {
+                if el is not None and globalThis.Object.is(el, globalThis.undefined) {
+                    el = None;
+                }
+            } except Exception { ignored = ""; }
+            # If the element isn't mounted yet (common during the same tick as state
+            # updates), schedule a single retry shortly after React commits.
+            if el is None {
+                already = False;
+                try { already = bool(_value(liveActivityDomSyncPending, element_id, False)); } except Exception { already = False; }
+                if not already {
+                    liveActivityDomSyncPending[element_id] = True;
+                    globalThis.setTimeout(lambda -> None {
+                        try { globalThis.Reflect.deleteProperty(liveActivityDomSyncPending, element_id); } except Exception { ignored = ""; }
+                        _sync_live_activity_dom(element_id, text);
+                    }, 25);
+                }
+                return;
+            }
+            connected = True;
+            try {
+                if el != None {
+                    connected = bool(el.isConnected);
+                }
+            } except Exception {
+                connected = True;
+            }
+            if el is None or not connected {
+                try {
+                    el = globalThis.document.getElementById(element_id);
+                } except Exception {
+                    el = None;
+                }
+            }
+            try {
+                # NOTE: Avoid `null` in Jac client code; use None and short-circuit
+                # before touching DOM properties.
+                is_conn = False;
+                try { is_conn = bool(el != None and bool(el.isConnected)); } except Exception { is_conn = False; }
+                if el != None {
+                    el.textContent = text;
+                    el.scrollTop = el.scrollHeight;
+                    liveActivityEls[element_id] = el;
+                }
+            } except Exception {
+                ignored = "";
+            }
+        } except Exception {
+            ignored = "";
+        }
+    }
+
+    def _live_activity_text(target_id: str, fallback: str = "Live run events will appear here.") -> str {
+        try {
+            txt = _value(liveActivityTextById, target_id, fallback);
+            return str(txt);
+        } except Exception {
+            ignored = "";
+        }
+        return fallback;
+    }
+
+    def _live_activity_version(target_id: str) -> int {
+        try {
+            return int(_value(liveActivityVersionById, target_id, 0));
+        } except Exception {
+            ignored = "";
+        }
+        return 0;
+    }
+
+    def _set_live_activity(target_id: str, text: str, bump_version: bool = True) -> None {
+        # IMPORTANT: Treat live activity dicts as immutable for React updates.
+        # In-place mutation of dict keys often does not trigger a re-render in the
+        # Jac client runtime. Clone + reassign to force a new reference.
+        try {
+            nxt_text = dict(liveActivityTextById);
+            nxt_text[target_id] = text;
+            liveActivityTextById = nxt_text;
+        } except Exception {
+            # Fallback: best-effort mutation (should be rare)
+            liveActivityTextById[target_id] = text;
+        }
+        if bump_version {
+            next_ver = _live_activity_version(target_id) + 1;
+            try {
+                nxt_vermap = dict(liveActivityVersionById);
+                nxt_vermap[target_id] = next_ver;
+                liveActivityVersionById = nxt_vermap;
+            } except Exception {
+                liveActivityVersionById[target_id] = next_ver;
+            }
+            if target_id == "paste-live-activity-log" {
+                pasteActivityVersion = next_ver;
+            }
+            if target_id == "demo-live-log-feed" {
+                demoActivityVersion = next_ver;
+            }
+        }
+        if target_id == "paste-live-activity-log" {
+            pasteActivityText = text;
+        }
+        if target_id == "demo-live-log-feed" {
+            demoLogText = text;
+        }
+
+        # React-rendered path is the source of truth.
+        # If the <pre> is mounted, scroll it; otherwise it will scroll on mount.
+        globalThis.console.log("target_id: ", target_id);
+        globalThis.console.log("liveActivityEls[target_id]: ", liveActivityEls[target_id]);
+        try {
+            el = liveActivityEls[target_id];
+            if el != None {
+                el.scrollTop = el.scrollHeight;
+            }
+        } except Exception { ignored = ""; }
+    }
+
+    def _activity_text_from_payload(payload: dict, default_status: str = "running") -> str {
+        act_lines = _coerce_list(_value(payload, "activity_log_lines", []));
+        if len(act_lines) > 0 {
+            return _format_log_text(act_lines);
+        }
+        wm = str(_value(payload, "worker_message", "")).strip();
+        status_line = "[job] status=" + str(_value(payload, "status", default_status));
+        if wm != "" {
+            status_line = status_line + "\n" + wm;
+        }
+        return status_line;
+    }
+
+    def _apply_live_activity_payload(target_id: str, payload: dict, default_status: str = "running") -> str {
+        txt = _activity_text_from_payload(payload, default_status);
+        
+        globalThis.console.log("before activity_text: ", txt);
+        _set_live_activity(target_id, txt, True);
+        globalThis.console.log("after activity_text: ", txt);
+        return txt;
+    }
+
+    def _apply_paste_job_payload(raw: dict) -> None {
+        result = _flatten_function_job_payload(raw);
+        pasteJobStatus = str(_value(result, "status", "running"));
+        pasteRunId = str(_value(result, "run_id", ""));
+        pasteRunLogPath = str(_value(result, "run_log_path", ""));
+        act_lines = _coerce_list(_value(result, "activity_log_lines", []));
+        next_activity_text = _apply_live_activity_payload("paste-live-activity-log", result, pasteJobStatus);
+        if pasteJobStatus in ["queued", "running", "submitting"] {
+            pasteError = "";
+        }
+        if pasteJobStatus == "succeeded" {
+            inner = _coerce_plain_object(_value(result, "result", {}));
+            fe = _format_error_display(_value(inner, "error", None));
+            if fe != "" {
+                pasteJobStatus = "failed";
+                pasteError = fe;
+            }
+            _apply_paste_result(inner);
+        }
+        if pasteJobStatus == "failed" {
+            fe = _format_error_display(_value(result, "error", None));
+            pasteError = fe != "" and fe or "Optimization job failed";
+        }
+        if pasteJobStatus == "not_found" {
+            fe = _format_error_display(_value(result, "error", None));
+            pasteError = fe != "" and fe or "Job not found on server";
+        }
+    }
+
+    def _apply_repo_job_payload(raw: dict) -> None {
+        result = _flatten_function_job_payload(raw);
+        repoJobStatus = str(_value(result, "status", "running"));
+        if repoJobStatus == "succeeded" {
+            repoJobResult = "Optimization complete. Check the repo for a new PR or preview.";
+        }
+        if repoJobStatus == "failed" {
+            repoJobResult = str(_value(result, "error", "Job failed"));
+        }
+    }
+
+    def _apply_demo_progress_payload(prog: dict) -> None {
+        demoRunStatus = str(_value(prog, "job_status", _value(prog, "status", "running")));
+        demoRunStage = str(_value(prog, "stage", "Running benchmark"));
+        demoProgressPct = int(_value(prog, "progress_pct", 0));
+        live_payload = {
+            "status": demoRunStatus,
+            "worker_message": demoRunStage,
+            "activity_log_lines": _coerce_list(_value(prog, "log_lines", [])),
+        };
+        _apply_live_activity_payload("demo-live-log-feed", live_payload, demoRunStatus);
+        if str(_value(prog, "job_status", "")) == "succeeded" and "result" in prog {
+            _apply_demo_result(_coerce_plain_object(_value(prog, "result", {})));
+            demoProgressPct = 100;
+            demoView = "results";
+        }
+        if str(_value(prog, "job_status", "")) == "failed" {
+            demoRunStage = "Benchmark run failed";
+            uiMessage = str(_value(prog, "error", _value(prog, "job_error", "Benchmark run failed")));
+        }
     }
 
     def _apply_single_latest_run_result(meta: dict) -> None {
@@ -827,7 +1324,7 @@ cl def:pub app -> JsxElement {
     }
 
     def _reset_paste_result() -> None {
-        pasteActivityText = "Submit a job to stream live status and run-log events from the server.";
+        _set_live_activity("paste-live-activity-log", "Submit a job to stream live status and run-log events from the server.", True);
         pasteRunLogPath = "";
         pasteRunId = "";
         pasteError = "";
@@ -1038,6 +1535,9 @@ cl def:pub app -> JsxElement {
         pasteSubmitting = True;
         pasteJobStatus = "submitting";
         pasteJobId = expected_job_id;
+        pasteStreamGen = pasteStreamGen + 1;
+        stream_g = pasteStreamGen;
+        job_id_to_stream = expected_job_id;
         _reset_paste_result();
         uiMessage = "";
         _update_expected_feedback();
@@ -1066,6 +1566,7 @@ cl def:pub app -> JsxElement {
                 ];
             }
             submitted = await ringtail_submit_optimization_job(payload);
+            try { submitted = globalThis.JSON.parse(globalThis.JSON.stringify(submitted)); } except Exception { ignored = ""; }
             submitted = _flatten_function_job_payload(submitted);
             returned_job_id = str(_value(submitted, "job_id", ""));
             returned_status = str(_value(submitted, "status", "queued"));
@@ -1082,6 +1583,7 @@ cl def:pub app -> JsxElement {
             }
             if returned_job_id != "" and returned_job_id != expected_job_id {
                 pasteJobId = returned_job_id;
+                job_id_to_stream = returned_job_id;
             }
             if returned_job_id == "" {
                 pasteJobStatus = "failed";
@@ -1089,7 +1591,12 @@ cl def:pub app -> JsxElement {
                 pasteError = fe != "" and fe or "No job ID returned";
             } else {
                 pasteJobStatus = returned_status;
-                await pollPasteJobForce();
+                # Schedule streaming out-of-band so UI updates can flush between
+                # long-poll notifications in this runtime.
+                globalThis.setTimeout(
+                    lambda -> None { _paste_job_stream_tick(job_id_to_stream, stream_g, 0); },
+                    0
+                );
             }
         } except Exception as err {
             pasteJobStatus = "failed";
@@ -1128,28 +1635,206 @@ cl def:pub app -> JsxElement {
             }
         }
         result = await ringtail_get_optimization_job(pasteJobId);
-        result = _flatten_function_job_payload(result);
-        pasteJobStatus = str(_value(result, "status", "running"));
-        pasteRunId = str(_value(result, "run_id", ""));
-        pasteRunLogPath = str(_value(result, "run_log_path", ""));
-        act_lines = _coerce_list(_value(result, "activity_log_lines", []));
-        if len(act_lines) > 0 {
-            pasteActivityText = _format_log_text(act_lines);
+        # Flatten only inside _apply_paste_job_payload (avoids diverging peel logic).
+        _apply_paste_job_payload(result);
+    }
+
+    def _unwrap_wait_job_notification_payload(raw: Any) -> dict {
+        chunk = _coerce_plain_object(raw);
+        try { chunk = globalThis.JSON.parse(globalThis.JSON.stringify(chunk)); } except Exception { ignored = ""; }
+        # Defensive: some server responses may still be wrapped in an envelope
+        # like {ok,type,data:{result:{...}}}. Ensure we operate on the inner
+        # snapshot {seq,heartbeat,terminal,kind,data}.
+        # Unwrap envelope shapes explicitly; avoid `in` (proxy semantics).
+        try {
+            d0 = None;
+            r0 = None;
+            top_r = None;
+            try { d0 = chunk["data"]; } except Exception { d0 = None; }
+            if d0 is not None and (not globalThis.Array.isArray(d0)) {
+                try { r0 = d0["result"]; } except Exception { r0 = None; }
+            }
+            try { top_r = chunk["result"]; } except Exception { top_r = None; }
+            if r0 is not None and str(r0) != "undefined" and str(r0) != "null" {
+                chunk = r0;
+            } elif top_r is not None and str(top_r) != "undefined" and str(top_r) != "null" {
+                chunk = top_r;
+            }
+        } except Exception {
+            ignored = "";
         }
-        if pasteJobStatus in ["queued", "running", "submitting"] {
-            pasteError = "";
+        # Peel nested {data:{result:...}} / {result:...} layers until hub snapshot (has seq).
+        # Jac HTTP may return the wait_job_notification value inside more than one envelope.
+        peel_i = 0;
+        while peel_i < 8 {
+            has_seq_key = False;
+            try {
+                sq0 = chunk["seq"];
+                sv0 = str(sq0);
+                if sv0 != "undefined" and sv0 != "null" {
+                    has_seq_key = True;
+                }
+            } except Exception {
+                has_seq_key = False;
+            }
+            if has_seq_key {
+                break;
+            }
+            nxt = None;
+            try {
+                d1 = chunk["data"];
+                if d1 is not None and (not globalThis.Array.isArray(d1)) {
+                    try { nxt = d1["result"]; } except Exception { nxt = None; }
+                }
+            } except Exception {
+                nxt = None;
+            }
+            if nxt is None {
+                try { nxt = chunk["result"]; } except Exception { nxt = None; }
+            }
+            if nxt is None {
+                break;
+            }
+            ns = str(nxt);
+            if ns == "undefined" or ns == "null" {
+                break;
+            }
+            chunk = _coerce_plain_object(nxt);
+            try { chunk = globalThis.JSON.parse(globalThis.JSON.stringify(chunk)); } except Exception { ignored = ""; }
+            peel_i = peel_i + 1;
         }
-        if pasteJobStatus == "succeeded" {
-            _apply_paste_result(_coerce_plain_object(_value(result, "result", {})));
+        out = _coerce_plain_object(chunk);
+        return out;
+    }
+
+    async def _stream_job_notifications(
+        job_id: str,
+        stream_gen: int,
+        since_seq: int,
+        stream_kind: str,
+    ) -> None {
+        current_gen = 0;
+        if stream_kind == "paste" {
+            current_gen = pasteStreamGen;
+        } elif stream_kind == "demo" {
+            current_gen = demoStreamGen;
+        } else {
+            current_gen = repoStreamGen;
         }
-        if pasteJobStatus == "failed" {
-            fe = _format_error_display(_value(result, "error", None));
-            pasteError = fe != "" and fe or "Optimization job failed";
+        if int(current_gen) != int(stream_gen) {
+            return;
         }
-        if pasteJobStatus == "not_found" {
-            fe = _format_error_display(_value(result, "error", None));
-            pasteError = fe != "" and fe or "Job not found on server";
+        snap = {};
+        wait_failed = False;
+        try {
+            snap = _unwrap_wait_job_notification_payload(
+                await ringtail_wait_job_notification(job_id, since_seq, 25.0)
+            );
+        } except Exception as err {
+            wait_failed = True;
+            snap = {"error": str(err)};
         }
+        current_gen = 0;
+        if stream_kind == "paste" {
+            current_gen = pasteStreamGen;
+        } elif stream_kind == "demo" {
+            current_gen = demoStreamGen;
+        } else {
+            current_gen = repoStreamGen;
+        }
+        if int(current_gen) != int(stream_gen) {
+            return;
+        }
+        if wait_failed or "error" in snap {
+            if stream_kind == "paste" {
+                fallback = _flatten_function_job_payload(await ringtail_get_optimization_job(job_id));
+                _apply_paste_job_payload(fallback);
+                st = str(_value(fallback, "status", ""));
+                if st in ["succeeded", "failed", "interrupted", "not_found"] {
+                    return;
+                }
+            } elif stream_kind == "demo" {
+                prog = await ringtail_get_ranked_demo_job_progress(job_id);
+                parsed = _coerce_plain_object(prog);
+                _apply_demo_progress_payload(parsed);
+                st = str(_value(parsed, "job_status", _value(parsed, "status", "")));
+                if st in ["succeeded", "failed", "interrupted"] {
+                    return;
+                }
+            } else {
+                fallback = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
+                _apply_repo_job_payload(fallback);
+                st = str(_value(fallback, "status", ""));
+                if st in ["succeeded", "failed", "interrupted", "not_found"] {
+                    return;
+                }
+            }
+            await _stream_job_notifications(job_id, stream_gen, since_seq, stream_kind);
+            return;
+        }
+        next_since = since_seq;
+        terminal = bool(_value(snap, "terminal", False));
+        if stream_kind == "paste" {
+            # Reconcile with canonical job payload after each observer event.
+            # This keeps observer semantics (no timer polling) while ensuring
+            # the UI receives the full normalized shape expected by the
+            # LiveActivityBox flow.
+            latest = _flatten_function_job_payload(await ringtail_get_optimization_job(job_id));
+            _apply_paste_job_payload(latest);
+            next_since = int(_value(snap, "seq", since_seq));
+        } elif stream_kind == "demo" {
+            data = _coerce_plain_object(_value(snap, "data", {}));
+            _apply_demo_progress_payload(data);
+            next_since = int(_value(snap, "seq", since_seq));
+            demoStreamSeq = next_since;
+        } else {
+            data = _coerce_plain_object(_value(snap, "data", {}));
+            if str(_value(snap, "kind", "")) == "async_job" {
+                _apply_repo_job_payload(data);
+            } else {
+                fallback = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
+                _apply_repo_job_payload(fallback);
+            }
+            repoStreamSeq = int(_value(snap, "seq", since_seq));
+            next_since = repoStreamSeq;
+        }
+        if terminal {
+            return;
+        }
+        await _stream_job_notifications(job_id, stream_gen, next_since, stream_kind);
+    }
+
+    async def _paste_job_stream_tick(job_id: str, stream_gen: int, since_seq: int) -> None {
+        await _stream_job_notifications(
+            job_id,
+            stream_gen,
+            since_seq,
+            "paste",
+        );
+    }
+
+    async def _demo_job_stream_tick(stream_gen: int) -> None {
+        if demoJobId == "" or stream_gen != demoStreamGen {
+            return;
+        }
+        await _stream_job_notifications(
+            demoJobId,
+            stream_gen,
+            demoStreamSeq,
+            "demo",
+        );
+    }
+
+    async def _repo_job_stream_tick(stream_gen: int) -> None {
+        if repoJobId == "" or stream_gen != repoStreamGen {
+            return;
+        }
+        await _stream_job_notifications(
+            repoJobId,
+            stream_gen,
+            repoStreamSeq,
+            "repo",
+        );
     }
 
     async def handleGithubLogin() -> None {
@@ -1296,6 +1981,9 @@ cl def:pub app -> JsxElement {
     }
 
     async def submitRepoJob -> None {
+        repoStreamGen = repoStreamGen + 1;
+        rg = repoStreamGen;
+        repoStreamSeq = 0;
         repoJobStatus = "submitting";
         repoJobResult = "";
         uiMessage = "";
@@ -1315,6 +2003,8 @@ cl def:pub app -> JsxElement {
             if repoJobId == "" {
                 repoJobStatus = "failed";
                 repoJobResult = str(_value(submitted, "error", "No job ID returned"));
+            } else {
+                await _repo_job_stream_tick(rg);
             }
         } except Exception as err {
             repoJobStatus = "failed";
@@ -1338,6 +2028,22 @@ cl def:pub app -> JsxElement {
     }
 
     async def refreshBenchmarkContext() -> None {
+        sig = str(demoBenchmarkId);
+        now = 0;
+        try {
+            now = int(globalThis.Date.now());
+        } except Exception {
+            now = 0;
+        }
+        if (
+            sig == benchmarkContextRefreshSig
+            and benchmarkContextRefreshAtMs > 0
+            and (now - benchmarkContextRefreshAtMs) < 900
+        ) {
+            return;
+        }
+        benchmarkContextRefreshSig = sig;
+        benchmarkContextRefreshAtMs = now;
         benchmarks = await ringtail_get_ranked_demo_benchmarks();
         catalog = await ringtail_get_ranked_demo_suite_catalog(demoBenchmarkId);
         demoBenchmarkText = _format_demo_benchmarks(_coerce_plain_object(benchmarks));
@@ -1411,12 +2117,15 @@ cl def:pub app -> JsxElement {
 
     async def _start_demo_run() -> None {
         try {
+            demoStreamGen = demoStreamGen + 1;
+            dg = demoStreamGen;
+            demoStreamSeq = 0;
             demoJobId = _new_demo_job_id();
             demoView = "running";
             demoRunStatus = "queued";
             demoRunStage = "Submitting benchmark run";
             demoProgressPct = 6;
-            demoLogText = "Submitting benchmark run...";
+            _set_live_activity("demo-live-log-feed", "Submitting benchmark run...", True);
             uiMessage = "";
             _clear_demo_cards();
             demoOverviewSvg = "";
@@ -1433,12 +2142,14 @@ cl def:pub app -> JsxElement {
                 "per_file_k": int(demoPerFileK)
             };
             await ringtail_submit_optimization_job(payload);
-            await pollDemoProgress();
+            # Do not await the full long-poll chain here; schedule it so UI state
+            # can flush between notifications in Jac/React runtime.
+            globalThis.setTimeout(lambda -> None { _demo_job_stream_tick(dg); }, 0);
         } except Exception as err {
             demoRunStatus = "failed";
             demoRunStage = "Benchmark submission failed";
             demoProgressPct = 0;
-            demoLogText = "Benchmark submission failed.\n" + str(err);
+            _set_live_activity("demo-live-log-feed", "Benchmark submission failed.\n" + str(err), True);
             uiMessage = "Could not start benchmark run: " + str(err);
         }
     }
@@ -1452,32 +2163,17 @@ cl def:pub app -> JsxElement {
             return;
         }
         progress = await ringtail_get_ranked_demo_job_progress(demoJobId);
-        prog = _coerce_plain_object(progress);
-        demoRunStatus = str(_value(prog, "job_status", _value(prog, "status", "running")));
-        demoRunStage = str(_value(prog, "stage", "Running benchmark"));
-        demoProgressPct = int(_value(prog, "progress_pct", 0));
-        demoLogText = _format_log_text(_coerce_list(_value(prog, "log_lines", [])));
-        if str(_value(prog, "job_status", "")) == "succeeded" and "result" in prog {
-            _apply_demo_result(_coerce_plain_object(_value(prog, "result", {})));
-            demoProgressPct = 100;
-            demoView = "results";
-        }
-        if str(_value(prog, "job_status", "")) == "failed" {
-            demoRunStage = "Benchmark run failed";
-            uiMessage = str(_value(prog, "error", _value(prog, "job_error", "Benchmark run failed")));
-        }
-    }
-
-    async def tickDemoPolling() -> None {
-        if demoView == "running" and demoJobId != "" {
-            await pollDemoProgress();
-        }
+        _apply_demo_progress_payload(_coerce_plain_object(progress));
     }
 
     async def _run_background_pollers() -> None {
-        await tickDemoPolling();
-        await pollRepoJob();
+        # Do not refresh demo catalog here — entry + benchmark dropdown already load it.
+        # Polling every 5s duplicated get_ranked_demo_* traffic for no benefit.
+        # Safety net: long-poll stream can miss ticks; paste tab no longer had any
+        # periodic get_optimization_job refresh (only manual Refresh). _poll_paste_job_impl
+        # no-ops when idle or job is terminal.
         await pollPasteJob();
+        await pollRepoJob();
     }
 
     async def resetToSetup() -> None {
@@ -1507,8 +2203,8 @@ cl def:pub app -> JsxElement {
             await refreshBenchmarkContext();
             if not pollingInitialized {
                 pollingInitialized = True;
-                # Subscribes all tabs to periodic refresh (paste job activity + run-log tail from server).
-                globalThis.setInterval(lambda -> None { _run_background_pollers(); }, 2000);
+                # Catalog refresh + paste/repo job poll fallback (streams are best-effort).
+                globalThis.setInterval(lambda -> None { _run_background_pollers(); }, 5000);
             }
         } except Exception as e {
             healthStatus = {"status": "error", "message": str(e)};
@@ -1644,11 +2340,13 @@ cl def:pub app -> JsxElement {
                     </div>
 
                     <div className="section field-full" style={{"marginTop": "0.5rem"}}>
-                        <h3>Live activity</h3>
-                        <p className="field-help" style={{"marginBottom": "0.6rem"}}>
-                            The dashboard polls the server about every 2s while a job is queued or running and appends the latest lines from the structured run log when available (no manual refresh needed).
-                        </p>
-                        <pre className="result-box log-feed" role="log" aria-live="polite">{pasteActivityText}</pre>
+                        {LiveActivityBox(
+                            "Live Activity",
+                            "While a job is active, the UI subscribes via wait_job_notification (server-side Observer: in-process notify + long-poll) so status and run-log lines update without a client poll timer.",
+                            "paste-live-activity-log",
+                            _live_activity_text("paste-live-activity-log", pasteActivityText),
+                            _live_activity_version("paste-live-activity-log"),
+                        )}
                     </div>
 
                     <div className="demo-layout">
@@ -1801,6 +2499,9 @@ cl def:pub app -> JsxElement {
                                     </button>
                                     <button type="submit" className="primary-button">Run Benchmark</button>
                                 </div>
+                                <p className="field-help field-full" style={{"marginTop": "0.6rem"}}>
+                                    Note: the Live Activity box updates for benchmark runs submitted from this dashboard (it streams server notifications via wait_job_notification). If you run benchmarks from the CLI or runner scripts, progress logs will print to your terminal instead.
+                                </p>
                             </form>
                         </div>
 
@@ -1857,11 +2558,15 @@ cl def:pub app -> JsxElement {
                     </div>
 
                     <div className="log-card">
-                        <div className="log-card-header">
-                            <h3>Live Activity</h3>
-                            <button className="secondary-button" onClick={lambda -> None { pollDemoProgress(); }}>Refresh Now</button>
-                        </div>
-                        <pre className="log-feed" role="log" aria-live="polite">{demoLogText}</pre>
+                        {LiveActivityBox(
+                            "Live Activity",
+                            "",
+                            "demo-live-log-feed",
+                            _live_activity_text("demo-live-log-feed", demoLogText),
+                            _live_activity_version("demo-live-log-feed"),
+                            "Refresh Now",
+                            lambda -> None { pollDemoProgress(); },
+                        )}
                     </div>
                 </div>
             }

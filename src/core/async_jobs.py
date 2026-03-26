@@ -114,6 +114,17 @@ def _activity_overlay_for_job(job: dict[str, Any]) -> list[str]:
         err = str(job.get("error", "")).strip()
         if err:
             lines.append(f"[job] Failed — {err[:800]}")
+        # If the optimizer produced structured failure feedback, surface the
+        # falsifying example to avoid forcing users to open the jsonl log.
+        res = job.get("result")
+        if isinstance(res, dict):
+            fb = res.get("feedback")
+            if isinstance(fb, dict):
+                fx = str(fb.get("falsifying_example", "")).strip()
+                if fx:
+                    lines.append("[property_tests] Falsifying example:")
+                    # Keep it readable inside a <pre>.
+                    lines.append(fx[:1200])
     elif status == "interrupted":
         lines.append("[job] Interrupted — server restarted or job was orphaned.")
 
@@ -201,6 +212,12 @@ class AsyncJobManager:
             name=f"ringtail-async-job-{job_id[:8]}",
         )
         thread.start()
+        try:
+            from src.core.job_event_hub import get_hub
+
+            get_hub().notify(job_id)
+        except Exception:
+            pass
         return self.get_job(job_id)
 
     def get_job(self, job_id: str) -> dict[str, Any]:
@@ -227,6 +244,25 @@ class AsyncJobManager:
                 return
             job.update(changes)
             self._persist_job(job)
+        try:
+            from src.core.job_event_hub import (
+                ensure_demo_progress_watcher,
+                ensure_log_tail_watcher,
+                get_hub,
+            )
+
+            get_hub().notify(job_id)
+            if str(changes.get("status", "")) == "running":
+                with self._lock:
+                    j = self._jobs.get(job_id)
+                if j:
+                    summary = j.get("request_summary")
+                    if isinstance(summary, dict) and str(summary.get("operation", "")) == "run_ranked_demo_suite":
+                        ensure_demo_progress_watcher(job_id)
+                    if str(j.get("run_log_path", "")).strip():
+                        ensure_log_tail_watcher(job_id)
+        except Exception:
+            pass
 
     def _run_job(self, job_id: str, request: dict[str, Any]) -> None:
         try:
@@ -241,6 +277,18 @@ class AsyncJobManager:
             result = worker.get("result")
 
             if int(worker.get("returncode", -1)) == 0 and isinstance(result, dict):
+                err_txt = str(result.get("error", "")).strip()
+                if err_txt:
+                    self._update_job(
+                        job_id,
+                        status="failed",
+                        finished_at=_utc_timestamp(),
+                        result=result,
+                        error=err_txt,
+                        pid=None,
+                        worker_message="",
+                    )
+                    return
                 self._update_job(
                     job_id,
                     status="succeeded",

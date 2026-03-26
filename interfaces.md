@@ -38,15 +38,17 @@ Open `http://localhost:8000`.
 
 - **Paste Optimizer**
   - Submits `operation: optimize_input` via `submit_optimization_job`
-  - Polls status with `get_optimization_job`
+  - Streams updates with `wait_job_notification` (long-poll Observer on the same `jac start` port; server notifies on job and run-log changes)
   - Shows before/after metrics and optimized code
 - **Benchmark Studio**
   - Uses `run_ranked_demo_suite`
-  - Polls with `get_ranked_demo_job_progress`
+  - Streams progress via `wait_job_notification` plus merged `get_ranked_demo_job_progress` payloads
   - Renders suite summaries/graphs
 - **Optimize a Repo**
-  - Uses GitHub session/install endpoints plus repo-agent job submit/poll
+  - Uses GitHub session/install endpoints plus repo-agent submit and `wait_job_notification` for job status
   - Requires GitHub auth config; otherwise shows readiness/config errors
+
+`jac start` uses stdlib `http.server` (no native SSE route in-app). Ringtail implements push semantics with an in-process `JobEventHub` (`src/core/job_event_hub.py`) and `POST /function/wait_job_notification`.
 
 ### Known failure mode to expect
 

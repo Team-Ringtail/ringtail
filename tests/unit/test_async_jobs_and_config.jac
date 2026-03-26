@@ -81,7 +81,7 @@ test "default model resolution honors env override and heuristic profile stays e
 
         default_cfg = get_agent_config("default");
         heuristic_cfg = get_agent_config("heuristic");
-        client_mod = importlib.import_module("src.utils.llm_client");
+        client_mod = importlib.import_module("src.utils.llm_client_py");
 
         assert resolve_default_llm_model(None) == "claude-opus-test";
         assert resolve_default_llm_model("claude-manual") == "claude-manual";
@@ -129,4 +129,28 @@ test "persisted async jobs reload from disk and interrupted jobs are marked" {
             os.remove(job_path);
         }
     }
+}
+
+
+test "get_optimization_job includes activity_log_lines for reusable live activity views" {
+    request = {
+        "operation": "optimize_input",
+        "job_id": "activity-lines-job",
+        "input": {
+            "source_code": "def slow_add(n):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n",
+            "function_name": "slow_add",
+            "function_call": "slow_add(50)",
+            "test_cases": [
+                {"call": "slow_add(5)", "expected": 10}
+            ]
+        },
+        "config_name": "test-fast",
+        "analysis_mode": "heuristic"
+    };
+    submitted = submit_optimization_job(request);
+    finished = _wait_for_job(submitted["job_id"]);
+
+    assert finished["status"] in ["succeeded", "failed"];
+    assert isinstance(finished.get("activity_log_lines", []), list);
+    assert len(finished.get("activity_log_lines", [])) > 0;
 }

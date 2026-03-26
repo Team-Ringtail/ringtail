@@ -53,6 +53,12 @@ def:pub get_repo_agent_job(job_id: str) -> dict {
 }
 
 
+def:pub wait_job_notification(job_id: str, since_seq: int = 0, timeout_s: float = 25.0) -> dict {
+    mod = importlib.import_module("src.core.job_stream");
+    return getattr(mod, "wait_job_notification")(job_id, since_seq, timeout_s);
+}
+
+
 def:pub get_recent_jobs(limit: int = 10) -> list {
     mod = importlib.import_module("src.core.product_support");
     func = getattr(mod, "list_recent_jobs");

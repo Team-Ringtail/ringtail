@@ -27,7 +27,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
 from src.utils.run_log import RunLog
-from src.utils.llm_client import analyze_and_plan, generate_optimized_code
+from src.utils.llm_client_py import analyze_and_plan, generate_optimized_code
 
 BENCHMARKS_ROOT = os.path.join(REPO_ROOT, "benchmarks")
 LEETCODE_DIR = os.path.join(BENCHMARKS_ROOT, "leetcode")

@@ -443,6 +443,13 @@ body {
 .log-feed {
     min-height: 240px;
     max-height: 420px;
+    font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    letter-spacing: 0.01em;
+    border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--code-bg) 70%, var(--border));
 }
 
 .simple-list {

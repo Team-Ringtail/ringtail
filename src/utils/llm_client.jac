@@ -1,22 +1,13 @@
 """
 Anthropic (Claude) client for code optimization -- Jac facade.
 
-Delegates to the canonical Python implementation in src/utils/llm_client.py
-which has richer prompts and feedback handling. This file exists so Jac
-modules can use ``import from src.utils.llm_client { ... }`` syntax.
+Delegates to the canonical Python implementation in src/utils/llm_client_py.py
+(which must be a distinct import path from this module; loading ``src.utils.llm_client``
+would resolve to this Jac file and recurse). Jac modules use
+``import from src.utils.llm_client { ... }`` syntax.
 """
 
 import importlib;
-
-glob _py_mod = None;
-
-
-def _mod -> object {
-    if _py_mod is None {
-        _py_mod = importlib.import_module("src.utils.llm_client");
-    }
-    return _py_mod;
-}
 
 
 def analyze_and_plan(
@@ -29,7 +20,8 @@ def analyze_and_plan(
     model: str | None = None,
     run_log: object | None = None
 ) -> dict {
-    func = getattr(_mod(), "analyze_and_plan");
+    mod = importlib.import_module("src.utils.llm_client_py");
+    func = getattr(mod, "analyze_and_plan");
     return func(
         source_code,
         criteria,
@@ -49,7 +41,8 @@ def generate_optimized_code(
     model: str | None = None,
     run_log: object | None = None
 ) -> str {
-    func = getattr(_mod(), "generate_optimized_code");
+    mod = importlib.import_module("src.utils.llm_client_py");
+    func = getattr(mod, "generate_optimized_code");
     return func(
         source_code,
         plan,
