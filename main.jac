@@ -187,7 +187,8 @@ def:pub get_ranked_demo_job_progress(job_id: str) -> dict {
 cl def:pub app -> JsxElement {
     has healthStatus: dict = {};
     has uiMessage: str = "";
-    has activeTab: str = "paste";
+    has activeTab: str = "home";
+    has repoExperienceMode: str = "local";
     has currentTheme: str = "dark";
     has sessionToken: str = "";
     has githubLogin: str = "";
@@ -2216,9 +2217,9 @@ cl def:pub app -> JsxElement {
         <div className={currentTheme == "dark" and "demo-shell theme-dark" or "demo-shell theme-light"}>
             <div className="demo-hero">
                 <div className="demo-hero-copy">
-                    <span className="version">Ringtail Dashboard</span>
-                    <h1>Professional Optimization Studio</h1>
-                    <p>Paste code for rapid optimization, run benchmark suites, and ship production-grade repository improvements from one polished Jac UI.</p>
+                    <span className="version">Ringtail</span>
+                    <h1>AI-Powered Code Optimization Platform</h1>
+                    <p>A professional optimization website for validating speedups with tests and profiling, from single pasted functions to full repository workflows.</p>
                 </div>
                 <div className="hero-right">
                     <button className="secondary-button theme-toggle" onClick={lambda -> None { _toggle_theme(); }}>
@@ -2242,16 +2243,62 @@ cl def:pub app -> JsxElement {
                 </div>
             </div>
 
-            <div className="tab-bar" role="tablist" aria-label="Dashboard views">
+            <div className="tab-bar" role="tablist" aria-label="Website sections">
+                <button id="tab-home" role="tab" aria-selected={activeTab == "home" and "true" or "false"} className={activeTab == "home" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { activeTab = "home"; }}>Home</button>
                 <button id="tab-paste" role="tab" aria-selected={activeTab == "paste" and "true" or "false"} className={activeTab == "paste" and "tab-button active" or "tab-button"}
-                    onClick={lambda -> None { activeTab = "paste"; }}>Paste Optimizer</button>
-                <button id="tab-benchmark" role="tab" aria-selected={activeTab == "benchmark" and "true" or "false"} className={activeTab == "benchmark" and "tab-button active" or "tab-button"}
-                    onClick={lambda -> None { activeTab = "benchmark"; }}>Benchmark Studio</button>
-                <button id="tab-repo" role="tab" aria-selected={activeTab == "repo" and "true" or "false"} className={activeTab == "repo" and "tab-button active" or "tab-button"}
-                    onClick={lambda -> None { activeTab = "repo"; if sessionToken != "" and installationId == 0 { loadInstallation(); }; }}>Optimize a Repo</button>
+                    onClick={lambda -> None { activeTab = "paste"; }}>Paste Demo</button>
+                <button id="tab-repository" role="tab" aria-selected={activeTab == "repository" and "true" or "false"} className={activeTab == "repository" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { activeTab = "repository"; }}>Repository Optimization</button>
+                <button id="tab-cli" role="tab" aria-selected={activeTab == "cli" and "true" or "false"} className={activeTab == "cli" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { activeTab = "cli"; }}>CLI Setup</button>
+                <button id="tab-vscode" role="tab" aria-selected={activeTab == "vscode" and "true" or "false"} className={activeTab == "vscode" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { activeTab = "vscode"; }}>VS Code Extension</button>
             </div>
 
             {uiMessage != "" and <div className="info-banner" role="status" aria-live="polite">{uiMessage}</div>}
+
+            {activeTab == "home" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-home">
+                    <div className="hero-card">
+                        <h2>Build Faster, Verified Code With Ringtail</h2>
+                        <p className="hero-subtitle">Ringtail compares original and optimized implementations with measurable before/after runtime, preserving correctness through validation and tests. Use it for quick demos, benchmark suites, and repository-scale optimization workflows.</p>
+                        <div className="panel-actions">
+                            <button className="primary-button" onClick={lambda -> None { activeTab = "paste"; }}>
+                                Try Demo
+                            </button>
+                            <button className="secondary-button" onClick={lambda -> None { activeTab = "repository"; repoExperienceMode = "local"; }}>
+                                Optimize Project Files
+                            </button>
+                            <button className="secondary-button" onClick={lambda -> None { activeTab = "cli"; }}>
+                                CLI Installation Guide
+                            </button>
+                        </div>
+                    </div>
+                    <div className="feature-grid">
+                        <div className="feature-card">
+                            <h3>Paste Demo</h3>
+                            <p>Paste one function, run optimization, and inspect side-by-side code plus speedup metrics in minutes.</p>
+                            <button className="secondary-button" onClick={lambda -> None { activeTab = "paste"; }}>Open Paste Demo</button>
+                        </div>
+                        <div className="feature-card">
+                            <h3>Repository Optimization</h3>
+                            <p>Run ranked optimization on benchmark-style file suites or connect GitHub to create optimization pull requests.</p>
+                            <button className="secondary-button" onClick={lambda -> None { activeTab = "repository"; }}>Open Repository Tools</button>
+                        </div>
+                        <div className="feature-card">
+                            <h3>CLI Setup</h3>
+                            <p>Install dependencies, start the Jac app, and run command-line optimization workflows locally.</p>
+                            <button className="secondary-button" onClick={lambda -> None { activeTab = "cli"; }}>Open CLI Setup</button>
+                        </div>
+                        <div className="feature-card">
+                            <h3>VS Code Extension</h3>
+                            <p>Track the extension roadmap and early technical interface spec while the extension is being built.</p>
+                            <button className="secondary-button" onClick={lambda -> None { activeTab = "vscode"; }}>View Roadmap</button>
+                        </div>
+                    </div>
+                </div>
+            }
 
             {activeTab == "paste" and
                 <div className="container" role="tabpanel" aria-labelledby="tab-paste">
@@ -2383,82 +2430,98 @@ cl def:pub app -> JsxElement {
                 </div>
             }
 
-            {activeTab == "repo" and
-                <div className="container" role="tabpanel" aria-labelledby="tab-repo">
-                    {githubLogin == "" and
-                        <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
-                            <h2>Connect GitHub</h2>
-                            <p className="hero-subtitle">Sign in with GitHub to optimize your repositories.</p>
-                            <button className="gh-login-button" style={{"marginTop": "1.5rem"}} onClick={lambda -> None { handleGithubLogin(); }}>
-                                Sign in with GitHub
+            {activeTab == "repository" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-repository">
+                    <div className="hero-card">
+                        <h2>Repository Optimization</h2>
+                        <p className="hero-subtitle">Choose how to optimize repository-scale code: run local benchmark/file workflows or connect GitHub for PR-ready changes.</p>
+                        <div className="mode-toggle" role="tablist" aria-label="Repository modes">
+                            <button className={repoExperienceMode == "local" and "tab-button active" or "tab-button"} onClick={lambda -> None { repoExperienceMode = "local"; }}>
+                                Local Files & Benchmark
+                            </button>
+                            <button className={repoExperienceMode == "github" and "tab-button active" or "tab-button"} onClick={lambda -> None { repoExperienceMode = "github"; if sessionToken != "" and installationId == 0 { loadInstallation(); }; }}>
+                                GitHub Integration
                             </button>
                         </div>
-                    }
-                    {githubLogin != "" and installationId == 0 and
-                        <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
-                            <h2>Install Ringtail on Your Repos</h2>
-                            <p className="hero-subtitle">Ringtail needs access to push branches and open pull requests.</p>
-                            <button className="primary-button" style={{"marginTop": "1.5rem"}} onClick={lambda -> None { handleInstallApp(); }}>
-                                Install GitHub App
-                            </button>
-                        </div>
-                    }
-                    {githubLogin != "" and installationId != 0 and
-                        <div className="demo-layout">
-                            <div className="hero-card">
-                                <h2>Optimize a Repository</h2>
-                                <p className="hero-subtitle">Point Ringtail at a repo, describe what to optimize, and we'll open a PR with the results.</p>
-                                <form className="form-grid" onSubmit={lambda e -> None {
-                                    try { e.preventDefault(); } except Exception { ignored = ""; }
-                                    submitRepoJob();
-                                }}>
-                                    <label className="field field-full">
-                                        <span>Repository URL</span>
-                                        <input value={repoUrl} placeholder="https://github.com/org/repo" onChange={lambda e -> None { repoUrl = e.target.value; }} />
-                                    </label>
-                                    <label className="field field-full">
-                                        <span>Optimization Prompt</span>
-                                        <textarea rows={4} value={repoPrompt} onChange={lambda e -> None { repoPrompt = e.target.value; }} />
-                                    </label>
-                                    <label className="field">
-                                        <span>Test Command (optional)</span>
-                                        <input value={repoTestCommand} placeholder="python -m pytest tests" onChange={lambda e -> None { repoTestCommand = e.target.value; }} />
-                                    </label>
-                                    <label className="checkbox-field">
-                                        <input type="checkbox" checked={repoPublishPr} onChange={lambda e -> None { repoPublishPr = e.target.checked; }} />
-                                        <span>Open a real PR</span>
-                                    </label>
-                                    <div className="panel-actions field-full">
-                                        <button type="submit" className="primary-button">Submit Optimization Job</button>
-                                        {repoJobId != "" and <button type="button" className="secondary-button" onClick={lambda -> None { pollRepoJob(); }}>Refresh Job Status</button>}
-                                    </div>
-                                </form>
-                            </div>
-                            <div className="hero-card">
-                                <h3>Connection Status</h3>
-                                <div className="simple-list">
-                                    <div className="simple-list-item">Signed in as {githubLogin}</div>
-                                    <div className="simple-list-item">Installation ID: {str(installationId)}</div>
-                                    {installAccountLogin != "" and <div className="simple-list-item">Account: {installAccountLogin}</div>}
+                    </div>
+                    {repoExperienceMode == "github" and
+                        <div className="repo-mode-panel">
+                            {githubLogin == "" and
+                                <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
+                                    <h2>Connect GitHub</h2>
+                                    <p className="hero-subtitle">Sign in with GitHub to optimize your repositories.</p>
+                                    <button className="gh-login-button" style={{"marginTop": "1.5rem"}} onClick={lambda -> None { handleGithubLogin(); }}>
+                                        Sign in with GitHub
+                                    </button>
                                 </div>
-                                {repoJobStatus != "" and
-                                    <div style={{"marginTop": "1.5rem"}}>
-                                        <h3>Job Status</h3>
-                                        <div className="simple-list">
-                                            <div className="simple-list-item">Job: {repoJobId}</div>
-                                            <div className="simple-list-item">Status: {repoJobStatus}</div>
-                                            {repoJobResult != "" and <div className="simple-list-item">{repoJobResult}</div>}
-                                        </div>
+                            }
+                            {githubLogin != "" and installationId == 0 and
+                                <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
+                                    <h2>Install Ringtail on Your Repos</h2>
+                                    <p className="hero-subtitle">Ringtail needs access to push branches and open pull requests.</p>
+                                    <button className="primary-button" style={{"marginTop": "1.5rem"}} onClick={lambda -> None { handleInstallApp(); }}>
+                                        Install GitHub App
+                                    </button>
+                                </div>
+                            }
+                            {githubLogin != "" and installationId != 0 and
+                                <div className="demo-layout">
+                                    <div className="hero-card">
+                                        <h2>Optimize a Repository</h2>
+                                        <p className="hero-subtitle">Point Ringtail at a repo, describe what to optimize, and we'll open a PR with the results.</p>
+                                        <form className="form-grid" onSubmit={lambda e -> None {
+                                            try { e.preventDefault(); } except Exception { ignored = ""; }
+                                            submitRepoJob();
+                                        }}>
+                                            <label className="field field-full">
+                                                <span>Repository URL</span>
+                                                <input value={repoUrl} placeholder="https://github.com/org/repo" onChange={lambda e -> None { repoUrl = e.target.value; }} />
+                                            </label>
+                                            <label className="field field-full">
+                                                <span>Optimization Prompt</span>
+                                                <textarea rows={4} value={repoPrompt} onChange={lambda e -> None { repoPrompt = e.target.value; }} />
+                                            </label>
+                                            <label className="field">
+                                                <span>Test Command (optional)</span>
+                                                <input value={repoTestCommand} placeholder="python -m pytest tests" onChange={lambda e -> None { repoTestCommand = e.target.value; }} />
+                                            </label>
+                                            <label className="checkbox-field">
+                                                <input type="checkbox" checked={repoPublishPr} onChange={lambda e -> None { repoPublishPr = e.target.checked; }} />
+                                                <span>Open a real PR</span>
+                                            </label>
+                                            <div className="panel-actions field-full">
+                                                <button type="submit" className="primary-button">Submit Optimization Job</button>
+                                                {repoJobId != "" and <button type="button" className="secondary-button" onClick={lambda -> None { pollRepoJob(); }}>Refresh Job Status</button>}
+                                            </div>
+                                        </form>
                                     </div>
-                                }
-                            </div>
+                                    <div className="hero-card">
+                                        <h3>Connection Status</h3>
+                                        <div className="simple-list">
+                                            <div className="simple-list-item">Signed in as {githubLogin}</div>
+                                            <div className="simple-list-item">Installation ID: {str(installationId)}</div>
+                                            {installAccountLogin != "" and <div className="simple-list-item">Account: {installAccountLogin}</div>}
+                                        </div>
+                                        {repoJobStatus != "" and
+                                            <div style={{"marginTop": "1.5rem"}}>
+                                                <h3>Job Status</h3>
+                                                <div className="simple-list">
+                                                    <div className="simple-list-item">Job: {repoJobId}</div>
+                                                    <div className="simple-list-item">Status: {repoJobStatus}</div>
+                                                    {repoJobResult != "" and <div className="simple-list-item">{repoJobResult}</div>}
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
                         </div>
                     }
                 </div>
             }
 
-            {activeTab == "benchmark" and demoView == "setup" and
-                <div className="container" role="tabpanel" aria-labelledby="tab-benchmark">
+            {activeTab == "repository" and repoExperienceMode == "local" and demoView == "setup" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-repository">
                     <div className="demo-layout">
                         <div className="hero-card">
                             <h2>Choose A Benchmark</h2>
@@ -2518,8 +2581,8 @@ cl def:pub app -> JsxElement {
                 </div>
             }
 
-            {activeTab == "benchmark" and demoView == "running" and
-                <div className="container" role="tabpanel" aria-labelledby="tab-benchmark">
+            {activeTab == "repository" and repoExperienceMode == "local" and demoView == "running" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-repository">
                     <div className="run-stage-card">
                         <div className="run-stage-copy">
                             <p className="eyebrow">Benchmark Running</p>
@@ -2571,8 +2634,8 @@ cl def:pub app -> JsxElement {
                 </div>
             }
 
-            {activeTab == "benchmark" and demoView == "results" and
-                <div className="container" role="tabpanel" aria-labelledby="tab-benchmark">
+            {activeTab == "repository" and repoExperienceMode == "local" and demoView == "results" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-repository">
                     <div className="results-header">
                         <div>
                             <p className="eyebrow">Benchmark Complete</p>
@@ -2706,6 +2769,77 @@ cl def:pub app -> JsxElement {
                                 </div>
                             </div>
                         }
+                    </div>
+                </div>
+            }
+            {activeTab == "cli" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-cli">
+                    <div className="hero-card">
+                        <h2>Install And Run Ringtail CLI</h2>
+                        <p className="hero-subtitle">Clone the repository, install dependencies, then run the Jac app and Python CLI tools for local optimization workflows.</p>
+                    </div>
+                    <div className="demo-layout" style={{"marginTop": "1rem"}}>
+                        <div className="section">
+                            <h3>Quick Start</h3>
+                            <pre className="result-box">git clone https://github.com/your-org/ringtail.git
+cd ringtail
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e .</pre>
+                        </div>
+                        <div className="section">
+                            <h3>Run The App</h3>
+                            <pre className="result-box">jac start main.jac
+# then open the local URL shown in terminal</pre>
+                        </div>
+                        <div className="section">
+                            <h3>CLI Workflows</h3>
+                            <pre className="result-box">python -m src.ringtail_cli --help
+python -m src.ringtail_cli optimize --help
+jac test tests/unit/</pre>
+                        </div>
+                        <div className="section">
+                            <h3>FAQ / Troubleshooting</h3>
+                            <div className="simple-list">
+                                <div className="simple-list-item">If Jac commands fail, confirm `jac --version` and reinstall `jaseci` in your active environment.</div>
+                                <div className="simple-list-item">If LLM calls fail, verify `RINGTAIL_OPENAI_API_KEY` and/or `RINGTAIL_ANTHROPIC_API_KEY` are present in env.</div>
+                                <div className="simple-list-item">If tests fail after dependency changes, recreate the virtual environment and reinstall editable package mode.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+            {activeTab == "vscode" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-vscode">
+                    <div className="hero-card">
+                        <h2>VS Code Extension (Coming Soon)</h2>
+                        <p className="hero-subtitle">The extension is planned to bring Ringtail optimization directly into editor workflows with guided diagnostics and one-click optimization runs.</p>
+                    </div>
+                    <div className="demo-layout" style={{"marginTop": "1rem"}}>
+                        <div className="section">
+                            <h3>Roadmap</h3>
+                            <div className="simple-list">
+                                <div className="simple-list-item">Phase 1: Command palette integration for optimize-current-function and optimize-selected-file.</div>
+                                <div className="simple-list-item">Phase 2: Inline diff view with test/profiling verification summary before apply.</div>
+                                <div className="simple-list-item">Phase 3: GitHub-aware optimization jobs and PR previews from within VS Code.</div>
+                            </div>
+                        </div>
+                        <div className="section">
+                            <h3>Technical Spec Preview</h3>
+                            <div className="simple-list">
+                                <div className="simple-list-item">Commands: `ringtail.optimizeFunction`, `ringtail.optimizeFile`, `ringtail.openRunReport`.</div>
+                                <div className="simple-list-item">Backend: invoke existing Ringtail APIs for paste/repo jobs and stream activity logs to output panel.</div>
+                                <div className="simple-list-item">Artifacts: show before/after code, runtime deltas, and test pass/fail indicators in a custom webview panel.</div>
+                            </div>
+                        </div>
+                        <div className="section">
+                            <h3>Early Access</h3>
+                            <p className="hero-subtitle">Interested in piloting the extension? Open a GitHub issue with your team workflow and preferred language stack so we can prioritize features.</p>
+                            <button className="secondary-button" onClick={lambda -> None { activeTab = "repository"; repoExperienceMode = "github"; }}>
+                                Explore GitHub Integration
+                            </button>
+                        </div>
                     </div>
                 </div>
             }

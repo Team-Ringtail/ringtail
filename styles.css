@@ -198,6 +198,13 @@ body {
     border: 1px solid var(--border);
 }
 
+.mode-toggle {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
 .tab-button,
 .primary-button,
 .secondary-button,
@@ -465,6 +472,31 @@ body {
     border-radius: 14px;
     padding: 0.85rem 1rem;
     color: var(--text-main);
+}
+
+.feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.feature-card {
+    background: var(--surface-soft);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1rem;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.feature-card p {
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.repo-mode-panel {
+    margin-top: 1rem;
 }
 
 .target-pill strong {
