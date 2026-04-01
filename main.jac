@@ -6,6 +6,7 @@
 # the Jac server exposes a flat endpoint namespace.
 
 cl import "./styles.css";
+import from typing { Any }
 
 # --- Optimization -----------------------------------------------------------
 import from src.api.optimization_requests {
@@ -13,8 +14,8 @@ import from src.api.optimization_requests {
     get_optimization_operation_contract
 }
 
-def:pub optimize_sync(request: dict) -> dict | list {
-    return run_optimization_request(request);
+def:pub optimize_sync(payload: dict) -> dict | list {
+    return run_optimization_request(payload);
 }
 
 def:pub get_optimization_contract -> dict {
@@ -35,20 +36,21 @@ import from src.api.jobs_api {
     wait_job_notification as _jobs_wait_job_notification,
 }
 
-def:pub submit_optimization_job(request: dict) -> dict {
-    return _jobs_submit_optimization_job(request);
+def:pub submit_optimization_job(payload: dict) -> dict {
+    print("[RT-SERVER] submit_optimization_job called, payload type:", type(payload), "value:", str(payload)[:200]);
+    return _jobs_submit_optimization_job(payload);
 }
 
 def:pub get_optimization_job(job_id: str) -> dict {
     return _jobs_get_optimization_job(job_id);
 }
 
-def:pub run_repo_agent_sync(request: dict) -> dict {
-    return _jobs_run_repo_agent_sync(request);
+def:pub run_repo_agent_sync(payload: dict) -> dict {
+    return _jobs_run_repo_agent_sync(payload);
 }
 
-def:pub submit_repo_agent_job(request: dict) -> dict {
-    return _jobs_submit_repo_agent_job(request);
+def:pub submit_repo_agent_job(payload: dict) -> dict {
+    return _jobs_submit_repo_agent_job(payload);
 }
 
 def:pub get_repo_agent_job(job_id: str) -> dict {
@@ -95,16 +97,16 @@ def:pub handle_github_app_install_callback(
     );
 }
 
-def:pub verify_github_repo_access(request: dict) -> dict {
-    return _gh_verify_github_repo_access(request);
+def:pub verify_github_repo_access(payload: dict) -> dict {
+    return _gh_verify_github_repo_access(payload);
 }
 
 def:pub get_github_login_url(redirect_uri: str = "") -> dict {
     return _gh_get_github_login_url(redirect_uri);
 }
 
-def:pub exchange_github_code(code: str, state: str) -> dict {
-    return _gh_exchange_github_code(code, state);
+def:pub exchange_github_code(code: str, state: str, redirect_uri: str = "") -> dict {
+    return _gh_exchange_github_code(code, state, redirect_uri);
 }
 
 def:pub get_session(session_token: str) -> dict {
@@ -341,7 +343,12 @@ cl def:pub app -> JsxElement {
         init = {};
         init["method"] = "POST";
         init["headers"] = headers;
-        init["body"] = globalThis.JSON.stringify(body);
+        body_str = "";
+        try { body_str = globalThis.JSON.stringify(globalThis.JSON.parse(globalThis.JSON.stringify(body))); } except Exception { ignored = ""; }
+        if body_str == "" or body_str == "null" {
+            body_str = globalThis.JSON.stringify(body);
+        }
+        init["body"] = body_str;
         resp = await globalThis.fetch(url, init);
         text = await resp.text();
         parsed: dict | list | str | int | float | bool | None = None;
@@ -366,7 +373,7 @@ cl def:pub app -> JsxElement {
             }
             return {"error": ("http_" + str(resp.status)), "message": str(detail)};
         }
-        def _is_nullish(v) -> bool {
+        def _is_nullish(v: Any) -> bool {
             # Prefer direct None check; also treat literal JS null/undefined as nullish
             # (but do NOT treat objects that merely stringify oddly as nullish).
             if v is None {
@@ -384,7 +391,7 @@ cl def:pub app -> JsxElement {
             } except Exception { ignored = ""; }
             return False;
         }
-        def _is_json_nullish(v) -> bool {
+        def _is_json_nullish(v: Any) -> bool {
             # Some Jac/JS proxy objects behave oddly for direct comparisons; use
             # JSON.stringify as a coarse "is this real data?" check.
             if v is None {
@@ -403,15 +410,15 @@ cl def:pub app -> JsxElement {
         # - {"data":{"result":<X>}}
         # - {"result":<X>}
         # Fall back to the parsed object if no wrapper is present.
-        def _safe_get(obj, key: str) -> dict | list | str | int | float | bool | None {
-            if obj is None {
+        def _safe_get(container: dict | list | str | int | float | bool | None, key: str) -> dict | list | str | int | float | bool | None {
+            if container is None {
                 return None;
             }
-            if globalThis.Array.isArray(obj) {
+            if globalThis.Array.isArray(container) {
                 return None;
             }
             try {
-                v = obj[key];
+                v = container[key];
                 if v is None {
                     return None;
                 }
@@ -502,16 +509,34 @@ cl def:pub app -> JsxElement {
         return await ringtail_post_function("health", {});
     }
 
-    async def ringtail_submit_optimization_job(request: dict) -> dict | list | str | int | float | bool | None {
-        return await ringtail_post_function("submit_optimization_job", {"request": request});
+    async def ringtail_submit_optimization_job(request_json: str) -> dict | list | str | int | float | bool | None {
+        if str(request_json).strip() == "" {
+            return {"error": "empty_request_payload"};
+        }
+        request_obj = {};
+        try {
+            request_obj = globalThis.JSON.parse(request_json);
+        } except Exception as parseErr {
+            return {"error": "invalid_request_payload", "message": str(parseErr)};
+        }
+        return await ringtail_post_function("submit_optimization_job", {"payload": request_obj});
     }
 
     async def ringtail_get_optimization_job(job_id: str) -> dict | list | str | int | float | bool | None {
         return await ringtail_post_function("get_optimization_job", {"job_id": job_id});
     }
 
-    async def ringtail_submit_repo_agent_job(request: dict) -> dict | list | str | int | float | bool | None {
-        return await ringtail_post_function("submit_repo_agent_job", {"request": request});
+    async def ringtail_submit_repo_agent_job(request_json: str) -> dict | list | str | int | float | bool | None {
+        if str(request_json).strip() == "" {
+            return {"error": "empty_request_payload"};
+        }
+        request_obj = {};
+        try {
+            request_obj = globalThis.JSON.parse(request_json);
+        } except Exception as parseErr {
+            return {"error": "invalid_request_payload", "message": str(parseErr)};
+        }
+        return await ringtail_post_function("submit_repo_agent_job", {"payload": request_obj});
     }
 
     async def ringtail_get_repo_agent_job(job_id: str) -> dict | list | str | int | float | bool | None {
@@ -522,8 +547,15 @@ cl def:pub app -> JsxElement {
         return await ringtail_post_function("get_github_login_url", {"redirect_uri": redirect_uri});
     }
 
-    async def ringtail_exchange_github_code(code: str, state: str) -> dict | list | str | int | float | bool | None {
-        return await ringtail_post_function("exchange_github_code", {"code": code, "state": state});
+    async def ringtail_exchange_github_code(
+        code: str,
+        state: str,
+        redirect_uri: str = ""
+    ) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function(
+            "exchange_github_code",
+            {"code": code, "state": state, "redirect_uri": redirect_uri}
+        );
     }
 
     async def ringtail_get_session(session_token: str) -> dict | list | str | int | float | bool | None {
@@ -903,6 +935,12 @@ cl def:pub app -> JsxElement {
                         # Register the in-document node; clear on unmount so we never
                         # hold a detached element (version-based keys used to remount
                         # and stale the cache).
+                        # Some Jac client runtimes may pass JS `undefined` instead of null.
+                        try {
+                            if el is not None and globalThis.Object.is(el, globalThis.undefined) {
+                                el = None;
+                            }
+                        } except Exception { ignored = ""; }
                         if el != None {
                             liveActivityEls[pre_id] = el;
                             # If live activity was updated before this <pre> mounted,
@@ -940,9 +978,58 @@ cl def:pub app -> JsxElement {
         return s;
     }
 
+    def _format_ratio_display(raw: str) -> str {
+        txt = str(raw).strip();
+        if txt == "" {
+            return "";
+        }
+        try {
+            v = float(txt);
+            if v >= 1000.0 {
+                return str(round(v, 2));
+            }
+            if v >= 10.0 {
+                return str(round(v, 3));
+            }
+            return str(round(v, 4));
+        } except Exception {
+            return txt;
+        }
+    }
+
+    def _format_exec_time_display(raw: str) -> str {
+        txt = str(raw).strip();
+        if txt == "" {
+            return "";
+        }
+        try {
+            sec = float(txt);
+            abs_sec = sec >= 0.0 and sec or -sec;
+            if abs_sec >= 1.0 {
+                return str(round(sec, 3)) + " s";
+            }
+            if abs_sec >= 0.001 {
+                return str(round(sec * 1000.0, 3)) + " ms";
+            }
+            if abs_sec >= 0.000001 {
+                return str(round(sec * 1000000.0, 3)) + " us";
+            }
+            return str(round(sec * 1000000000.0, 3)) + " ns";
+        } except Exception {
+            return txt;
+        }
+    }
+
     def _scroll_element_to_bottom(element_id: str) -> None {
         try {
             el = globalThis.document.getElementById(element_id);
+            # In some Jac client runtimes, missing elements can come back as JS `undefined`
+            # rather than `null`. Treat both as "no element".
+            try {
+                if el is not None and globalThis.Object.is(el, globalThis.undefined) {
+                    el = None;
+                }
+            } except Exception { ignored = ""; }
             if el != None {
                 el.scrollTop = el.scrollHeight;
             }
@@ -962,11 +1049,9 @@ cl def:pub app -> JsxElement {
                 el = None;
             }
             if el is None {
-                try {
-                    el = liveActivityEls[element_id];
-                } except Exception {
-                    el = None;
-                }
+                # _value returns the fallback (None) for missing keys or undefined/null values,
+                # avoiding the `undefined !== null` trap that lets `el.scrollHeight` crash.
+                el = _value(liveActivityEls, element_id, None);
             }
             # IMPORTANT: In JS, missing dict keys often yield `undefined` (no exception).
             # Treat undefined/null the same as None so we don't think we have a node.
@@ -1009,6 +1094,12 @@ cl def:pub app -> JsxElement {
                 # before touching DOM properties.
                 is_conn = False;
                 try { is_conn = bool(el != None and bool(el.isConnected)); } except Exception { is_conn = False; }
+                # Extra guard: some runtimes keep `undefined` and `!= None` is still true.
+                try {
+                    if el is not None and globalThis.Object.is(el, globalThis.undefined) {
+                        el = None;
+                    }
+                } except Exception { ignored = ""; }
                 if el != None {
                     el.textContent = text;
                     el.scrollTop = el.scrollHeight;
@@ -1046,7 +1137,10 @@ cl def:pub app -> JsxElement {
         # In-place mutation of dict keys often does not trigger a re-render in the
         # Jac client runtime. Clone + reassign to force a new reference.
         try {
-            nxt_text = dict(liveActivityTextById);
+            # `dict(existingObj)` can explode in the generated JS if the runtime
+            # represents `dict` values as plain objects (non-iterable).
+            # Use Object.assign for a safe shallow clone.
+            nxt_text = globalThis.Object.assign({}, liveActivityTextById);
             nxt_text[target_id] = text;
             liveActivityTextById = nxt_text;
         } except Exception {
@@ -1056,7 +1150,7 @@ cl def:pub app -> JsxElement {
         if bump_version {
             next_ver = _live_activity_version(target_id) + 1;
             try {
-                nxt_vermap = dict(liveActivityVersionById);
+                nxt_vermap = globalThis.Object.assign({}, liveActivityVersionById);
                 nxt_vermap[target_id] = next_ver;
                 liveActivityVersionById = nxt_vermap;
             } except Exception {
@@ -1078,14 +1172,14 @@ cl def:pub app -> JsxElement {
 
         # React-rendered path is the source of truth.
         # If the <pre> is mounted, scroll it; otherwise it will scroll on mount.
-        globalThis.console.log("target_id: ", target_id);
-        globalThis.console.log("liveActivityEls[target_id]: ", liveActivityEls[target_id]);
-        try {
-            el = liveActivityEls[target_id];
-            if el != None {
+        # Use _value() to read from the dict: it converts JS `undefined` to None,
+        # preventing `undefined.scrollHeight` crashes when the key is absent.
+        el = _value(liveActivityEls, target_id, None);
+        if el != None {
+            try {
                 el.scrollTop = el.scrollHeight;
-            }
-        } except Exception { ignored = ""; }
+            } except Exception { ignored = ""; }
+        }
     }
 
     def _activity_text_from_payload(payload: dict, default_status: str = "running") -> str {
@@ -1103,31 +1197,35 @@ cl def:pub app -> JsxElement {
 
     def _apply_live_activity_payload(target_id: str, payload: dict, default_status: str = "running") -> str {
         txt = _activity_text_from_payload(payload, default_status);
-        
-        globalThis.console.log("before activity_text: ", txt);
         _set_live_activity(target_id, txt, True);
-        globalThis.console.log("after activity_text: ", txt);
         return txt;
     }
 
     def _apply_paste_job_payload(raw: dict) -> None {
         result = _flatten_function_job_payload(raw);
-        pasteJobStatus = str(_value(result, "status", "running"));
+        pasteJobStatus = str(_value(result, "status", "running")).strip().lower();
         pasteRunId = str(_value(result, "run_id", ""));
         pasteRunLogPath = str(_value(result, "run_log_path", ""));
         act_lines = _coerce_list(_value(result, "activity_log_lines", []));
         next_activity_text = _apply_live_activity_payload("paste-live-activity-log", result, pasteJobStatus);
+        resolved = _extract_paste_result_payload(result);
+        has_result_fields = (
+            str(_value(resolved, "optimized_code", "")).strip() != ""
+            or str(_value(resolved, "improvement_ratio", "")).strip() != ""
+            or str(_value(resolved, "test_passed", "")).strip() != ""
+        );
+        if has_result_fields {
+            _apply_paste_result(resolved);
+        }
         if pasteJobStatus in ["queued", "running", "submitting"] {
             pasteError = "";
         }
         if pasteJobStatus == "succeeded" {
-            inner = _coerce_plain_object(_value(result, "result", {}));
-            fe = _format_error_display(_value(inner, "error", None));
+            fe = _format_error_display(_value(resolved, "error", None));
             if fe != "" {
                 pasteJobStatus = "failed";
                 pasteError = fe;
             }
-            _apply_paste_result(inner);
         }
         if pasteJobStatus == "failed" {
             fe = _format_error_display(_value(result, "error", None));
@@ -1509,14 +1607,31 @@ cl def:pub app -> JsxElement {
         _save_theme(currentTheme);
     }
 
+    def _extract_paste_result_payload(job_payload: dict) -> dict {
+        if "improvement_ratio" in job_payload or "optimized_code" in job_payload {
+            return job_payload;
+        }
+        inner = _coerce_plain_object(_value(job_payload, "result", {}));
+        if "improvement_ratio" in inner or "optimized_code" in inner {
+            return inner;
+        }
+        nested = _coerce_plain_object(_value(inner, "result", {}));
+        if "improvement_ratio" in nested or "optimized_code" in nested {
+            return nested;
+        }
+        return inner;
+    }
+
     def _apply_paste_result(result: dict) -> None {
-        metrics = _value(result, "metrics", {});
-        baseline = _value(result, "baseline_metrics", {});
-        pasteImprovementRatio = str(_value(result, "improvement_ratio", 0.0));
-        pasteExecutionBeforeMs = str(_value(baseline, "execution_time", 0.0));
-        pasteExecutionAfterMs = str(_value(metrics, "execution_time", 0.0));
+        metrics = _coerce_plain_object(_value(result, "metrics", {}));
+        baseline = _coerce_plain_object(_value(result, "baseline_metrics", {}));
+        pasteImprovementRatio = str(_value(result, "improvement_ratio", ""));
+        before_exec = _value(baseline, "execution_time", _value(baseline, "median_ms", ""));
+        after_exec = _value(metrics, "execution_time", _value(metrics, "median_ms", ""));
+        pasteExecutionBeforeMs = str(before_exec);
+        pasteExecutionAfterMs = str(after_exec);
         pasteTerminationReason = str(_value(result, "termination_reason", ""));
-        pasteTestPassed = str(_value(result, "test_passed", False));
+        pasteTestPassed = str(_value(result, "test_passed", ""));
         pasteOriginalCode = pasteSubmittedSourceCode != "" and pasteSubmittedSourceCode or pasteSourceCode;
         pasteOptimizedCode = str(_value(result, "optimized_code", ""));
         er = _value(result, "error", None);
@@ -1566,7 +1681,13 @@ cl def:pub app -> JsxElement {
                     {"call": pasteTestCall, "expected": expected}
                 ];
             }
-            submitted = await ringtail_submit_optimization_job(payload);
+            try { payload = globalThis.JSON.parse(globalThis.JSON.stringify(payload)); } except Exception { ignored = ""; }
+            payload_json = "";
+            try { payload_json = str(globalThis.JSON.stringify(payload)); } except Exception { payload_json = ""; }
+            if payload_json == "" or payload_json == "null" or payload_json == "undefined" {
+                raise Exception("Failed to serialize optimization payload");
+            }
+            submitted = await ringtail_submit_optimization_job(payload_json);
             try { submitted = globalThis.JSON.parse(globalThis.JSON.stringify(submitted)); } except Exception { ignored = ""; }
             submitted = _flatten_function_job_payload(submitted);
             returned_job_id = str(_value(submitted, "job_id", ""));
@@ -1839,7 +1960,13 @@ cl def:pub app -> JsxElement {
     }
 
     async def handleGithubLogin() -> None {
-        result = await ringtail_get_github_login_url("");
+        origin = str(globalThis.window.location.origin or "");
+        pathname = str(globalThis.window.location.pathname or "");
+        if pathname == "" {
+            pathname = "/";
+        }
+        oauth_redirect = origin + pathname;
+        result = await ringtail_get_github_login_url(oauth_redirect);
         url = _value(result, "url", "");
         if url != "" {
             globalThis.window.location.href = url;
@@ -1878,7 +2005,13 @@ cl def:pub app -> JsxElement {
             uiMessage = "OAuth callback missing code or state.";
             return;
         }
-        result = await ringtail_exchange_github_code(code, state);
+        origin = str(globalThis.window.location.origin or "");
+        pathname = str(globalThis.window.location.pathname or "");
+        if pathname == "" {
+            pathname = "/";
+        }
+        oauth_redirect = origin + pathname;
+        result = await ringtail_exchange_github_code(code, state, oauth_redirect);
         if "error" in result {
             uiMessage = str(result["error"]);
             return;
@@ -1998,7 +2131,12 @@ cl def:pub app -> JsxElement {
             if repoTestCommand != "" {
                 payload["test_command"] = repoTestCommand;
             }
-            submitted = await ringtail_submit_repo_agent_job(payload);
+            payload_json = "";
+            try { payload_json = str(globalThis.JSON.stringify(payload)); } except Exception { payload_json = ""; }
+            if payload_json == "" or payload_json == "null" or payload_json == "undefined" {
+                raise Exception("Failed to serialize repository payload");
+            }
+            submitted = await ringtail_submit_repo_agent_job(payload_json);
             repoJobId = str(_value(submitted, "job_id", ""));
             repoJobStatus = str(_value(submitted, "status", "queued"));
             if repoJobId == "" {
@@ -2142,7 +2280,13 @@ cl def:pub app -> JsxElement {
                 "top_k": int(demoTopK),
                 "per_file_k": int(demoPerFileK)
             };
-            await ringtail_submit_optimization_job(payload);
+            try { payload = globalThis.JSON.parse(globalThis.JSON.stringify(payload)); } except Exception { ignored = ""; }
+            payload_json = "";
+            try { payload_json = str(globalThis.JSON.stringify(payload)); } except Exception { payload_json = ""; }
+            if payload_json == "" or payload_json == "null" or payload_json == "undefined" {
+                raise Exception("Failed to serialize benchmark payload");
+            }
+            await ringtail_submit_optimization_job(payload_json);
             # Do not await the full long-poll chain here; schedule it so UI state
             # can flush between notifications in Jac/React runtime.
             globalThis.setTimeout(lambda -> None { _demo_job_stream_tick(dg); }, 0);
@@ -2374,11 +2518,11 @@ cl def:pub app -> JsxElement {
                         </div>
                         <div className="stat-card">
                             <span>Improvement Ratio</span>
-                            <strong>{pasteImprovementRatio != "" and pasteImprovementRatio + "x" or "--"}</strong>
+                            <strong>{pasteImprovementRatio != "" and _format_ratio_display(pasteImprovementRatio) + "x" or "--"}</strong>
                         </div>
                         <div className="stat-card">
                             <span>Exec Time (Before -> After)</span>
-                            <strong>{pasteExecutionBeforeMs != "" and pasteExecutionBeforeMs + " -> " + pasteExecutionAfterMs or "--"}</strong>
+                            <strong>{pasteExecutionBeforeMs != "" and _format_exec_time_display(pasteExecutionBeforeMs) + " -> " + _format_exec_time_display(pasteExecutionAfterMs) or "--"}</strong>
                         </div>
                         <div className="stat-card">
                             <span>Tests Passed</span>
@@ -2386,15 +2530,17 @@ cl def:pub app -> JsxElement {
                         </div>
                     </div>
 
-                    <div className="section field-full" style={{"marginTop": "0.5rem"}}>
-                        {LiveActivityBox(
-                            "Live Activity",
-                            "While a job is active, the UI subscribes via wait_job_notification (server-side Observer: in-process notify + long-poll) so status and run-log lines update without a client poll timer.",
-                            "paste-live-activity-log",
-                            _live_activity_text("paste-live-activity-log", pasteActivityText),
-                            _live_activity_version("paste-live-activity-log"),
-                        )}
-                    </div>
+                    {pasteJobId != "" and
+                        <div className="section field-full" style={{"marginTop": "0.5rem"}}>
+                            {LiveActivityBox(
+                                "Live Activity",
+                                "While a job is active, the UI subscribes via wait_job_notification (server-side Observer: in-process notify + long-poll) so status and run-log lines update without a client poll timer.",
+                                "paste-live-activity-log",
+                                _live_activity_text("paste-live-activity-log", pasteActivityText),
+                                _live_activity_version("paste-live-activity-log"),
+                            )}
+                        </div>
+                    }
 
                     <div className="demo-layout">
                         <div className="section">

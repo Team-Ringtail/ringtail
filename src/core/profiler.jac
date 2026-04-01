@@ -74,8 +74,8 @@ def _pytest_output_hint(run_result: any) -> str {
 }
 
 
+"""Parse pytest-benchmark JSON output + memory JSON into our result dict."""
 def _parse_benchmark_json(bench_path: str, memory_path: str) -> dict {
-    """Parse pytest-benchmark JSON output + memory JSON into our result dict."""
     try {
         with open(bench_path, "r") as f {
             data = json.load(f);

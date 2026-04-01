@@ -77,33 +77,33 @@ def _annotation_to_string(annotation: Any | None) -> str | None {
 }
 
 
-def _literal_default(node: Any | None) -> Any | None {
-    if node is None {
+def _literal_default(ast_node: Any | None) -> Any | None {
+    if ast_node is None {
         return None;
     }
     try {
-        return ast.literal_eval(node);
+        return ast.literal_eval(ast_node);
     } except Exception {
         return None;
     }
 }
 
 
-def _source_segment(source_code: str, node: Any) -> str {
-    if hasattr(node, "lineno") and hasattr(node, "end_lineno") {
+def _source_segment(source_code: str, ast_node: Any) -> str {
+    if hasattr(ast_node, "lineno") and hasattr(ast_node, "end_lineno") {
         lines = source_code.split("\n");
-        start = int(node.lineno) - 1;
-        end = int(node.end_lineno);
+        start = int(ast_node.lineno) - 1;
+        end = int(ast_node.end_lineno);
         return "\n".join(lines[start:end]);
     }
     return "";
 }
 
 
-def _python_function_info(source_code: str, node: Any) -> dict {
+def _python_function_info(source_code: str, ast_node: Any) -> dict {
     parameters: list = [];
-    positional_args = node.args.args;
-    defaults = node.args.defaults;
+    positional_args = ast_node.args.args;
+    defaults = ast_node.args.defaults;
     default_start = len(positional_args) - len(defaults);
 
     idx = 0;
@@ -122,20 +122,20 @@ def _python_function_info(source_code: str, node: Any) -> dict {
         idx = idx + 1;
     }
 
-    if node.args.vararg is not None {
+    if ast_node.args.vararg is not None {
         parameters.append({
-            "name": node.args.vararg.arg,
-            "type": _annotation_to_string(node.args.vararg.annotation),
+            "name": ast_node.args.vararg.arg,
+            "type": _annotation_to_string(ast_node.args.vararg.annotation),
             "default": None,
             "kind": "vararg"
         });
     }
 
     kw_idx = 0;
-    for arg in node.args.kwonlyargs {
+    for arg in ast_node.args.kwonlyargs {
         default_value = None;
-        if kw_idx < len(node.args.kw_defaults) {
-            default_value = _literal_default(node.args.kw_defaults[kw_idx]);
+        if kw_idx < len(ast_node.args.kw_defaults) {
+            default_value = _literal_default(ast_node.args.kw_defaults[kw_idx]);
         }
         parameters.append({
             "name": arg.arg,
@@ -146,33 +146,33 @@ def _python_function_info(source_code: str, node: Any) -> dict {
         kw_idx = kw_idx + 1;
     }
 
-    if node.args.kwarg is not None {
+    if ast_node.args.kwarg is not None {
         parameters.append({
-            "name": node.args.kwarg.arg,
-            "type": _annotation_to_string(node.args.kwarg.annotation),
+            "name": ast_node.args.kwarg.arg,
+            "type": _annotation_to_string(ast_node.args.kwarg.annotation),
             "default": None,
             "kind": "kwargs"
         });
     }
 
-    docstring = ast.get_docstring(node);
+    docstring = ast.get_docstring(ast_node);
     if docstring is None { docstring = ""; }
 
     ast_representation = {
-        "name": node.name,
-        "lineno": node.lineno,
-        "end_lineno": getattr(node, "end_lineno", node.lineno),
-        "args_count": len(node.args.args),
-        "has_decorators": len(node.decorator_list) > 0,
-        "is_async": isinstance(node, ast.AsyncFunctionDef)
+        "name": ast_node.name,
+        "lineno": ast_node.lineno,
+        "end_lineno": getattr(ast_node, "end_lineno", ast_node.lineno),
+        "args_count": len(ast_node.args.args),
+        "has_decorators": len(ast_node.decorator_list) > 0,
+        "is_async": isinstance(ast_node, ast.AsyncFunctionDef)
     };
 
     return {
-        "function_name": node.name,
+        "function_name": ast_node.name,
         "parameters": parameters,
         "docstring": docstring,
         "ast_representation": ast_representation,
-        "source_segment": _source_segment(source_code, node)
+        "source_segment": _source_segment(source_code, ast_node)
     };
 }
 
@@ -189,9 +189,9 @@ def list_functions(source_code: str, language: str = "python") -> list {
     try {
         tree = ast.parse(source_code);
         functions: list = [];
-        for node in tree.body {
-            if isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef) {
-                functions.append(_python_function_info(source_code, node));
+        for stmt in tree.body {
+            if isinstance(stmt, ast.FunctionDef) or isinstance(stmt, ast.AsyncFunctionDef) {
+                functions.append(_python_function_info(source_code, stmt));
             }
         }
         if len(functions) > 0 {
