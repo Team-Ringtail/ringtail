@@ -104,6 +104,7 @@ def optimize_repo(
             io_data=io_data,
             config=config,
             entry_point=entry_point,
+            baseline_program_time=analysis.total_time,
         )
 
         summaries = []
@@ -129,6 +130,9 @@ def optimize_repo(
             "baseline_time": result.baseline_total_time,
             "optimized_time": result.optimized_total_time,
             "speedup": result.overall_speedup,
+            "baseline_program_time": result.baseline_program_time,
+            "optimized_program_time": result.optimized_program_time,
+            "program_speedup": result.program_speedup,
             "functions": summaries,
         }, indent=2)
 

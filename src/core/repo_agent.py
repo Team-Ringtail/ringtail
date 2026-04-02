@@ -300,6 +300,7 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
                 io_data=io_data,
                 config=dag_config,
                 entry_point=entry_point,
+                baseline_program_time=analysis.total_time,
             )
             _safe_log_event(
                 run_log,
@@ -349,6 +350,9 @@ def run_repo_agent_job(request: dict[str, Any]) -> dict[str, Any]:
                 "baseline_total_time": dag_result.baseline_total_time,
                 "optimized_total_time": dag_result.optimized_total_time,
                 "overall_speedup": dag_result.overall_speedup,
+                "baseline_program_time": dag_result.baseline_program_time,
+                "optimized_program_time": dag_result.optimized_program_time,
+                "program_speedup": dag_result.program_speedup,
             }
             pr_title = _build_dag_pr_title(job["prompt"], dag_result)
             pr_body = _build_dag_pr_body(job, dag_result, analysis, validation_result, auth_context)
@@ -906,8 +910,8 @@ def _run_log_paths(candidate_results: list[dict[str, Any]]) -> list[str]:
 
 def _build_dag_pr_title(prompt: str, dag_result: Any) -> str:
     count = dag_result.successful_optimizations
-    speedup = dag_result.overall_speedup
-    speedup_str = f" ({speedup:.1f}x faster)" if speedup and speedup > 1.0 else ""
+    speedup = dag_result.program_speedup
+    speedup_str = f" ({speedup:.1f}x total speedup)" if speedup and speedup > 1.05 else ""
     return f"Optimize {count} function{'s' if count != 1 else ''}{speedup_str}"
 
 
@@ -934,7 +938,17 @@ def _build_dag_pr_body(
         f"- Failed to optimize: {dag_result.failed_optimizations}",
     ]
 
-    if dag_result.baseline_total_time and dag_result.optimized_total_time:
+    if dag_result.baseline_program_time and dag_result.optimized_program_time:
+        lines.extend([
+            "",
+            f"- Baseline total runtime: {dag_result.baseline_program_time:.3f}s",
+            f"- Optimized total runtime: {dag_result.optimized_program_time:.3f}s",
+        ])
+        if dag_result.program_speedup and dag_result.program_speedup > 1.05:
+            lines.append(f"- Total program speedup: **{dag_result.program_speedup:.2f}x**")
+        elif dag_result.program_speedup:
+            lines.append(f"- Total program speedup: **{dag_result.program_speedup:.2f}x** (within noise)")
+    elif dag_result.baseline_total_time and dag_result.optimized_total_time:
         lines.extend([
             "",
             f"- Baseline time across optimized functions: {dag_result.baseline_total_time:.3f}s",
@@ -958,7 +972,7 @@ def _build_dag_pr_body(
         for fr in rows:
             status = "optimized" if fr.success else _truncate_status(fr.error or "failed")
             optimized_time = _format_optional_seconds(fr.optimized_tottime) if fr.success else ""
-            speedup = _format_optional_speedup(fr.speedup) if fr.success else ""
+            speedup = _format_optional_speedup(fr.speedup, baseline_s=fr.baseline_tottime) if fr.success else ""
             lines.append(
                 f"| `{fr.function_name}` | `{os.path.basename(fr.file_path)}` | "
                 f"{fr.baseline_tottime:.4f} | {optimized_time} | "
@@ -1077,8 +1091,10 @@ def _format_optional_seconds(value: float | None) -> str:
     return f"{value:.4f}"
 
 
-def _format_optional_speedup(value: float | None) -> str:
+def _format_optional_speedup(value: float | None, baseline_s: float = 0.0) -> str:
     if value is None:
+        return "n/a"
+    if baseline_s < 0.001:
         return "n/a"
     return f"{value:.2f}x"
 

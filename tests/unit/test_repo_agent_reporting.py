@@ -20,6 +20,9 @@ def test_build_dag_pr_body_hides_skipped_rows_and_simplifies_summary() -> None:
         baseline_total_time=0.20,
         optimized_total_time=0.10,
         overall_speedup=2.0,
+        baseline_program_time=1.5,
+        optimized_program_time=0.75,
+        program_speedup=2.0,
         levels_processed=2,
         total_functions=3,
         function_results={

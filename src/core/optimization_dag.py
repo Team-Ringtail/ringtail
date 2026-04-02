@@ -28,7 +28,7 @@ from src.core.snapshot_tester import (
     run_snapshot_tests,
 )
 
-_MIN_ACCEPTABLE_SPEEDUP = 1.0
+_MIN_ACCEPTABLE_SPEEDUP = 1.1  # 10% minimum to filter out noise
 
 
 @dataclass
@@ -70,6 +70,9 @@ class DAGResult:
     failed_optimizations: int
     skipped_functions: int
     skipped_by_reason: dict[str, int]
+    baseline_program_time: float | None = None
+    optimized_program_time: float | None = None
+    program_speedup: float | None = None
 
 
 def optimize_dag(
@@ -80,6 +83,7 @@ def optimize_dag(
     entry_point: str,
     repo_tests: dict[str, str] | None = None,
     run_log: Any = None,
+    baseline_program_time: float | None = None,
 ) -> DAGResult:
     """Optimise all functions in *dag* bottom-up, level by level.
 
@@ -211,12 +215,16 @@ def optimize_dag(
     baseline_total = None
     optimized_total = None
     overall_speedup = None
+    optimized_program_time = None
+    program_speedup = None
     try:
         post_analysis = run_cprofile_analysis(repo_path, entry_point, timeout=300)
+        optimized_program_time = post_analysis.total_time
         _apply_post_profile_timings(results, post_analysis)
         rejected_regressions = _reject_slower_results(results)
         if rejected_regressions > 0:
             post_analysis = run_cprofile_analysis(repo_path, entry_point, timeout=300)
+            optimized_program_time = post_analysis.total_time
             _apply_post_profile_timings(results, post_analysis)
             successful = sum(1 for result in results.values() if result.success)
             failed = sum(
@@ -224,6 +232,8 @@ def optimize_dag(
                 if (not result.success) and (not result.skipped)
             )
         baseline_total, optimized_total, overall_speedup = _comparable_speedup_totals(results)
+        if baseline_program_time and optimized_program_time and optimized_program_time > 0:
+            program_speedup = baseline_program_time / optimized_program_time
     except Exception as exc:
         raise RuntimeError(f"Post-optimization profiling failed: {exc}") from exc
 
@@ -238,6 +248,9 @@ def optimize_dag(
         failed_optimizations=failed,
         skipped_functions=skipped,
         skipped_by_reason=skipped_by_reason,
+        baseline_program_time=baseline_program_time,
+        optimized_program_time=optimized_program_time,
+        program_speedup=program_speedup,
     )
 
 
