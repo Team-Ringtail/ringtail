@@ -3,7 +3,7 @@
 ## Project context
 This is a code optimization harness using Jaseci to orchestrate AI agents. Goal: compare multi-agent optimization vs single top-tier agent performance with verifiable metrics (unit tests + profiling).
 
-For interface usage and operation mapping, see `interfaces.md`.
+For interface usage and operation mapping, see `docs/interfaces.md`.
 
 **CRITICAL**: LLM API calls cost money. This is our primary constraint. Always batch requests, cache results, and estimate costs before implementing features that call LLMs.
 

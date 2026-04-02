@@ -60,7 +60,7 @@ Examples:
 
 - `health()` -> `{}`
 - `get_optimization_job(job_id)` -> `{"job_id": "..."}`
-- `optimize_sync(request)` -> `{"request": { ...operation payload... }}`
+- `optimize_sync(request)` -> `{"request": { ... }}`
 
 ### Rule 2: optimization operations are nested in `request`
 

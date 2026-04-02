@@ -24,7 +24,7 @@ ringtail config doctor
 
 ## 1) Web UI Interface
 
-Source: [`main.jac`](main.jac) (`cl def:pub app`). The component must live in the entry module so `jac start` can register it (JSX-only modules do not export `app` to Python). The dashboard calls the HTTP API from the browser via `POST /function/<name>` using the `ringtail_*` helpers on the `app` component.
+Source: [`main.jac`](../main.jac) (`cl def:pub app`). The component must live in the entry module so `jac start` can register it (JSX-only modules do not export `app` to Python). The dashboard calls the HTTP API from the browser via `POST /function/<name>` using the `ringtail_*` helpers on the `app` component.
 
 ### Start the web app
 

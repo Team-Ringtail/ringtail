@@ -5,7 +5,7 @@ These double as a contract for “GitHub-enabled Ringtail” behavior: run
 
     python -m pytest tests/unit/test_github_repo_service.py -v
 
-Live verification still needs a real GitHub App + installation; see tests/GITHUB_VALIDATION.md
+Live verification still needs a real GitHub App + installation; see docs/GITHUB_VALIDATION.md
 """
 from __future__ import annotations
 

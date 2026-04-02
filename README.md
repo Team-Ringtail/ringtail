@@ -10,11 +10,11 @@ Ringtail is an AI-assisted Python optimization harness that runs a verifiable lo
 
 ## Quick Links
 
-- Interface usage: `interfaces.md`
-- HTTP contract: `API_DOCUMENTATION.md`
-- Optimization operation contract: `OPTIMIZATION_CONTRACT.md`
-- Architecture: `ARCHITECTURE.md`
-- Replay logical contract: `REPLAY_API_CONTRACT.md`
+- Interface usage: `docs/interfaces.md`
+- HTTP contract: `docs/API_DOCUMENTATION.md`
+- Optimization operation contract: `docs/OPTIMIZATION_CONTRACT.md`
+- Architecture: `docs/ARCHITECTURE.md`
+- Replay logical contract: `docs/REPLAY_API_CONTRACT.md`
 
 ## Install
 
@@ -44,7 +44,7 @@ Ringtail currently supports four public interfaces:
 - **CLI** (`ringtail ...`)
 - **Python SDK** (`src/sdk.py`)
 
-See `interfaces.md` for examples and troubleshooting.
+See `docs/interfaces.md` for examples and troubleshooting.
 
 ## Core Commands
 
@@ -88,5 +88,3 @@ python -m pytest tests/
 ```
 
 ## Notes
-
-- Historical benchmark reports under `benchmarks/baselines/**` are snapshots from prior runs and intentionally not kept in sync with current architecture docs.

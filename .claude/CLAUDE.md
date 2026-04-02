@@ -7,7 +7,7 @@ EECS 449 project. AI agent-based code optimizer. Orchestrates think-prep-write-t
 ## Dev Environment
 - Python 3.11+, virtual environment recommended.
 - Install: `pip install -r requirements.txt && pip install -e .`
-- Interface docs: `interfaces.md`
+- Interface docs: `docs/interfaces.md`
 
 ## Build / Test
 - Python tests: `pytest tests/` or `python -m pytest tests/`
