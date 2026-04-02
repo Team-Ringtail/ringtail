@@ -5,7 +5,7 @@ description = "AI agent-based code optimizer"
 entry-point = "main.jac"
 
 [dependencies]
-jaseci = "*"
+jaseci = ""
 
 [dependencies.npm]
 react = "^18.2.0"

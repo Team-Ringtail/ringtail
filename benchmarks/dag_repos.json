@@ -1,0 +1,76 @@
+{
+  "description": "Benchmark repos for testing the profile-driven DAG optimization pipeline",
+  "repos": [
+    {
+      "name": "algorithms-python",
+      "repo_url": "https://github.com/TheAlgorithms/Python.git",
+      "entry_point": "pytest sorts/ -x -q --tb=no",
+      "category": "algorithms",
+      "description": "Classic algorithm implementations with sorting as the benchmark focus",
+      "expected_hotspots": ["bubble_sort", "selection_sort", "insertion_sort"]
+    },
+    {
+      "name": "python-sortedcontainers",
+      "repo_url": "https://github.com/grantjenks/python-sortedcontainers.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "library",
+      "description": "Sorted collections library with comprehensive test suite and clear hot paths"
+    },
+    {
+      "name": "python-string-utils",
+      "repo_url": "https://github.com/daveoncode/python-string-utils.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "library",
+      "description": "String manipulation library with tests; good for regex/string hot paths"
+    },
+    {
+      "name": "marshmallow",
+      "repo_url": "https://github.com/marshmallow-code/marshmallow.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "library",
+      "description": "Object serialization/deserialization with extensive tests and clear profiling targets"
+    },
+    {
+      "name": "httpbin",
+      "repo_url": "https://github.com/psf/httpbin.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "web_app",
+      "description": "Classic HTTP request/response testing service (Flask) with test suite"
+    },
+    {
+      "name": "fastapi-realworld",
+      "repo_url": "https://github.com/nsidnev/fastapi-realworld-example-app.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "web_app",
+      "description": "RealWorld spec FastAPI app with async endpoints and test coverage"
+    },
+    {
+      "name": "python-fire",
+      "repo_url": "https://github.com/google/python-fire.git",
+      "entry_point": "pytest fire/tests/ -x -q --tb=no",
+      "category": "cli_tool",
+      "description": "Google's CLI generation library with tests exercising argument parsing and dispatch"
+    },
+    {
+      "name": "csvkit",
+      "repo_url": "https://github.com/wireservice/csvkit.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "cli_tool",
+      "description": "CSV processing CLI tools with data-intensive operations and test coverage"
+    },
+    {
+      "name": "tablib",
+      "repo_url": "https://github.com/jazzband/tablib.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "library",
+      "description": "Tabular dataset library with import/export in multiple formats, clear hot paths in conversion"
+    },
+    {
+      "name": "python-slugify",
+      "repo_url": "https://github.com/un33k/python-slugify.git",
+      "entry_point": "pytest tests/ -x -q --tb=no",
+      "category": "library",
+      "description": "Text slugification with Unicode handling; small, well-tested, regex-heavy"
+    }
+  ]
+}

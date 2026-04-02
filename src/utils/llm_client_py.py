@@ -66,7 +66,14 @@ def analyze_and_plan(
     resolved_model = _resolve_model(model)
     client = _get_client()
 
-    criteria_str = json.dumps(criteria, indent=2) if criteria else "{}"
+    profiling_context = ""
+    if isinstance(criteria, dict) and criteria.get("profiling_context"):
+        profiling_context = f"### Profiling context\n{criteria['profiling_context']}\n"
+
+    criteria_str = json.dumps(
+        {k: v for k, v in (criteria or {}).items() if k != "profiling_context"},
+        indent=2,
+    )
     tests_str = json.dumps(test_cases, indent=2) if test_cases else "[]"
     feedback_section = format_feedback_section(feedback)
 
@@ -77,17 +84,21 @@ def analyze_and_plan(
         Any optimization must preserve the original function's exact behavior for all
         valid inputs, including edge cases implied by Python semantics. Do not assume
         the profiler call or existing tests cover the full input domain.
+
+        Think step by step about the algorithmic complexity and data structures before
+        proposing changes. Consider whether a different algorithm, caching strategy,
+        or data structure would yield better asymptotic performance. Reason through
+        edge cases such as empty inputs, negative integers, zero values, duplicates,
+        and ordering constraints whenever they are relevant to the original code.
+
         The plan must include:
         - "estimated_time_sec": your estimate of the optimized runtime in seconds
         - "estimated_memory_mb": your estimate of peak memory in MB
         - "steps": a list of concrete optimization steps you will apply
-        - "analysis": a brief analysis of the current code's bottlenecks
+        - "analysis": a thorough analysis of the current code's bottlenecks and why your proposed changes will help
         - "test_cases": any additional test cases you recommend (list of dicts with "call" and "expected")
 
-        Before proposing a closed-form rewrite, reason through edge cases such as
-        empty inputs, negative integers, zero values, duplicates, and ordering
-        constraints whenever they are relevant to the original code.
-
+        {profiling_context}
         ### Source code
         ```python
         {source_code}
@@ -217,8 +228,12 @@ def format_feedback_section(feedback: dict | None) -> str:
     if not isinstance(feedback, dict) or not feedback:
         return "### Previous attempt feedback\nNone"
 
-    lines = ["### Previous attempt feedback"]
     feedback_type = str(feedback.get("type", "")).strip()
+
+    if feedback_type == "retry_with_history":
+        return _format_attempt_history(feedback)
+
+    lines = ["### Previous attempt feedback"]
     error = str(feedback.get("error", "")).strip()
     falsifying_example = str(feedback.get("falsifying_example", "")).strip()
     previous_code = str(feedback.get("previous_code", "")).rstrip()
@@ -249,4 +264,44 @@ def format_feedback_section(feedback: dict | None) -> str:
     lines.append(
         "- Use this feedback to produce a behavior-preserving optimization and include a regression test case covering the reported failure when possible."
     )
+    return "\n".join(lines)
+
+
+def _format_attempt_history(feedback: dict) -> str:
+    """Format the DAG-style attempt history as informational context."""
+    history = feedback.get("attempt_history", [])
+    if not history:
+        return "### Previous attempt feedback\nNone"
+
+    lines = [
+        "### Previous attempt history",
+        f"This is attempt {len(history) + 1}. Here is what happened in prior attempts:",
+        "",
+    ]
+
+    for entry in history:
+        attempt_num = entry.get("attempt", "?")
+        passed = entry.get("test_passed", False)
+        lines.append(f"**Attempt {attempt_num}** — {'tests passed' if passed else 'tests failed'}")
+
+        if entry.get("error"):
+            lines.append(f"  Error: {entry['error'][:300]}")
+
+        failures = entry.get("failures", [])
+        if failures:
+            lines.append("  Test failures:")
+            for f in failures[:3]:
+                if isinstance(f, dict):
+                    msg = f.get("message", f.get("test", ""))
+                    lines.append(f"    - {msg}")
+
+        prev_code = entry.get("previous_code", "")
+        if prev_code:
+            lines.append("  Code that was tried:")
+            lines.append("  ```python")
+            for code_line in prev_code.splitlines()[:30]:
+                lines.append(f"  {code_line}")
+            lines.append("  ```")
+        lines.append("")
+
     return "\n".join(lines)

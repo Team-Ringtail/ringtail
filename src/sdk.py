@@ -8,7 +8,7 @@ Usage::
 
     result = optimize_function("path/to/file.py", "slow_sum")
     result = optimize_code("def slow_add(n): ...", function_call="slow_add(5000)")
-    result = optimize_repo("/path/to/repo", prompt="make this faster")
+    result = optimize_repo("/path/to/repo", prompt="make this faster", entry_point="python runner.py")
 """
 from __future__ import annotations
 
@@ -173,6 +173,7 @@ def optimize_repo(
     repo_url: str,
     *,
     prompt: str = "make this faster",
+    entry_point: str,
     base_branch: str = "main",
     max_targets: int = 3,
     tests_root: str = "tests",
@@ -188,6 +189,7 @@ def optimize_repo(
     Args:
         repo_url: GitHub HTTPS URL or local filesystem path.
         prompt: Natural-language optimization directive.
+        entry_point: Command used to exercise the repository (for example ``"python runner.py"``).
         base_branch: Branch to clone and compare against.
         max_targets: Maximum number of functions to optimize.
         tests_root: Path to tests within the repo.
@@ -201,11 +203,14 @@ def optimize_repo(
         Repo result with ``selected_target``, ``winner_result``, ``artifacts``, etc.
     """
     from src.core.repo_agent import run_repo_agent_job
+    if not entry_point.strip():
+        raise ValueError("entry_point is required for repo jobs")
 
     payload: dict[str, Any] = {
         "operation": "run_repo_agent_job",
         "repo_url": repo_url,
         "prompt": prompt,
+        "entry_point": entry_point,
         "base_branch": base_branch,
         "max_targets": max_targets,
         "tests_root": tests_root,

@@ -49,10 +49,10 @@ def:pub get_github_login_url(redirect_uri: str = "") -> dict {
 }
 
 
-def:pub exchange_github_code(code: str, state: str) -> dict {
+def:pub exchange_github_code(code: str, state: str, redirect_uri: str = "") -> dict {
     oauth = importlib.import_module("src.core.github_oauth");
     sessions = importlib.import_module("src.core.session_store");
-    result = getattr(oauth, "exchange_code")(code, state);
+    result = getattr(oauth, "exchange_code")(code, state, redirect_uri);
     if "error" in result {
         return result;
     }
@@ -89,6 +89,26 @@ def:pub logout(session_token: str) -> dict {
     mod = importlib.import_module("src.core.session_store");
     getattr(mod, "delete_session")(session_token);
     return {"success": True};
+}
+
+
+def:pub list_github_repos(session_token: str) -> dict {
+    sessions = importlib.import_module("src.core.session_store");
+    session = getattr(sessions, "validate_session")(session_token);
+    if session is None {
+        return {"error": "Invalid or expired session", "repositories": []};
+    }
+    install = getattr(sessions, "get_installation")(session["github_user_id"]);
+    if install is None or install.get("installation_id") is None {
+        return {"error": "No GitHub App installation found. Install the app first.", "repositories": []};
+    }
+    try {
+        repo_service = importlib.import_module("src.core.github_repo_service");
+        list_repos = getattr(repo_service, "list_installation_repositories");
+        return list_repos(int(install["installation_id"]));
+    } except Exception as e {
+        return {"error": str(e), "repositories": []};
+    }
 }
 
 

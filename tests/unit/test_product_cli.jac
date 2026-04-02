@@ -10,6 +10,7 @@ test "ringtail cli shapes repo submit request" {
     args = argparse.Namespace(
         repo="/tmp/sample_repo",
         prompt="make this faster",
+        entry_point="python runner.py",
         branch="main",
         backend="blaxel",
         config_name="candidate-search",
@@ -23,6 +24,7 @@ test "ringtail cli shapes repo submit request" {
 
     assert payload["repo_url"].endswith("/tmp/sample_repo");
     assert payload["prompt"] == "make this faster";
+    assert payload["entry_point"] == "python runner.py";
     assert payload["base_branch"] == "main";
     assert payload["publish_pr"] is True;
     assert payload["backend_config"]["backend"] == "blaxel";
@@ -30,6 +32,32 @@ test "ringtail cli shapes repo submit request" {
     assert payload["test_command"] == "python -m pytest tests";
     assert len(payload["setup_commands"]) == 1;
     assert payload["max_targets"] == 4;
+}
+
+
+test "ringtail cli requires repo entry point" {
+    argparse = importlib.import_module("argparse");
+    cli = importlib.import_module("src.ringtail_cli");
+    args = argparse.Namespace(
+        repo="/tmp/sample_repo",
+        prompt="make this faster",
+        entry_point="",
+        branch="main",
+        backend="local",
+        config_name="",
+        publish_pr=False,
+        test_command="",
+        setup_command=[],
+        max_targets=3
+    );
+
+    failed = False;
+    try {
+        cli._build_repo_submit_request(args);
+    } except Exception as err {
+        failed = "entry_point is required for repo jobs" in str(err);
+    }
+    assert failed is True;
 }
 
 
@@ -124,6 +152,7 @@ test "ringtail cli wraps dict request bodies for jac functions" {
     repo_args = argparse.Namespace(
         repo="/tmp/sample_repo",
         prompt="make this faster",
+        entry_point="python runner.py",
         branch="main",
         backend="local",
         config_name="",

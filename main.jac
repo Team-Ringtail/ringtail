@@ -50,6 +50,14 @@ def:pub run_repo_agent_sync(payload: dict) -> dict {
 }
 
 def:pub submit_repo_agent_job(payload: dict) -> dict {
+    print(
+        "[RT-SERVER] submit_repo_agent_job called, repo_url:",
+        str(payload.get("repo_url", ""))[:120],
+        "publish_pr:",
+        bool(payload.get("publish_pr", False)),
+        "has_session_token:",
+        str(payload.get("session_token", "")).strip() != "",
+    );
     return _jobs_submit_repo_agent_job(payload);
 }
 
@@ -78,6 +86,7 @@ import from src.api.github_api {
     exchange_github_code as _gh_exchange_github_code,
     get_session as _gh_get_session,
     logout as _gh_logout,
+    list_github_repos as _gh_list_github_repos,
     save_github_installation as _gh_save_github_installation
 }
 
@@ -115,6 +124,10 @@ def:pub get_session(session_token: str) -> dict {
 
 def:pub logout(session_token: str) -> dict {
     return _gh_logout(session_token);
+}
+
+def:pub list_github_repos(session_token: str) -> dict {
+    return _gh_list_github_repos(session_token);
 }
 
 def:pub save_github_installation(
@@ -199,12 +212,20 @@ cl def:pub app -> JsxElement {
     has installationId: int = 0;
     has installAccountLogin: str = "";
     has repoUrl: str = "";
+    has availableRepos: list = [];
+    has reposLoading: bool = False;
     has repoPrompt: str = "make this faster";
     has repoTestCommand: str = "";
+    has repoEntryPoint: str = "";
+    has repoSetupCommands: str = "";
     has repoPublishPr: bool = False;
     has repoJobId: str = "";
     has repoJobStatus: str = "";
     has repoJobResult: str = "";
+    has repoActivityText: str = "Submit a repository job to stream worker status and PR publish events.";
+    has repoRunLogPath: str = "";
+    has repoRunId: str = "";
+    has repoPullRequestUrl: str = "";
     has pasteSourceCode: str = "def slow_add(n):\n    total = 0\n    for i in range(n):\n        total += i\n    return total\n";
     has pasteFunctionName: str = "slow_add";
     has pasteFunctionCall: str = "slow_add(5000)";
@@ -300,14 +321,18 @@ cl def:pub app -> JsxElement {
     has demoStreamGen: int = 0;
     has repoStreamSeq: int = 0;
     has repoStreamGen: int = 0;
+    has repoPollGen: int = 0;
+    has repoNotifiedJobId: str = "";
     has pasteActivityVersion: int = 0;
     has demoActivityVersion: int = 0;
     has liveActivityTextById: dict = {
         "paste-live-activity-log": "Submit a job to stream live status and run-log events from the server.",
+        "repo-live-activity-log": "Submit a repository job to stream worker status and PR publish events.",
         "demo-live-log-feed": "Live run events will appear here.",
     };
     has liveActivityVersionById: dict = {
         "paste-live-activity-log": 0,
+        "repo-live-activity-log": 0,
         "demo-live-log-feed": 0,
     };
     has liveActivityEls: dict = {};
@@ -564,6 +589,10 @@ cl def:pub app -> JsxElement {
 
     async def ringtail_logout(session_token: str) -> dict | list | str | int | float | bool | None {
         return await ringtail_post_function("logout", {"session_token": session_token});
+    }
+
+    async def ringtail_list_github_repos(session_token: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("list_github_repos", {"session_token": session_token});
     }
 
     async def ringtail_save_github_installation(
@@ -1239,13 +1268,59 @@ cl def:pub app -> JsxElement {
 
     def _apply_repo_job_payload(raw: dict) -> None {
         result = _flatten_function_job_payload(raw);
+        payload = _coerce_plain_object(_value(result, "result", {}));
+        pr = _coerce_plain_object(_value(payload, "pull_request", {}));
+        repoJobId = str(_value(result, "job_id", repoJobId));
         repoJobStatus = str(_value(result, "status", "running"));
+        repoRunId = str(_value(result, "run_id", ""));
+        repoRunLogPath = str(_value(result, "run_log_path", ""));
+        repoPullRequestUrl = str(_value(pr, "url", ""));
+        repoActivityText = _apply_live_activity_payload("repo-live-activity-log", result, repoJobStatus);
+        if repoJobStatus in ["queued", "running", "submitting"] {
+            repoJobResult = "";
+        }
         if repoJobStatus == "succeeded" {
-            repoJobResult = "Optimization complete. Check the repo for a new PR or preview.";
+            repoJobResult = _repo_job_completion_message(result);
+            uiMessage = repoJobResult;
+            _notify_repo_job_completion(repoJobId, repoJobResult);
         }
         if repoJobStatus == "failed" {
             repoJobResult = str(_value(result, "error", "Job failed"));
+            uiMessage = repoJobResult;
         }
+        if repoJobStatus == "not_found" {
+            repoJobResult = str(_value(result, "error", "Job not found on server"));
+            uiMessage = repoJobResult;
+        }
+    }
+
+    def _notify_repo_job_completion(job_id: str, message: str) -> None {
+        if job_id == "" or message.strip() == "" or repoNotifiedJobId == job_id {
+            return;
+        }
+        repoNotifiedJobId = job_id;
+        try {
+            globalThis.alert(message);
+        } except Exception {
+            ignored = "";
+        }
+    }
+
+    def _repo_job_completion_message(result: dict) -> str {
+        payload = _coerce_plain_object(_value(result, "result", {}));
+        pr = _coerce_plain_object(_value(payload, "pull_request", {}));
+        pr_url = str(_value(pr, "url", ""));
+        if pr_url != "" {
+            return "Pull request created: " + pr_url;
+        }
+        if bool(_value(pr, "preview_only", False)) {
+            return "Optimization complete. PR preview generated locally; publishing was not requested.";
+        }
+        branch_name = str(_value(payload, "branch_name", ""));
+        if branch_name != "" {
+            return "Optimization complete. Branch prepared: " + branch_name;
+        }
+        return "Optimization complete.";
     }
 
     def _apply_demo_progress_payload(prog: dict) -> None {
@@ -1959,14 +2034,29 @@ cl def:pub app -> JsxElement {
         );
     }
 
-    async def handleGithubLogin() -> None {
-        origin = str(globalThis.window.location.origin or "");
-        pathname = str(globalThis.window.location.pathname or "");
-        if pathname == "" {
-            pathname = "/";
+    async def _repo_job_poll_tick(job_id: str, poll_gen: int) -> None {
+        if job_id == "" or repoJobId == "" or repoJobId != job_id or poll_gen != repoPollGen {
+            return;
         }
-        oauth_redirect = origin + pathname;
-        result = await ringtail_get_github_login_url(oauth_redirect);
+        if repoJobStatus in ["succeeded", "interrupted", "not_found", ""] {
+            return;
+        }
+        try {
+            await pollRepoJob(True);
+        } except Exception {
+            ignored = "";
+        }
+        if job_id == "" or repoJobId == "" or repoJobId != job_id or poll_gen != repoPollGen {
+            return;
+        }
+        if repoJobStatus in ["succeeded", "interrupted", "not_found", ""] {
+            return;
+        }
+        globalThis.setTimeout(lambda -> None { _repo_job_poll_tick(job_id, poll_gen); }, 2000);
+    }
+
+    async def handleGithubLogin() -> None {
+        result = await ringtail_get_github_login_url();
         url = _value(result, "url", "");
         if url != "" {
             globalThis.window.location.href = url;
@@ -2005,13 +2095,7 @@ cl def:pub app -> JsxElement {
             uiMessage = "OAuth callback missing code or state.";
             return;
         }
-        origin = str(globalThis.window.location.origin or "");
-        pathname = str(globalThis.window.location.pathname or "");
-        if pathname == "" {
-            pathname = "/";
-        }
-        oauth_redirect = origin + pathname;
-        result = await ringtail_exchange_github_code(code, state, oauth_redirect);
+        result = await ringtail_exchange_github_code(code, state);
         if "error" in result {
             uiMessage = str(result["error"]);
             return;
@@ -2048,6 +2132,7 @@ cl def:pub app -> JsxElement {
             installationId = iid;
             installAccountLogin = str(_value(_value(result, "installation", {}), "account_login", ""));
         }
+        await loadAvailableRepos();
     }
 
     async def handleLogout() -> None {
@@ -2083,6 +2168,50 @@ cl def:pub app -> JsxElement {
             installationId = iid;
             installAccountLogin = str(_value(_value(result, "installation", {}), "account_login", ""));
         }
+        await loadAvailableRepos();
+    }
+
+    async def loadAvailableRepos() -> None {
+        if sessionToken == "" {
+            return;
+        }
+        reposLoading = True;
+        try {
+            result = await ringtail_list_github_repos(sessionToken);
+            errMsg = str(_value(result, "error", ""));
+            if errMsg != "" {
+                uiMessage = "Could not load repos: " + errMsg;
+                availableRepos = [];
+            } else {
+                repos = _value(result, "repositories", []);
+                loaded = [];
+                for r in repos {
+                    loaded.append({
+                        "full_name": str(_value(r, "full_name", "")),
+                        "private": bool(_value(r, "private", False))
+                    });
+                }
+                availableRepos = loaded;
+            }
+        } except Exception as e {
+            uiMessage = "Could not load repos: " + str(e);
+            availableRepos = [];
+        }
+        reposLoading = False;
+    }
+
+    def renderRepoOptions() -> list {
+        opts = [];
+        for r in availableRepos {
+            name = str(_value(r, "full_name", ""));
+            url = "https://github.com/" + name;
+            label = name;
+            if bool(_value(r, "private", False)) {
+                label = name + " (private)";
+            }
+            opts.append(<option key={name} value={url}>{label}</option>);
+        }
+        return opts;
     }
 
     async def handleInstallCallback() -> None {
@@ -2117,19 +2246,54 @@ cl def:pub app -> JsxElement {
     async def submitRepoJob -> None {
         repoStreamGen = repoStreamGen + 1;
         rg = repoStreamGen;
+        repoPollGen = repoPollGen + 1;
+        pg = repoPollGen;
         repoStreamSeq = 0;
         repoJobStatus = "submitting";
         repoJobResult = "";
+        repoRunId = "";
+        repoRunLogPath = "";
+        repoPullRequestUrl = "";
+        repoNotifiedJobId = "";
+        _set_live_activity("repo-live-activity-log", "Submitting repository optimization job...", True);
         uiMessage = "";
         try {
+            if repoEntryPoint.strip() == "" {
+                repoJobStatus = "failed";
+                repoJobResult = "Entry Point is required.";
+                uiMessage = "Please provide an explicit entry point such as 'python runner.py'.";
+                _set_live_activity(
+                    "repo-live-activity-log",
+                    "Repository job blocked: entry point is required before submission.",
+                    True
+                );
+                return;
+            }
             payload = {
                 "repo_url": repoUrl,
                 "prompt": repoPrompt,
                 "publish_pr": repoPublishPr,
-                "session_token": sessionToken
+                "session_token": sessionToken,
+                "backend_config": {"backend": "local"}
             };
             if repoTestCommand != "" {
                 payload["test_command"] = repoTestCommand;
+            }
+            if repoEntryPoint != "" {
+                payload["entry_point"] = repoEntryPoint;
+            }
+            if repoSetupCommands != "" {
+                parts = repoSetupCommands.split("\n");
+                cmds = [];
+                for p in parts {
+                    stripped = p.strip();
+                    if stripped != "" {
+                        cmds.append(stripped);
+                    }
+                }
+                if len(cmds) > 0 {
+                    payload["setup_commands"] = cmds;
+                }
             }
             payload_json = "";
             try { payload_json = str(globalThis.JSON.stringify(payload)); } except Exception { payload_json = ""; }
@@ -2137,13 +2301,18 @@ cl def:pub app -> JsxElement {
                 raise Exception("Failed to serialize repository payload");
             }
             submitted = await ringtail_submit_repo_agent_job(payload_json);
+            submitted = _flatten_function_job_payload(submitted);
             repoJobId = str(_value(submitted, "job_id", ""));
             repoJobStatus = str(_value(submitted, "status", "queued"));
+            _apply_repo_job_payload(submitted);
             if repoJobId == "" {
                 repoJobStatus = "failed";
                 repoJobResult = str(_value(submitted, "error", "No job ID returned"));
             } else {
-                await _repo_job_stream_tick(rg);
+                # Keep the UI responsive while stream events arrive, and fall back
+                # to direct polling in case observer delivery is flaky in dev.
+                globalThis.setTimeout(lambda -> None { _repo_job_stream_tick(rg); }, 0);
+                globalThis.setTimeout(lambda -> None { _repo_job_poll_tick(repoJobId, pg); }, 1500);
             }
         } except Exception as err {
             repoJobStatus = "failed";
@@ -2152,18 +2321,15 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    async def pollRepoJob() -> None {
-        if repoJobId == "" or repoJobStatus in ["succeeded", "failed", ""] {
+    async def pollRepoJob(force: bool = False) -> None {
+        if repoJobId == "" {
+            return;
+        }
+        if (not force) and repoJobStatus in ["succeeded", "interrupted", "not_found", ""] {
             return;
         }
         result = await ringtail_get_repo_agent_job(repoJobId);
-        repoJobStatus = str(_value(result, "status", "running"));
-        if repoJobStatus == "succeeded" {
-            repoJobResult = "Optimization complete. Check the repo for a new PR or preview.";
-        }
-        if repoJobStatus == "failed" {
-            repoJobResult = str(_value(result, "error", "Job failed"));
-        }
+        _apply_repo_job_payload(result);
     }
 
     async def refreshBenchmarkContext() -> None {
@@ -2620,8 +2786,16 @@ cl def:pub app -> JsxElement {
                                             submitRepoJob();
                                         }}>
                                             <label className="field field-full">
-                                                <span>Repository URL</span>
-                                                <input value={repoUrl} placeholder="https://github.com/org/repo" onChange={lambda e -> None { repoUrl = e.target.value; }} />
+                                                <span>Repository</span>
+                                                {len(availableRepos) > 0 and
+                                                    <select value={repoUrl} onChange={lambda e -> None { repoUrl = e.target.value; }}>
+                                                        <option value="">Select a repository...</option>
+                                                        {renderRepoOptions()}
+                                                    </select>
+                                                }
+                                                {len(availableRepos) == 0 and
+                                                    <input value={repoUrl} placeholder="https://github.com/org/repo" onChange={lambda e -> None { repoUrl = e.target.value; }} />
+                                                }
                                             </label>
                                             <label className="field field-full">
                                                 <span>Optimization Prompt</span>
@@ -2629,7 +2803,17 @@ cl def:pub app -> JsxElement {
                                             </label>
                                             <label className="field">
                                                 <span>Test Command (optional)</span>
-                                                <input value={repoTestCommand} placeholder="python -m pytest tests" onChange={lambda e -> None { repoTestCommand = e.target.value; }} />
+                                                <input value={repoTestCommand} placeholder="python runner.py --check" onChange={lambda e -> None { repoTestCommand = e.target.value; }} />
+                                                <span className="field-help">Only runs if you provide it. Ringtail will not infer a test command.</span>
+                                            </label>
+                                            <label className="field">
+                                                <span>Entry Point (required)</span>
+                                                <input value={repoEntryPoint} placeholder="python runner.py" onChange={lambda e -> None { repoEntryPoint = e.target.value; }} />
+                                                <span className="field-help">Required. Provide the command Ringtail should profile, such as `python runner.py`.</span>
+                                            </label>
+                                            <label className="field field-full">
+                                                <span>Setup Commands (optional, one per line)</span>
+                                                <textarea rows={3} value={repoSetupCommands} placeholder="uv sync&#10;source .venv/bin/activate" onChange={lambda e -> None { repoSetupCommands = e.target.value; }} />
                                             </label>
                                             <label className="checkbox-field">
                                                 <input type="checkbox" checked={repoPublishPr} onChange={lambda e -> None { repoPublishPr = e.target.checked; }} />
@@ -2637,7 +2821,6 @@ cl def:pub app -> JsxElement {
                                             </label>
                                             <div className="panel-actions field-full">
                                                 <button type="submit" className="primary-button">Submit Optimization Job</button>
-                                                {repoJobId != "" and <button type="button" className="secondary-button" onClick={lambda -> None { pollRepoJob(); }}>Refresh Job Status</button>}
                                             </div>
                                         </form>
                                     </div>
@@ -2648,16 +2831,15 @@ cl def:pub app -> JsxElement {
                                             <div className="simple-list-item">Installation ID: {str(installationId)}</div>
                                             {installAccountLogin != "" and <div className="simple-list-item">Account: {installAccountLogin}</div>}
                                         </div>
-                                        {repoJobStatus != "" and
-                                            <div style={{"marginTop": "1.5rem"}}>
-                                                <h3>Job Status</h3>
-                                                <div className="simple-list">
-                                                    <div className="simple-list-item">Job: {repoJobId}</div>
-                                                    <div className="simple-list-item">Status: {repoJobStatus}</div>
-                                                    {repoJobResult != "" and <div className="simple-list-item">{repoJobResult}</div>}
-                                                </div>
-                                            </div>
-                                        }
+                                        {LiveActivityBox(
+                                            "Repository Activity",
+                                            "Streams async job status plus structured repo-agent events for auth, git push, and pull request creation.",
+                                            "repo-live-activity-log",
+                                            _live_activity_text("repo-live-activity-log", repoActivityText),
+                                            _live_activity_version("repo-live-activity-log"),
+                                            "Refresh Status",
+                                            lambda -> None { pollRepoJob(); }
+                                        )}
                                     </div>
                                 </div>
                             }

@@ -4,13 +4,30 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ringtail"
-version = "0.1.0"
-description = "Local CLI for the Ringtail optimizer"
+version = "0.2.0"
+description = "AI-powered Python code optimisation service with profile-driven DAG analysis"
 readme = "README.md"
 requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+    "mcp>=1.0.0",
+    "hypothesis>=6.100.0",
+    "radon>=6.0.0",
+    "pytest>=7.0.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-cov>=4.0.0",
+    "coverage>=7.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "scalene>=1.5.0",
+    "blaxel>=0.1.0",
+]
 
 [project.scripts]
 ringtail = "src.ringtail_cli:main"
+ringtail-mcp = "src.mcp.server:main"
 
 [tool.setuptools.packages.find]
 include = ["src*"]

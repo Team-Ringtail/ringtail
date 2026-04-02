@@ -40,9 +40,20 @@ def:pub submit_repo_agent_job(request: dict) -> dict {
         sessions = importlib.import_module("src.core.session_store");
         install = getattr(sessions, "get_installation_for_session")(session_token);
         if install is not None {
+            print(
+                "[RT-SERVER] submit_repo_agent_job linked installation from session:",
+                install["installation_id"]
+            );
             auth["installation_id"] = install["installation_id"];
             payload["auth"] = auth;
+        } else {
+            print("[RT-SERVER] submit_repo_agent_job session has no linked installation");
         }
+    } elif "installation_id" in auth {
+        print(
+            "[RT-SERVER] submit_repo_agent_job received installation_id in auth:",
+            auth["installation_id"]
+        );
     }
     return submit_optimization_job(payload);
 }

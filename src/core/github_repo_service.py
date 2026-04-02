@@ -59,8 +59,9 @@ def resolve_github_auth(
     auth: dict[str, Any] | None = None,
     explicit_token: str | None = None,
 ) -> dict[str, Any]:
+    raw_auth = dict(auth) if isinstance(auth, dict) else {}
     auth_data = _merged_repo_agent_auth(auth)
-    token = explicit_token or str(auth_data.get("token", "")).strip()
+    token = explicit_token or str(raw_auth.get("token", "")).strip()
     if token:
         return {
             "mode": "token",
@@ -68,15 +69,6 @@ def resolve_github_auth(
             "installation_id": None,
             "expires_at": None,
         }
-    for name in _TOKEN_ENV_NAMES:
-        value = os.environ.get(name, "")
-        if value:
-            return {
-                "mode": "token",
-                "token": value,
-                "installation_id": None,
-                "expires_at": None,
-            }
 
     installation_id = auth_data.get("installation_id", auth_data.get("github_installation_id", None))
     if installation_id is not None and str(installation_id) != "":
@@ -88,6 +80,25 @@ def resolve_github_auth(
             "expires_at": token_payload.get("expires_at", None),
             "permissions": token_payload.get("permissions", {}),
         }
+
+    config_token = str(auth_data.get("token", "")).strip()
+    if config_token:
+        return {
+            "mode": "token",
+            "token": config_token,
+            "installation_id": None,
+            "expires_at": None,
+        }
+
+    for name in _TOKEN_ENV_NAMES:
+        value = os.environ.get(name, "")
+        if value:
+            return {
+                "mode": "token",
+                "token": value,
+                "installation_id": None,
+                "expires_at": None,
+            }
 
     return {
         "mode": "none",
@@ -401,22 +412,33 @@ def list_installation_repositories(
     installation_id: int,
     auth: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    auth_context = resolve_github_auth(auth={"installation_id": int(installation_id), **(auth or {})})
-    payload = _github_api_request("/installation/repositories", token=str(auth_context.get("token", "")))
-    repositories = []
-    for repo in payload.get("repositories", []):
-        repositories.append(
-            {
-                "full_name": repo.get("full_name", ""),
-                "private": bool(repo.get("private", False)),
-                "default_branch": repo.get("default_branch", ""),
-                "permissions": repo.get("permissions", {}),
-            }
+    token_payload = create_installation_access_token(int(installation_id), auth=auth)
+    token = str(token_payload.get("token", ""))
+    repositories: list[dict[str, Any]] = []
+    page = 1
+    total_count = 0
+    while True:
+        payload = _github_api_request(
+            f"/installation/repositories?per_page=100&page={page}",
+            token=token,
         )
+        total_count = int(payload.get("total_count", 0))
+        for repo in payload.get("repositories", []):
+            repositories.append(
+                {
+                    "full_name": repo.get("full_name", ""),
+                    "private": bool(repo.get("private", False)),
+                    "default_branch": repo.get("default_branch", ""),
+                    "permissions": repo.get("permissions", {}),
+                }
+            )
+        if len(repositories) >= total_count or not payload.get("repositories"):
+            break
+        page += 1
     return {
-        "total_count": int(payload.get("total_count", len(repositories))),
+        "total_count": total_count,
         "repositories": repositories,
-        "expires_at": auth_context.get("expires_at", None),
+        "expires_at": token_payload.get("expires_at", None),
         "installation_id": int(installation_id),
     }
 
@@ -439,13 +461,17 @@ def _run_git(
     if result.returncode != 0:
         raise RuntimeError(
             "git command failed: "
-            + " ".join(command)
+            + _redact_sensitive_text(" ".join(command))
             + "\n"
-            + (result.stderr or result.stdout or "").strip()
+            + _redact_sensitive_text((result.stderr or result.stdout or "").strip())
         )
     if capture_output:
         return result
     return result
+
+
+def _redact_sensitive_text(text: str) -> str:
+    return re.sub(r"(https://x-access-token:)([^@]+)(@github\.com/)", r"\1***\3", text)
 
 
 def _first_env(names: tuple[str, ...]) -> str:

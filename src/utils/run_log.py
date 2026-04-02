@@ -21,6 +21,7 @@ import datetime as _dt
 import json
 import os
 import sys
+import threading
 import time
 
 LOGS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "logs")
@@ -35,6 +36,8 @@ class RunLog:
         self.start_time = time.monotonic()
         self._file = open(self.log_path, "a")
         self._event_count = 0
+        self._lock = threading.Lock()
+        self._closed = False
 
         self.event("run_start", run_name=run_name)
         self._print(f"[run_log] {self.run_id}  ->  {self.log_path}")
@@ -43,16 +46,19 @@ class RunLog:
 
     def event(self, kind: str, **data):
         """Append a structured event to the log file and print a summary."""
-        entry = {
-            "ts": _dt.datetime.utcnow().isoformat() + "Z",
-            "elapsed_s": round(time.monotonic() - self.start_time, 3),
-            "seq": self._event_count,
-            "kind": kind,
-            **data,
-        }
-        self._event_count += 1
-        self._file.write(json.dumps(entry, default=str) + "\n")
-        self._file.flush()
+        with self._lock:
+            if self._closed:
+                raise RuntimeError("RunLog is already closed")
+            entry = {
+                "ts": _dt.datetime.utcnow().isoformat() + "Z",
+                "elapsed_s": round(time.monotonic() - self.start_time, 3),
+                "seq": self._event_count,
+                "kind": kind,
+                **data,
+            }
+            self._event_count += 1
+            self._file.write(json.dumps(entry, default=str) + "\n")
+            self._file.flush()
         self._print(f"  [{kind}] {self._summary(kind, data)}")
 
     def llm_call(self, *, model: str, prompt_tokens: int = 0, completion_tokens: int = 0, **extra):
@@ -77,9 +83,14 @@ class RunLog:
         self.event("error", message=msg, **extra)
 
     def close(self):
+        with self._lock:
+            if self._closed:
+                return
         elapsed = round(time.monotonic() - self.start_time, 3)
         self.event("run_end", total_events=self._event_count, elapsed_s=elapsed)
-        self._file.close()
+        with self._lock:
+            self._file.close()
+            self._closed = True
 
         _append_index(self.run_id, self.log_path, elapsed, self._event_count)
         self._print(f"[run_log] done  {self._event_count} events in {elapsed}s")

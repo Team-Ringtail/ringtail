@@ -82,7 +82,7 @@ def get_login_url(redirect_uri: str = "") -> dict[str, Any]:
     return {"url": url, "state": state}
 
 
-def exchange_code(code: str, state: str) -> dict[str, Any]:
+def exchange_code(code: str, state: str, redirect_uri: str = "") -> dict[str, Any]:
     if state not in _pending_states:
         return {"error": "Invalid or expired state parameter"}
     del _pending_states[state]
@@ -91,14 +91,15 @@ def exchange_code(code: str, state: str) -> dict[str, Any]:
     if not cfg["configured"]:
         return {"error": "OAuth not configured", "missing": cfg["missing"]}
 
-    token_data = _post_form(
-        _OAUTH_TOKEN_URL,
-        {
-            "client_id": cfg["client_id"],
-            "client_secret": cfg["client_secret"],
-            "code": code,
-        },
-    )
+    params: dict[str, str] = {
+        "client_id": cfg["client_id"],
+        "client_secret": cfg["client_secret"],
+        "code": code,
+    }
+    if redirect_uri:
+        params["redirect_uri"] = redirect_uri
+
+    token_data = _post_form(_OAUTH_TOKEN_URL, params)
     access_token = token_data.get("access_token", "")
     if not access_token:
         return {

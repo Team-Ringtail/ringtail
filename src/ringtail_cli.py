@@ -248,6 +248,7 @@ def _cmd_file_optimize(args: argparse.Namespace) -> int:
 def _add_repo_request_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("repo", help="GitHub URL or local repo path")
     parser.add_argument("prompt", help="Natural-language optimization prompt")
+    parser.add_argument("--entry-point", required=True, help="Command used to exercise the repository")
     parser.add_argument("--branch", default="main")
     parser.add_argument("--backend", choices=["local", "blaxel"], default="local")
     parser.add_argument("--config-name", default="")
@@ -258,9 +259,13 @@ def _add_repo_request_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def _build_repo_submit_request(args: argparse.Namespace) -> dict[str, Any]:
+    entry_point = str(args.entry_point).strip()
+    if entry_point == "":
+        raise ValueError("entry_point is required for repo jobs")
     payload: dict[str, Any] = {
         "repo_url": _normalize_repo_input(args.repo),
         "prompt": args.prompt,
+        "entry_point": entry_point,
         "base_branch": args.branch,
         "publish_pr": bool(args.publish_pr),
         "max_targets": int(args.max_targets),

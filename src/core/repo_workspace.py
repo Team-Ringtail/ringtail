@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -25,26 +26,25 @@ def detect_repo_bootstrap(
     root = Path(repo_path)
     setup_commands = list(explicit_setup_commands or [])
     strategy: list[str] = []
+    pkg_manager = _detect_package_manager(root)
 
     if len(setup_commands) == 0:
-        if (root / "requirements-dev.txt").exists():
-            setup_commands.append("python -m pip install -r requirements-dev.txt")
-            strategy.append("requirements-dev")
-        if (root / "requirements.txt").exists():
-            setup_commands.append("python -m pip install -r requirements.txt")
-            strategy.append("requirements")
-        elif (root / "pyproject.toml").exists() or (root / "setup.py").exists():
-            setup_commands.append("python -m pip install -e .")
-            strategy.append("editable-install")
+        setup_commands, strategy = _build_auto_setup(root, pkg_manager)
+    else:
+        strategy.append("explicit")
 
-    test_command = explicit_test_command or _detect_test_command(root)
+    test_command = str(explicit_test_command or "").strip()
     if test_command != "":
-        strategy.append("pytest")
+        strategy.append("explicit-test-command")
+
+    venv_python = _find_venv_python(root, pkg_manager)
 
     return {
         "setup_commands": setup_commands,
         "test_command": test_command,
         "strategy": strategy,
+        "pkg_manager": pkg_manager,
+        "venv_python": venv_python,
     }
 
 
@@ -179,15 +179,94 @@ def _extract_json_result(stdout: str) -> Any:
     raise RuntimeError("Worker did not produce JSON output")
 
 
-def _detect_test_command(root: Path) -> str:
-    if (root / "tests").exists():
-        return "python -m pytest tests"
-    if (root / "pytest.ini").exists() or (root / "pyproject.toml").exists():
-        return "python -m pytest"
-    for path in root.rglob("test_*.py"):
-        if ".git" in path.parts or "__pycache__" in path.parts:
-            continue
-        return "python -m pytest"
+def _detect_package_manager(root: Path) -> str:
+    """Detect which package manager a Python project uses based on lock/config files."""
+    if (root / "uv.lock").exists():
+        return "uv"
+    if (root / "poetry.lock").exists():
+        return "poetry"
+    if (root / "Pipfile.lock").exists() or (root / "Pipfile").exists():
+        return "pipenv"
+    return "pip"
+
+
+def _resolve_tool(tool: str) -> str:
+    """Return the full path to a CLI tool, installing it via pip if needed."""
+    found = shutil.which(tool)
+    if found:
+        return found
+    # Tools like uv/poetry install their binary next to the Python executable
+    bin_dir = os.path.dirname(sys.executable)
+    candidate = os.path.join(bin_dir, tool)
+    if os.path.isfile(candidate):
+        return candidate
+    # Not found anywhere — install it
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet", tool],
+        capture_output=True, check=True, text=True,
+    )
+    if os.path.isfile(candidate):
+        return candidate
+    found = shutil.which(tool)
+    if found:
+        return found
+    raise RuntimeError(
+        f"Installed {tool} via pip but cannot find the binary. "
+        f"Checked PATH and {bin_dir}"
+    )
+
+
+def _build_auto_setup(root: Path, pkg_manager: str) -> tuple[list[str], list[str]]:
+    """Build setup commands based on detected package manager."""
+    commands: list[str] = []
+    strategy: list[str] = []
+
+    if pkg_manager == "uv":
+        uv = _resolve_tool("uv")
+        commands.append(f"{uv} sync")
+        strategy.append("uv")
+    elif pkg_manager == "poetry":
+        poetry = _resolve_tool("poetry")
+        commands.append(f"{poetry} install --no-interaction")
+        strategy.append("poetry")
+    elif pkg_manager == "pipenv":
+        pipenv = _resolve_tool("pipenv")
+        commands.append(f"{pipenv} install --dev")
+        strategy.append("pipenv")
+    else:
+        venv_dir = root / ".venv"
+        if not venv_dir.exists():
+            commands.append(f"{sys.executable} -m venv .venv")
+            strategy.append("venv-create")
+
+        pip = ".venv/bin/pip"
+        if (root / "requirements-dev.txt").exists():
+            commands.append(f"{pip} install -r requirements-dev.txt")
+            strategy.append("requirements-dev")
+        if (root / "requirements.txt").exists():
+            commands.append(f"{pip} install -r requirements.txt")
+            strategy.append("requirements")
+        elif (root / "pyproject.toml").exists() or (root / "setup.py").exists():
+            commands.append(f"{pip} install -e .")
+            strategy.append("editable-install")
+
+    return commands, strategy
+
+
+def _find_venv_python(root: Path, pkg_manager: str) -> str:
+    """Return the path to the venv python for this repo, or empty string."""
+    # uv, poetry, pipenv all create .venv by default in modern versions
+    for venv_dir in (".venv", "venv"):
+        candidate = root / venv_dir / "bin" / "python"
+        if candidate.exists():
+            return str(candidate)
+
+    # After setup commands run, the venv will exist at .venv
+    if pkg_manager in ("uv", "pip"):
+        return str(root / ".venv" / "bin" / "python")
+    if pkg_manager == "poetry":
+        return str(root / ".venv" / "bin" / "python")
+
     return ""
 
 
@@ -433,5 +512,8 @@ def _read_tree(root: Path) -> dict[str, str]:
             continue
         if rel_parts and rel_parts[0] == "logs":
             continue
-        files[str(path.relative_to(root))] = path.read_text()
+        try:
+            files[str(path.relative_to(root))] = path.read_text()
+        except (UnicodeDecodeError, ValueError):
+            pass
     return files

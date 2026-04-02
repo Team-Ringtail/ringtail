@@ -46,6 +46,8 @@ Open `http://localhost:8000`.
   - Renders suite summaries/graphs
 - **Optimize a Repo**
   - Uses GitHub session/install endpoints plus repo-agent submit and `wait_job_notification` for job status
+  - Requires an explicit repo `entry_point`; Ringtail does not infer one
+  - Runs repo validation only when you provide a `test_command`
   - Requires GitHub auth config; otherwise shows readiness/config errors
 
 `jac start` uses stdlib `http.server` (no native SSE route in-app). Ringtail implements push semantics with an in-process `JobEventHub` (`src/core/job_event_hub.py`) and `POST /function/wait_job_notification`.
@@ -129,6 +131,8 @@ ringtail file optimize benchmarks/local_file_suite/slow_sum.py slow_sum \
 - Watch: `ringtail repo watch <job_id>`
 - Stream logs: `ringtail repo logs <job_id>`
 
+Repo jobs require `--entry-point`. `--test-command` is optional and only runs when provided.
+
 ## 4) Python SDK Interface
 
 Source: `src/sdk.py`
@@ -147,6 +151,11 @@ result = sdk.optimize_code(
 
 ranked_dir = sdk.discover_targets("benchmarks/local_file_suite", limit=3)
 ranked_file = sdk.rank_targets("benchmarks/local_file_suite/slow_sum.py", limit=3)
+repo_result = sdk.optimize_repo(
+    "/path/to/repo",
+    prompt="make this faster",
+    entry_point="python runner.py",
+)
 ```
 
 ### SDK functions
