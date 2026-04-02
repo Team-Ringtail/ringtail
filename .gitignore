@@ -53,6 +53,11 @@ logs/
 # Benchmarks - run outputs and progress tracking
 benchmarks/*_runs/
 benchmarks/tmp_*/
+benchmarks/baselines/
+benchmarks/**/baseline_*.json
+benchmarks/**/baseline_*.jsonl
+benchmarks/**/baseline_*.md
+benchmarks/**/_replay_fixture/
 
 # Secrets
 .env
