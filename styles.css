@@ -1,5 +1,10 @@
+/* ─────────────────────────────────────────────────────────────
+   Ringtail — Design Tokens
+   ───────────────────────────────────────────────────────────── */
 :root,
 [data-theme="dark"] {
+    color-scheme: dark;
+
     --bg-start: #060813;
     --bg-end: #0f1c3d;
     --text-main: #edf3ff;
@@ -19,15 +24,27 @@
     --code-bg: #040d24;
     --code-text: #e4ecff;
     --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent-cyan) 42%, transparent);
+
+    /* GitHub button */
+    --gh-btn-bg: #24292f;
+    --gh-btn-color: #ffffff;
+    --gh-btn-border: rgba(255, 255, 255, 0.09);
+
+    /* Spacing rhythm */
+    --gap-sm: 0.5rem;
+    --gap-md: 1rem;
+    --gap-lg: 1.5rem;
 }
 
 [data-theme="light"] {
+    color-scheme: light;
+
     --bg-start: #eef2ff;
     --bg-end: #f8fbff;
     --text-main: #101938;
     --text-muted: #435079;
     --surface: #ffffff;
-    --surface-soft: #f8fafc;
+    --surface-soft: #f1f4fb;
     --surface-glass: rgba(255, 255, 255, 0.88);
     --border: #ced7ef;
     --border-strong: #becaf1;
@@ -41,45 +58,98 @@
     --code-bg: #0f172a;
     --code-text: #f8fafc;
     --focus-ring: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent);
+
+    /* GitHub button — stays dark in light mode for brand recognition */
+    --gh-btn-bg: #24292f;
+    --gh-btn-color: #ffffff;
+    --gh-btn-border: rgba(0, 0, 0, 0.14);
 }
 
-* {
+/* ─────────────────────────────────────────────────────────────
+   Reset & Base
+   ───────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+        Ubuntu, Cantarell, sans-serif;
     background:
         radial-gradient(circle at 8% 8%, color-mix(in srgb, var(--accent-pink) 14%, transparent) 0%, transparent 40%),
         radial-gradient(circle at 86% 18%, color-mix(in srgb, var(--accent-cyan) 14%, transparent) 0%, transparent 42%),
         linear-gradient(135deg, var(--bg-start) 0%, var(--bg-end) 100%);
+    background-attachment: fixed;
     color: var(--text-main);
     min-height: 100vh;
     padding: 2rem;
+    line-height: 1.6;
     transition: background 0.28s ease, color 0.28s ease;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Typography Scale
+   ───────────────────────────────────────────────────────────── */
+h1,
+h2,
+h3,
+h4 {
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    color: var(--text-main);
+}
+
+h2 {
+    font-size: 1.45rem;
+    margin-bottom: 0.65rem;
+}
+
+h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.55rem;
+    color: var(--text-main);
+}
+
+h4 {
+    font-size: 0.92rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Layout Shell
+   ───────────────────────────────────────────────────────────── */
 .demo-shell {
     max-width: 1280px;
     margin: 0 auto;
     position: relative;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Hero Header
+   ───────────────────────────────────────────────────────────── */
 .demo-hero {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    gap: var(--gap-lg);
+    margin-bottom: var(--gap-lg);
 }
 
 .demo-hero-copy h1 {
     font-size: clamp(2.1rem, 4vw, 3.2rem);
-    margin: 0.75rem 0;
+    margin: 0.65rem 0 0.5rem;
     color: var(--text-main);
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
     line-height: 1.08;
     text-shadow: 0 0 28px color-mix(in srgb, var(--accent-cyan) 23%, transparent);
 }
@@ -95,20 +165,25 @@ body {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    gap: 0.75rem;
+    gap: 0.65rem;
+    flex-shrink: 0;
 }
 
 .version {
     display: inline-block;
     background: linear-gradient(120deg, var(--accent-pink), var(--primary));
     color: #fff;
-    padding: 0.35rem 0.85rem;
+    padding: 0.35rem 0.9rem;
     border-radius: 999px;
-    font-size: 0.85rem;
-    font-weight: 700;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
     box-shadow: 0 0 18px color-mix(in srgb, var(--accent-pink) 38%, transparent);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Card Surfaces
+   ───────────────────────────────────────────────────────────── */
 .container,
 .hero-card,
 .run-stage-card,
@@ -118,13 +193,16 @@ body {
     border-radius: 20px;
     box-shadow: var(--shadow);
     backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
 }
 
 .container {
     max-width: 1180px;
     margin: 0 auto;
     padding: 2rem;
-    border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+    border-color: color-mix(in srgb, var(--border) 76%, transparent);
+    /* Breathing room between stacked containers / sections */
+    margin-bottom: var(--gap-lg);
 }
 
 .hero-card,
@@ -133,8 +211,10 @@ body {
     padding: 1.5rem;
     position: relative;
     overflow: hidden;
+    margin-bottom: var(--gap-lg);
 }
 
+/* Subtle gradient shimmer */
 .hero-card::before,
 .run-stage-card::before,
 .log-card::before {
@@ -142,58 +222,86 @@ body {
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(120deg,
+    border-radius: inherit;
+    background: linear-gradient(
+        120deg,
         color-mix(in srgb, var(--accent-cyan) 6%, transparent) 0%,
         transparent 40%,
-        color-mix(in srgb, var(--accent-pink) 7%, transparent) 100%);
+        color-mix(in srgb, var(--accent-pink) 7%, transparent) 100%
+    );
 }
 
-.hero-card h2,
-.hero-card h3,
-.section h3,
-.results-header h2,
-.log-card h3,
-.run-stage-copy h2 {
-    color: var(--text-main);
-    margin-bottom: 0.85rem;
+/* ─────────────────────────────────────────────────────────────
+   Section Blocks  (used heavily in JSX as <div className="section">)
+   ───────────────────────────────────────────────────────────── */
+.section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: var(--gap-lg);
+}
+
+.section:last-child {
+    margin-bottom: 0;
 }
 
 .hero-subtitle,
 .results-header p,
 .run-stage-copy p {
     color: var(--text-muted);
-    line-height: 1.6;
+    line-height: 1.65;
+    font-size: 0.97rem;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Badges & Banners
+   ───────────────────────────────────────────────────────────── */
 .status-badge {
     display: inline-block;
     background: var(--success);
     color: #fff;
-    padding: 0.45rem 0.9rem;
+    padding: 0.4rem 0.9rem;
     border-radius: 999px;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     font-weight: 700;
+    letter-spacing: 0.03em;
 }
 
 .info-banner {
-    background: linear-gradient(95deg,
+    background: linear-gradient(
+        95deg,
         color-mix(in srgb, var(--primary) 19%, transparent),
-        color-mix(in srgb, var(--accent-cyan) 14%, transparent));
+        color-mix(in srgb, var(--accent-cyan) 14%, transparent)
+    );
     color: var(--text-main);
     border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    padding: 0.9rem 1rem;
-    margin-bottom: 1.5rem;
+    border-radius: 14px;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: var(--gap-lg);
+    font-size: 0.94rem;
+    line-height: 1.55;
     box-shadow: 0 8px 30px color-mix(in srgb, var(--primary) 18%, transparent);
 }
 
+.eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.75rem;
+    color: var(--primary);
+    margin-bottom: 0.35rem;
+    font-weight: 700;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Tab Bar
+   ───────────────────────────────────────────────────────────── */
 .tab-bar {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.55rem;
-    margin-bottom: 1.5rem;
-    padding: 0.35rem;
-    border-radius: 14px;
+    gap: 0.45rem;
+    margin-bottom: var(--gap-lg);
+    padding: 0.3rem;
+    border-radius: 16px;
     background: color-mix(in srgb, var(--surface) 82%, transparent);
     border: 1px solid var(--border);
 }
@@ -201,10 +309,13 @@ body {
 .mode-toggle {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6rem;
+    gap: 0.5rem;
     margin-top: 1rem;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Buttons  (shared base)
+   ───────────────────────────────────────────────────────────── */
 .tab-button,
 .primary-button,
 .secondary-button,
@@ -213,84 +324,123 @@ body {
     border-radius: 10px;
     cursor: pointer;
     font-weight: 700;
-    transition: all 0.2s ease;
+    font-size: 0.93rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease,
+        background 0.15s ease;
+    -webkit-font-smoothing: antialiased;
 }
 
+/* Tab button — inactive */
 .tab-button {
     background: color-mix(in srgb, var(--surface) 70%, transparent);
     color: var(--text-muted);
-    border-color: var(--border);
-    padding: 0.65rem 1.1rem;
-    font-size: 0.95rem;
-    min-height: 42px;
+    border-color: transparent;
+    padding: 0.6rem 1.05rem;
+    font-size: 0.9rem;
+    min-height: 40px;
 }
 
+/* Tab button — active */
 .tab-button.active {
     color: #fff;
     background: linear-gradient(120deg, var(--primary-strong), var(--accent-pink));
     border-color: transparent;
-    box-shadow: 0 0 22px color-mix(in srgb, var(--primary) 40%, transparent);
+    box-shadow: 0 2px 18px color-mix(in srgb, var(--primary) 38%, transparent);
 }
 
-.tab-button:hover {
-    transform: translateY(-1px);
+/* Tab button — hover (inactive only) */
+.tab-button:not(.active):hover {
     color: var(--text-main);
+    background: color-mix(in srgb, var(--surface-soft) 90%, var(--primary) 10%);
+    border-color: var(--border);
+    transform: translateY(-1px);
 }
 
+/* Primary action button */
 .primary-button {
     background: linear-gradient(120deg, var(--primary-strong), var(--accent-cyan));
     color: #fff;
-    padding: 0.85rem 1.2rem;
+    padding: 0.8rem 1.3rem;
     min-height: 44px;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
+/* Secondary action button */
 .secondary-button {
     background: var(--surface-soft);
     color: var(--text-main);
     border-color: var(--border);
-    padding: 0.85rem 1.2rem;
+    padding: 0.8rem 1.3rem;
     min-height: 44px;
 }
 
 .theme-toggle {
-    min-width: 140px;
+    min-width: 148px;
 }
 
+/* Hover — action buttons */
 .primary-button:hover,
 .secondary-button:hover,
 .gh-login-button:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 28px color-mix(in srgb, var(--primary) 34%, transparent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 34%, transparent);
 }
 
+/* Active / pressed state */
+.tab-button:active,
+.primary-button:active,
+.secondary-button:active,
+.gh-login-button:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: none;
+    transition-duration: 0.06s;
+}
+
+/* Disabled state */
 .primary-button:disabled,
 .secondary-button:disabled,
 .gh-login-button:disabled,
 .tab-button:disabled {
     cursor: not-allowed;
-    opacity: 0.62;
-    transform: none;
-    box-shadow: none;
+    opacity: 0.52;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
+/* GitHub sign-in button */
 .gh-login-button {
-    background: #24292f;
-    color: #fff;
+    background: var(--gh-btn-bg);
+    color: var(--gh-btn-color);
     padding: 0.72rem 1.2rem;
     min-height: 44px;
-    border-color: rgba(255, 255, 255, 0.09);
+    border-color: var(--gh-btn-border);
 }
 
+/* Focus rings — all interactive elements */
+.tab-button:focus-visible,
+.primary-button:focus-visible,
+.secondary-button:focus-visible,
+.gh-login-button:focus-visible,
+.field input:focus-visible,
+.field textarea:focus-visible,
+.field select:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   GitHub User Bar
+   ───────────────────────────────────────────────────────────── */
 .gh-user-bar {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
+    gap: 0.6rem;
     background: color-mix(in srgb, var(--surface) 80%, transparent);
     border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 0.3rem 0.75rem 0.3rem 0.3rem;
+    padding: 0.28rem 0.65rem 0.28rem 0.28rem;
     color: var(--text-main);
-    font-size: 0.92rem;
+    font-size: 0.9rem;
     font-weight: 700;
 }
 
@@ -299,25 +449,31 @@ body {
     height: 32px;
     border-radius: 999px;
     object-fit: cover;
+    border: 2px solid var(--border-strong);
 }
 
 .gh-logout {
-    font-size: 0.85rem;
-    padding: 0.5rem 0.78rem;
+    font-size: 0.83rem;
+    padding: 0.45rem 0.75rem;
     border-radius: 999px;
-    min-height: 38px;
+    min-height: 36px;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Form Grid & Fields
+   ───────────────────────────────────────────────────────────── */
 .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 1rem;
+    /* Ensure the form doesn't bleed into hero-card's shimmer */
+    position: relative;
 }
 
 .field {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: 0.4rem;
 }
 
 .field-full {
@@ -326,9 +482,10 @@ body {
 
 .field span,
 .checkbox-field span {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
     font-weight: 700;
     color: var(--text-muted);
+    letter-spacing: 0.01em;
 }
 
 .field input,
@@ -337,32 +494,44 @@ body {
     width: 100%;
     border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 0.86rem 0.95rem;
-    font-size: 0.95rem;
-    background: var(--surface-soft);
+    padding: 0.78rem 0.95rem;
+    font-size: 0.94rem;
+    background: color-mix(in srgb, var(--surface) 60%, var(--surface-soft) 40%);
     color: var(--text-main);
     min-height: 44px;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237a90c0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.85rem center;
+    padding-right: 2.2rem;
 }
 
 .field textarea {
     resize: vertical;
     min-height: 220px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    line-height: 1.55;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", monospace;
+    line-height: 1.6;
 }
 
 .code-editor {
     min-height: 320px;
     tab-size: 4;
-    font-size: 0.93rem;
-    letter-spacing: 0.01em;
+    font-size: 0.9rem;
+    letter-spacing: 0.015em;
 }
 
 .field-help {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    margin-top: 0.2rem;
-    line-height: 1.55;
+    margin-top: 0.15rem;
+    line-height: 1.5;
+    opacity: 0.85;
 }
 
 .field input:focus,
@@ -376,29 +545,38 @@ body {
 .checkbox-field {
     display: flex;
     align-items: center;
-    gap: 0.7rem;
+    gap: 0.65rem;
     min-height: 44px;
     cursor: pointer;
     color: var(--text-main);
+    user-select: none;
 }
 
 .checkbox-field input {
     width: 17px;
     height: 17px;
+    accent-color: var(--primary);
+    cursor: pointer;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Panel Actions
+   ───────────────────────────────────────────────────────────── */
 .panel-actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.7rem;
-    margin: 0.35rem 0 0.2rem;
+    gap: 0.65rem;
+    margin-top: 1rem;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Validation Chips
+   ───────────────────────────────────────────────────────────── */
 .editor-status {
-    margin-top: 0.55rem;
+    margin-top: 0.45rem;
     display: flex;
     flex-wrap: wrap;
-    gap: 0.45rem;
+    gap: 0.4rem;
 }
 
 .validation-chip {
@@ -408,133 +586,178 @@ body {
     border: 1px solid var(--border);
     background: color-mix(in srgb, var(--surface) 86%, transparent);
     color: var(--text-muted);
-    padding: 0.28rem 0.72rem;
-    font-size: 0.77rem;
-    font-weight: 700;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .validation-chip.ok {
-    border-color: color-mix(in srgb, var(--success) 50%, var(--border));
+    border-color: color-mix(in srgb, var(--success) 55%, var(--border));
     color: var(--success);
+    background: color-mix(in srgb, var(--success) 10%, transparent);
 }
 
 .validation-chip.warn {
     border-color: color-mix(in srgb, var(--danger) 55%, var(--border));
     color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Layout Grids
+   ───────────────────────────────────────────────────────────── */
 .demo-layout,
 .comparison-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1rem;
+    gap: var(--gap-md);
 }
 
 .comparison-grid {
-    margin-top: 1rem;
+    margin-top: var(--gap-md);
 }
 
+/* Each column in a comparison grid stacks heading + code box */
+.comparison-grid > div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Code / Result Boxes
+   ───────────────────────────────────────────────────────────── */
 .result-box,
 .log-feed {
     background: var(--code-bg);
     color: var(--code-text);
     border-radius: 14px;
-    padding: 0.95rem;
-    line-height: 1.5;
-    font-size: 0.88rem;
+    padding: 1rem 1.05rem;
+    line-height: 1.55;
+    font-size: 0.875rem;
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+    /* Don't let an empty box collapse */
+    min-height: 64px;
 }
 
 .log-feed {
     min-height: 240px;
     max-height: 420px;
-    font-family: ui-monospace, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono",
-        "Courier New", monospace;
     font-size: 0.82rem;
-    line-height: 1.5;
+    line-height: 1.52;
     letter-spacing: 0.01em;
     border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--code-bg) 70%, var(--border));
+    scroll-behavior: smooth;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   List Items
+   ───────────────────────────────────────────────────────────── */
 .simple-list {
     display: grid;
-    gap: 0.7rem;
+    gap: 0.65rem;
 }
 
 .simple-list-item,
 .target-pill,
 .suite-card {
-    background: var(--surface-soft);
+    background: color-mix(in srgb, var(--surface-soft) 95%, var(--surface) 5%);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 0.85rem 1rem;
     color: var(--text-main);
+    line-height: 1.6;
+    font-size: 0.93rem;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Feature Grid  (Home tab cards)
+   ───────────────────────────────────────────────────────────── */
 .feature-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1rem;
-    margin-top: 1rem;
+    gap: var(--gap-md);
+    margin-top: var(--gap-md);
 }
 
 .feature-card {
-    background: var(--surface-soft);
+    background: color-mix(in srgb, var(--surface-soft) 95%, var(--surface) 5%);
     border: 1px solid var(--border);
     border-radius: 16px;
-    padding: 1rem;
-    display: grid;
-    gap: 0.75rem;
+    padding: 1.15rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.feature-card:hover {
+    border-color: var(--border-strong);
+    box-shadow: 0 6px 24px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 .feature-card p {
     color: var(--text-muted);
-    line-height: 1.5;
+    line-height: 1.6;
+    font-size: 0.92rem;
+    flex: 1;
 }
 
+/* Push button to the bottom of the card */
+.feature-card .secondary-button {
+    margin-top: auto;
+    align-self: flex-start;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Repository Mode Panel
+   ───────────────────────────────────────────────────────────── */
 .repo-mode-panel {
-    margin-top: 1rem;
+    margin-top: var(--gap-md);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Target / Finalist Pills
+   ───────────────────────────────────────────────────────────── */
 .target-pill strong {
     display: block;
     margin-bottom: 0.3rem;
+    font-size: 0.95rem;
 }
 
 .target-pill span,
 .suite-meta {
     color: var(--text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Run Stage Card (Demo running view)
+   ───────────────────────────────────────────────────────────── */
 .run-stage-card {
     display: grid;
     grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
-}
-
-.eyebrow {
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    font-size: 0.78rem;
-    color: var(--primary);
-    margin-bottom: 0.35rem;
-    font-weight: 700;
+    gap: var(--gap-lg);
+    margin-bottom: var(--gap-lg);
 }
 
 .progress-meter {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 0.7rem;
+    gap: 0.65rem;
 }
 
 .progress-track {
     width: 100%;
-    height: 16px;
+    height: 14px;
     background: var(--surface-soft);
     border-radius: 999px;
     border: 1px solid var(--border);
@@ -545,24 +768,29 @@ body {
     height: 100%;
     background: linear-gradient(90deg, var(--primary-strong) 0%, var(--success) 100%);
     border-radius: 999px;
-    transition: width 0.35s ease;
+    transition: width 0.4s ease;
+    will-change: width;
 }
 
 .progress-label {
     color: var(--text-main);
     font-weight: 700;
+    font-size: 0.92rem;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Stage Grid
+   ───────────────────────────────────────────────────────────── */
 .stage-grid,
 .stat-grid,
 .suite-card-grid {
     display: grid;
-    gap: 1rem;
+    gap: var(--gap-md);
 }
 
 .stage-grid {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    margin-bottom: 1.5rem;
+    margin-bottom: var(--gap-lg);
 }
 
 .stage-card {
@@ -570,11 +798,13 @@ body {
     border: 1px solid var(--border);
     border-radius: 16px;
     padding: 1rem;
+    transition: border-color 0.2s ease;
 }
 
 .stage-card.active {
     border-color: var(--primary);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 40%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent),
+        0 4px 20px color-mix(in srgb, var(--primary) 15%, transparent);
 }
 
 .stage-card span {
@@ -586,47 +816,70 @@ body {
     border-radius: 999px;
     background: var(--primary);
     color: #fff;
+    font-size: 0.85rem;
+    font-weight: 700;
     margin-bottom: 0.6rem;
-}
-
-.stage-card h3 {
-    margin-bottom: 0.4rem;
 }
 
 .stage-card p {
     color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Log Card & Results Header
+   ───────────────────────────────────────────────────────────── */
 .log-card-header,
 .results-header {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    gap: 1rem;
-    margin-bottom: 1rem;
+    gap: var(--gap-md);
+    margin-bottom: var(--gap-md);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Stat Grid  (Job metrics)
+   ───────────────────────────────────────────────────────────── */
 .stat-grid {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    margin: 1rem 0 1.25rem;
+    margin: var(--gap-md) 0 var(--gap-lg);
 }
 
 .stat-card {
     background: linear-gradient(145deg, var(--surface), var(--surface-soft));
     border: 1px solid var(--border);
     border-radius: 14px;
-    padding: 1rem;
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
 .stat-card span {
-    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
     color: var(--text-muted);
-    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
 .stat-card strong {
-    font-size: 1.35rem;
+    font-size: 1.3rem;
+    font-weight: 700;
     color: var(--text-main);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Suite Cards  (Demo results)
+   ───────────────────────────────────────────────────────────── */
+.suite-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
 }
 
 .suite-graph {
@@ -634,20 +887,17 @@ body {
     background: var(--code-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
-    margin-bottom: 0.9rem;
+    display: block;
 }
 
-.tab-button:focus-visible,
-.primary-button:focus-visible,
-.secondary-button:focus-visible,
-.gh-login-button:focus-visible,
-.field input:focus-visible,
-.field textarea:focus-visible,
-.field select:focus-visible {
-    outline: none;
-    box-shadow: var(--focus-ring);
+.suite-card-grid {
+    grid-template-columns: 1fr;
+    gap: var(--gap-md);
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Accessibility — Reduced Motion
+   ───────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -657,6 +907,9 @@ body {
     }
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Responsive — Mobile
+   ───────────────────────────────────────────────────────────── */
 @media (max-width: 780px) {
     body {
         padding: 1rem;
@@ -671,7 +924,7 @@ body {
     }
 
     .demo-hero-copy h1 {
-        font-size: 2.2rem;
+        font-size: 2.1rem;
     }
 
     .hero-right {
@@ -679,7 +932,10 @@ body {
         width: 100%;
     }
 
-    .container,
+    .container {
+        padding: 1.25rem;
+    }
+
     .hero-card {
         padding: 1.25rem;
     }
@@ -688,10 +944,34 @@ body {
         flex-direction: column;
     }
 
-    .tab-button,
-    .primary-button,
-    .secondary-button,
-    .gh-login-button {
+    .panel-actions .primary-button,
+    .panel-actions .secondary-button {
         width: 100%;
+        text-align: center;
+    }
+
+    .tab-button,
+    .gh-login-button {
+        /* Tab buttons wrap naturally inside .tab-bar — don't force full-width */
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .theme-toggle {
+        width: 100%;
+    }
+
+    .stat-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .comparison-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-grid {
+        grid-template-columns: 1fr;
     }
 }
