@@ -11,6 +11,7 @@ import os
 import pstats
 import shlex
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass, field
 
@@ -383,7 +384,7 @@ def _resolve_python(repo_path: str, venv_python: str = "") -> str:
         candidate = os.path.join(repo_path, venv_dir, "bin", "python")
         if os.path.isfile(candidate):
             return candidate
-    return "python"
+    return sys.executable or "python3"
 
 
 def _rewrite_entry_python(entry_point: str, python_bin: str) -> str:

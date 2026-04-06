@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 
 from src.core import cprofile_analyzer as analyzer
@@ -69,3 +70,7 @@ def test_build_call_dag_returns_merged_cycle_nodes() -> None:
     assert dag.levels == [[min(foo_key, bar_key)]]
     assert set(dag.nodes.keys()) == {min(foo_key, bar_key)}
     assert dag.edges == {}
+
+
+def test_resolve_python_falls_back_to_current_interpreter(tmp_path) -> None:
+    assert analyzer._resolve_python(str(tmp_path)) == sys.executable
