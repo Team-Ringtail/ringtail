@@ -4,6 +4,8 @@ import os
 import sys
 import tempfile
 
+import pytest
+
 from src.core import cprofile_analyzer as analyzer
 from src.core.cprofile_analyzer import FunctionProfile, ProfileAnalysis
 
@@ -73,4 +75,13 @@ def test_build_call_dag_returns_merged_cycle_nodes() -> None:
 
 
 def test_resolve_python_falls_back_to_current_interpreter(tmp_path) -> None:
+    assert analyzer._resolve_python(str(tmp_path)) == sys.executable
+
+
+def test_resolve_python_skips_broken_repo_venv(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    broken_python = tmp_path / ".venv" / "bin" / "python"
+    broken_python.parent.mkdir(parents=True)
+    broken_python.write_text("", encoding="utf-8")
+    monkeypatch.setattr(analyzer, "_python_binary_usable", lambda path: False)
+
     assert analyzer._resolve_python(str(tmp_path)) == sys.executable

@@ -146,19 +146,25 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    summary: dict[str, object] = {
-        "success": True,
-        "scenarios": [],
-    }
-    scenarios: list[dict[str, object]] = [ _run_pytest_suite() ]
     if args.include_external:
-        scenarios.append(_run_external_profile(args.external_repo_url, args.external_ref or None))
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_pytest = executor.submit(_run_pytest_suite)
+            future_external = executor.submit(
+                _run_external_profile, args.external_repo_url, args.external_ref or None
+            )
+            scenarios = [future_pytest.result(), future_external.result()]
+    else:
+        scenarios = [_run_pytest_suite()]
 
-    summary["scenarios"] = scenarios
-    summary["success"] = all(bool(item.get("success", False)) for item in scenarios)
+    success = all(item.get("success", False) for item in scenarios)
+    summary: dict[str, object] = {
+        "success": success,
+        "scenarios": scenarios,
+    }
     _write_summary(Path(args.output), summary)
     print(json.dumps(summary, indent=2))
-    return 0 if bool(summary["success"]) else 1
+    return 0 if success else 1
 
 
 if __name__ == "__main__":
