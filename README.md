@@ -69,11 +69,15 @@ ringtail file optimize /abs/path/to/file.py function_name \
 ### Repo agent flow
 
 ```bash
+ringtail repo auth --token github_pat_xxx --server-url http://127.0.0.1:8000
 ringtail repo run /path/to/repo "make this faster" --local
 ringtail repo submit /path/to/repo "make this faster" --wait --local
 ringtail repo status <job_id> --local
 ringtail repo logs <job_id> --local
 ```
+
+To run against remote GitHub repos with a PAT, pass `--token` (or export one of
+`RINGTAIL_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`) on `repo run/submit`.
 
 ### MCP server
 

@@ -87,7 +87,12 @@ import from src.api.github_api {
     get_session as _gh_get_session,
     logout as _gh_logout,
     list_github_repos as _gh_list_github_repos,
+    list_github_repos_by_token as _gh_list_github_repos_by_token,
     save_github_installation as _gh_save_github_installation
+}
+
+import from config.agent_config {
+    list_agent_config_names as _cfg_list_agent_config_names
 }
 
 def:pub get_github_app_install_info(state: str = "") -> dict {
@@ -130,6 +135,10 @@ def:pub list_github_repos(session_token: str) -> dict {
     return _gh_list_github_repos(session_token);
 }
 
+def:pub list_github_repos_by_token(token: str) -> dict {
+    return _gh_list_github_repos_by_token(token);
+}
+
 def:pub save_github_installation(
     session_token: str,
     installation_id: int,
@@ -140,6 +149,10 @@ def:pub save_github_installation(
         installation_id,
         account_login
     );
+}
+
+def:pub list_agent_config_names -> list {
+    return _cfg_list_agent_config_names();
 }
 
 # --- Diagnostics -------------------------------------------------------------
@@ -211,6 +224,9 @@ cl def:pub app -> JsxElement {
     has githubUserId: int = 0;
     has installationId: int = 0;
     has installAccountLogin: str = "";
+    has githubPatToken: str = "";
+    has githubPatInput: str = "";
+    has githubAuthMode: str = "none";
     has repoUrl: str = "";
     has availableRepos: list = [];
     has reposLoading: bool = False;
@@ -232,6 +248,7 @@ cl def:pub app -> JsxElement {
     has pasteTestCall: str = "slow_add(5)";
     has pasteExpected: str = "10";
     has pasteConfigName: str = "live-fast";
+    has pasteConfigProfiles: list = ["live-fast", "default"];
     has pasteAnalysisMode: str = "llm";
     has pasteEnableRunLog: bool = True;
     has pasteJobId: str = "";
@@ -337,6 +354,10 @@ cl def:pub app -> JsxElement {
     };
     has liveActivityEls: dict = {};
     has liveActivityDomSyncPending: dict = {};
+    has pasteEditorHostEl: Any = None;
+    has pasteEditorView: Any = None;
+    has pasteEditorReady: bool = False;
+    has pasteEditorSyncingFromState: bool = False;
 
     def _http_unwrap_response(raw: dict | list | str | int | float | bool | None) -> dict | list | str | int | float | bool | None {
         if raw is None {
@@ -591,7 +612,10 @@ cl def:pub app -> JsxElement {
         return await ringtail_post_function("logout", {"session_token": session_token});
     }
 
-    async def ringtail_list_github_repos(session_token: str) -> dict | list | str | int | float | bool | None {
+    async def ringtail_list_github_repos(session_token: str = "", token: str = "") -> dict | list | str | int | float | bool | None {
+        if token != "" {
+            return await ringtail_post_function("list_github_repos_by_token", {"token": token});
+        }
         return await ringtail_post_function("list_github_repos", {"session_token": session_token});
     }
 
@@ -608,6 +632,10 @@ cl def:pub app -> JsxElement {
                 "account_login": account_login
             }
         );
+    }
+
+    async def ringtail_list_agent_config_names -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("list_agent_config_names", {});
     }
 
     async def ringtail_get_github_app_install_info(state: str = "") -> dict | list | str | int | float | bool | None {
@@ -696,35 +724,42 @@ cl def:pub app -> JsxElement {
         return value;
     }
 
+    def _lower_text(value: dict | list | str | int | float | bool | None) -> str {
+        try {
+            return str(globalThis.String(value or "").toLowerCase()).strip();
+        } except Exception {
+            ignored = "";
+        }
+        return str(value).strip();
+    }
+
     def _flatten_function_job_payload(raw: dict | list | str | int | float | bool | None) -> dict {
-        # Peel nested {data:{result:...}} / {result:...} until the async job dict
-        # (job_id + activity_log_lines) is at the top. Single-pass flatten missed
-        # double-wrapped /function responses (same class of bug as wait_job unwrap).
+        # Peel nested {data:{result:...}} / {result:...} envelopes without relying
+        # on `is not None` checks (which can compile inconsistently in some runtimes).
         cur = _coerce_plain_object(raw);
         try { cur = globalThis.JSON.parse(globalThis.JSON.stringify(cur)); } except Exception { ignored = ""; }
         peel = 0;
         while peel < 8 {
-            if str(_value(cur, "job_id", "")) != "" {
+            if str(_value(cur, "job_id", "")).strip() != "" {
                 return cur;
             }
-            d0 = None;
-            r0 = None;
-            top_r = None;
-            try { d0 = cur["data"]; } except Exception { d0 = None; }
-            if d0 is not None and (not globalThis.Array.isArray(d0)) {
-                try { r0 = d0["result"]; } except Exception { r0 = None; }
+            from_data = _coerce_plain_object(_value(_coerce_plain_object(_value(cur, "data", {})), "result", {}));
+            if str(_value(from_data, "job_id", "")).strip() != "" {
+                return from_data;
             }
-            try { top_r = cur["result"]; } except Exception { top_r = None; }
-            nxt = None;
-            if r0 is not None and str(r0) != "undefined" and str(r0) != "null" {
-                nxt = r0;
-            } elif top_r is not None and str(top_r) != "undefined" and str(top_r) != "null" {
-                nxt = top_r;
+            from_top = _coerce_plain_object(_value(cur, "result", {}));
+            if str(_value(from_top, "job_id", "")).strip() != "" {
+                return from_top;
             }
-            if nxt is None {
+            next_candidate = {};
+            if str(globalThis.JSON.stringify(from_data)) != "{}" {
+                next_candidate = from_data;
+            } elif str(globalThis.JSON.stringify(from_top)) != "{}" {
+                next_candidate = from_top;
+            } else {
                 return cur;
             }
-            cur = _coerce_plain_object(nxt);
+            cur = _coerce_plain_object(next_candidate);
             try { cur = globalThis.JSON.parse(globalThis.JSON.stringify(cur)); } except Exception { ignored = ""; }
             peel = peel + 1;
         }
@@ -817,6 +852,31 @@ cl def:pub app -> JsxElement {
             ignored = str(err);
         }
         return theme;
+    }
+
+    def _save_pat_session(token: str) -> None {
+        try {
+            globalThis.sessionStorage.setItem("ringtail_github_pat", token);
+        } except Exception as err {
+            ignored = str(err);
+        }
+    }
+
+    def _load_pat_session() -> str {
+        try {
+            return str(globalThis.sessionStorage.getItem("ringtail_github_pat") or "");
+        } except Exception as err {
+            ignored = str(err);
+            return "";
+        }
+    }
+
+    def _clear_pat_session() -> None {
+        try {
+            globalThis.sessionStorage.removeItem("ringtail_github_pat");
+        } except Exception as err {
+            ignored = str(err);
+        }
     }
 
     def _clear_demo_files() -> None {
@@ -928,7 +988,7 @@ cl def:pub app -> JsxElement {
         return out;
     }
 
-    def LiveActivityBox(
+    def liveActivityBox(
         title: str,
         help_text: str,
         pre_id: str,
@@ -938,24 +998,45 @@ cl def:pub app -> JsxElement {
         on_refresh: Any = None,
         header_right: Any = None,
     ) -> Any {
+        safe_title = str(title);
+        safe_help_text = str(help_text);
+        safe_pre_id = str(pre_id);
+        safe_body_text = str(body_text);
+        if safe_body_text == "" or safe_body_text == "undefined" or safe_body_text == "null" {
+            safe_body_text = "Live run events will appear here.";
+        }
+        safe_update_version = 0;
+        try {
+            uv = str(update_version);
+            if uv != "" and uv != "undefined" and uv != "null" {
+                safe_update_version = int(update_version);
+            }
+        } except Exception {
+            safe_update_version = 0;
+        }
+        has_on_refresh = False;
+        has_header_right = False;
+        try { has_on_refresh = on_refresh is not None and str(on_refresh) != "undefined" and str(on_refresh) != "null"; } except Exception { has_on_refresh = False; }
+        try { has_header_right = header_right is not None and str(header_right) != "undefined" and str(header_right) != "null"; } except Exception { has_header_right = False; }
+
         return <div className="log-card">
             <div className="log-card-header">
                 <div>
-                    <h3>{title}</h3>
-                    {help_text != "" and <p className="field-help">{help_text}</p>}
+                    <h3>{safe_title}</h3>
+                    {safe_help_text != "" and <p className="field-help">{safe_help_text}</p>}
                 </div>
-                {header_right is not None and header_right}
-                {on_refresh is not None and
+                {has_header_right and header_right}
+                {has_on_refresh and
                     <button className="secondary-button" onClick={lambda -> None { on_refresh(); }}>
                         {refresh_label}
                     </button>
                 }
             </div>
             <pre
-                key={pre_id}
-                id={pre_id}
-                data-live-id={pre_id}
-                data-activity-version={str(update_version)}
+                key={safe_pre_id}
+                id={safe_pre_id}
+                data-live-id={safe_pre_id}
+                data-activity-version={str(safe_update_version)}
                 className="log-feed"
                 role="log"
                 aria-live="polite"
@@ -971,13 +1052,13 @@ cl def:pub app -> JsxElement {
                             }
                         } except Exception { ignored = ""; }
                         if el != None {
-                            liveActivityEls[pre_id] = el;
+                            liveActivityEls[safe_pre_id] = el;
                             # If live activity was updated before this <pre> mounted,
                             # catch up immediately by writing the latest cached text.
                             # This avoids timing where _sync_live_activity_dom runs
                             # while the tab is not rendered, yielding undefined/null.
                             try {
-                                latest_txt = _live_activity_text(pre_id, "");
+                                latest_txt = _live_activity_text(safe_pre_id, "");
                                 if latest_txt != "" {
                                     el.textContent = latest_txt;
                                     el.scrollTop = el.scrollHeight;
@@ -985,12 +1066,12 @@ cl def:pub app -> JsxElement {
                             } except Exception { ignored = ""; }
                         } else {
                             try {
-                                globalThis.Reflect.deleteProperty(liveActivityEls, pre_id);
+                                globalThis.Reflect.deleteProperty(liveActivityEls, safe_pre_id);
                             } except Exception { ignored = ""; }
                         }
                     } except Exception { ignored = ""; }
                 }}
-            >{body_text}</pre>
+            >{safe_body_text}</pre>
         </div>;
     }
 
@@ -1199,7 +1280,10 @@ cl def:pub app -> JsxElement {
             demoLogText = text;
         }
 
-        # React-rendered path is the source of truth.
+        # Keep React state as source of truth, but also push text directly into the
+        # mounted <pre> so activity lines appear even if object-state reconciliation
+        # skips a render tick in this runtime.
+        _sync_live_activity_dom(target_id, text);
         # If the <pre> is mounted, scroll it; otherwise it will scroll on mount.
         # Use _value() to read from the dict: it converts JS `undefined` to None,
         # preventing `undefined.scrollHeight` crashes when the key is absent.
@@ -1212,7 +1296,38 @@ cl def:pub app -> JsxElement {
     }
 
     def _activity_text_from_payload(payload: dict, default_status: str = "running") -> str {
-        act_lines = _coerce_list(_value(payload, "activity_log_lines", []));
+        act_lines = [];
+        raw_lines = _value(payload, "activity_log_lines", []);
+        if globalThis.Array.isArray(raw_lines) {
+            for ln in raw_lines {
+                act_lines.append(str(ln));
+            }
+        } else {
+            raw_obj = _coerce_plain_object(raw_lines);
+            guessed_len = int(_value(raw_obj, "length", -1));
+            if guessed_len > 0 {
+                idx = 0;
+                while idx < guessed_len {
+                    txt = str(_value(raw_obj, str(idx), ""));
+                    if txt != "" {
+                        act_lines.append(txt);
+                    }
+                    idx = idx + 1;
+                }
+            } else {
+                try {
+                    keys = globalThis.Object.keys(raw_obj);
+                    for key in keys {
+                        txt = str(_value(raw_obj, str(key), ""));
+                        if txt != "" {
+                            act_lines.append(txt);
+                        }
+                    }
+                } except Exception {
+                    ignored = "";
+                }
+            }
+        }
         if len(act_lines) > 0 {
             return _format_log_text(act_lines);
         }
@@ -1232,7 +1347,7 @@ cl def:pub app -> JsxElement {
 
     def _apply_paste_job_payload(raw: dict) -> None {
         result = _flatten_function_job_payload(raw);
-        pasteJobStatus = str(_value(result, "status", "running")).strip().lower();
+        pasteJobStatus = _lower_text(_value(result, "status", "running"));
         pasteRunId = str(_value(result, "run_id", ""));
         pasteRunLogPath = str(_value(result, "run_log_path", ""));
         act_lines = _coerce_list(_value(result, "activity_log_lines", []));
@@ -1578,6 +1693,119 @@ cl def:pub app -> JsxElement {
         }
     }
 
+    def _source_editor_value() -> str {
+        if pasteEditorView is None {
+            return pasteSourceCode;
+        }
+        try {
+            return str(pasteEditorView.state.doc.toString());
+        } except Exception as readErr {
+            ignored = str(readErr);
+            return pasteSourceCode;
+        }
+    }
+
+    def _set_paste_source_code(value: str, sync_editor: bool = True) -> None {
+        pasteSourceCode = value;
+        if not sync_editor or pasteEditorView is None {
+            return;
+        }
+        try {
+            current = str(pasteEditorView.state.doc.toString());
+            if current == value {
+                return;
+            }
+            pasteEditorSyncingFromState = True;
+            pasteEditorView.dispatch(
+                {
+                    "changes": {
+                        "from": 0,
+                        "to": len(current),
+                        "insert": value
+                    }
+                }
+            );
+        } except Exception as syncErr {
+            ignored = str(syncErr);
+        }
+        pasteEditorSyncingFromState = False;
+    }
+
+    def _destroy_paste_editor() -> None {
+        if pasteEditorView is not None {
+            try {
+                pasteEditorView.destroy();
+            } except Exception as destroyErr {
+                ignored = str(destroyErr);
+            }
+        }
+        pasteEditorView = None;
+        pasteEditorReady = False;
+        pasteEditorSyncingFromState = False;
+    }
+
+    async def _ensure_paste_editor() -> None {
+        if pasteEditorHostEl is None or pasteEditorView is not None {
+            return;
+        }
+        try {
+            dynImport = globalThis.Function("path", "return import(path);");
+            stateMod = await dynImport("@codemirror/state");
+            viewMod = await dynImport("@codemirror/view");
+            langMod = await dynImport("@codemirror/lang-python");
+            commandsMod = await dynImport("@codemirror/commands");
+            submitShortcut = viewMod.keymap.of(
+                [
+                    {
+                        "key": "Mod-Enter",
+                        "run": lambda view -> bool {
+                            submitPasteJob();
+                            return True;
+                        }
+                    }
+                ]
+            );
+            updateListener = viewMod.EditorView.updateListener.of(
+                lambda update -> None {
+                    if bool(_value(update, "docChanged", False)) and (not pasteEditorSyncingFromState) {
+                        pasteSourceCode = str(update.state.doc.toString());
+                    }
+                }
+            );
+            editorState = stateMod.EditorState.create(
+                {
+                    "doc": pasteSourceCode,
+                    "extensions": [
+                        langMod.python(),
+                        viewMod.keymap.of(commandsMod.defaultKeymap),
+                        submitShortcut,
+                        updateListener,
+                    ]
+                }
+            );
+            pasteEditorView = viewMod.EditorView(
+                {
+                    "state": editorState,
+                    "parent": pasteEditorHostEl
+                }
+            );
+            pasteEditorReady = True;
+        } except Exception as cmErr {
+            _destroy_paste_editor();
+            uiMessage = "CodeMirror failed to load. Falling back to plain text editing.";
+            ignored = str(cmErr);
+        }
+    }
+
+    def setPasteEditorHost(el: Any) -> None {
+        pasteEditorHostEl = el;
+        if el is None {
+            _destroy_paste_editor();
+            return;
+        }
+        _ensure_paste_editor();
+    }
+
     def _update_expected_feedback() -> None {
         expectedText = str(pasteExpected).strip();
         hasValidationCall = str(pasteTestCall).strip() != "";
@@ -1635,7 +1863,7 @@ cl def:pub app -> JsxElement {
             start = int(_value(target, "selectionStart", len(value)));
             end = int(_value(target, "selectionEnd", start));
             updated = value[0:start] + normalized + value[end:];
-            pasteSourceCode = updated;
+            _set_paste_source_code(updated);
             _set_source_cursor(target, start + len(normalized));
         } except Exception as pasteErr {
             ignored = str(pasteErr);
@@ -1662,24 +1890,24 @@ cl def:pub app -> JsxElement {
         if bool(_value(e, "shiftKey", False)) {
             if start == end and start >= 4 and value[start - 4:start] == "    " {
                 updated = value[0:start - 4] + value[start:];
-                pasteSourceCode = updated;
+                _set_paste_source_code(updated);
                 _set_source_cursor(target, start - 4);
             }
             return;
         }
         updated = value[0:start] + "    " + value[end:];
-        pasteSourceCode = updated;
+        _set_paste_source_code(updated);
         _set_source_cursor(target, start + 4);
     }
 
     def _toggle_theme() -> None {
+        nextTheme = "dark";
         if currentTheme == "dark" {
-            currentTheme = "light";
-        } else {
-            currentTheme = "dark";
+            nextTheme = "light";
         }
-        _set_theme_attr(currentTheme);
-        _save_theme(currentTheme);
+        currentTheme = nextTheme;
+        _set_theme_attr(nextTheme);
+        _save_theme(nextTheme);
     }
 
     def _extract_paste_result_payload(job_payload: dict) -> dict {
@@ -1726,15 +1954,17 @@ cl def:pub app -> JsxElement {
         pasteSubmitting = True;
         pasteJobStatus = "submitting";
         pasteJobId = expected_job_id;
-        pasteStreamGen = pasteStreamGen + 1;
-        stream_g = pasteStreamGen;
+        next_paste_stream_gen = pasteStreamGen + 1;
+        pasteStreamGen = next_paste_stream_gen;
+        stream_g = next_paste_stream_gen;
         job_id_to_stream = expected_job_id;
         _reset_paste_result();
         uiMessage = "";
         _update_expected_feedback();
         try {
-            normalizedSource = _normalize_source_code(pasteSourceCode);
-            pasteSourceCode = normalizedSource;
+            latestSource = _source_editor_value();
+            normalizedSource = _normalize_source_code(latestSource);
+            _set_paste_source_code(normalizedSource);
             pasteSubmittedSourceCode = normalizedSource;
             payload = {
                 "operation": "optimize_input",
@@ -1794,6 +2024,9 @@ cl def:pub app -> JsxElement {
                     lambda -> None { _paste_job_stream_tick(job_id_to_stream, stream_g, 0); },
                     0
                 );
+                # Additional direct polling path avoids stale closure issues in
+                # async callback guards and guarantees visible job progress.
+                globalThis.setTimeout(lambda -> None { _poll_paste_job_by_id(job_id_to_stream); }, 250);
             }
         } except Exception as err {
             pasteJobStatus = "failed";
@@ -1834,6 +2067,28 @@ cl def:pub app -> JsxElement {
         result = await ringtail_get_optimization_job(pasteJobId);
         # Flatten only inside _apply_paste_job_payload (avoids diverging peel logic).
         _apply_paste_job_payload(result);
+    }
+
+    async def _poll_paste_job_by_id(job_id: str) -> None {
+        if str(job_id).strip() == "" {
+            return;
+        }
+        status = "running";
+        try {
+            latest = _flatten_function_job_payload(await ringtail_get_optimization_job(job_id));
+            _apply_paste_job_payload(latest);
+            status = _lower_text(_value(latest, "status", "running"));
+        } except Exception as pollErr {
+            ignored = str(pollErr);
+            status = _lower_text(pasteJobStatus);
+            if status == "" {
+                status = "running";
+            }
+        }
+        if status in ["succeeded", "failed", "not_found", "interrupted"] {
+            return;
+        }
+        globalThis.setTimeout(lambda -> None { _poll_paste_job_by_id(job_id); }, 1500);
     }
 
     def _unwrap_wait_job_notification_payload(raw: Any) -> dict {
@@ -2055,6 +2310,28 @@ cl def:pub app -> JsxElement {
         globalThis.setTimeout(lambda -> None { _repo_job_poll_tick(job_id, poll_gen); }, 2000);
     }
 
+    async def _poll_repo_job_by_id(job_id: str) -> None {
+        if str(job_id).strip() == "" {
+            return;
+        }
+        status = "running";
+        try {
+            latest = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
+            _apply_repo_job_payload(latest);
+            status = _lower_text(_value(latest, "status", "running"));
+        } except Exception as pollErr {
+            ignored = str(pollErr);
+            status = _lower_text(repoJobStatus);
+            if status == "" {
+                status = "running";
+            }
+        }
+        if status in ["succeeded", "failed", "interrupted", "not_found"] {
+            return;
+        }
+        globalThis.setTimeout(lambda -> None { _poll_repo_job_by_id(job_id); }, 1500);
+    }
+
     async def handleGithubLogin() -> None {
         result = await ringtail_get_github_login_url();
         url = _value(result, "url", "");
@@ -2063,6 +2340,33 @@ cl def:pub app -> JsxElement {
         } else {
             uiMessage = str(_value(result, "error", "OAuth not configured"));
         }
+    }
+
+    def applyPatAuth() -> None {
+        token = str(githubPatInput).strip();
+        if token == "" {
+            uiMessage = "Enter a GitHub personal access token first.";
+            return;
+        }
+        githubPatToken = token;
+        githubPatInput = "";
+        githubAuthMode = "pat";
+        _save_pat_session(token);
+        uiMessage = "Using PAT auth for this browser session.";
+        loadAvailableRepos();
+    }
+
+    def clearPatAuth() -> None {
+        githubPatToken = "";
+        githubPatInput = "";
+        if sessionToken == "" {
+            githubAuthMode = "none";
+        } else {
+            githubAuthMode = "oauth";
+        }
+        _clear_pat_session();
+        availableRepos = [];
+        uiMessage = "Cleared PAT session auth.";
     }
 
     def _save_session_cookie(token: str) -> None {
@@ -2101,6 +2405,7 @@ cl def:pub app -> JsxElement {
             return;
         }
         sessionToken = str(result["session_token"]);
+        githubAuthMode = "oauth";
         githubLogin = str(result["github_login"]);
         githubUserId = int(result["github_user_id"]);
         githubAvatarUrl = str(_value(result, "github_avatar_url", ""));
@@ -2124,6 +2429,7 @@ cl def:pub app -> JsxElement {
             return;
         }
         sessionToken = saved;
+        githubAuthMode = "oauth";
         githubLogin = str(result["github_login"]);
         githubUserId = int(result["github_user_id"]);
         githubAvatarUrl = str(_value(result, "github_avatar_url", ""));
@@ -2140,12 +2446,17 @@ cl def:pub app -> JsxElement {
             await ringtail_logout(sessionToken);
         }
         _clear_session_cookie();
+        _clear_pat_session();
         sessionToken = "";
         githubLogin = "";
         githubUserId = 0;
         githubAvatarUrl = "";
         installationId = 0;
         installAccountLogin = "";
+        githubPatToken = "";
+        githubPatInput = "";
+        githubAuthMode = "none";
+        availableRepos = [];
     }
 
     async def handleInstallApp() -> None {
@@ -2172,12 +2483,12 @@ cl def:pub app -> JsxElement {
     }
 
     async def loadAvailableRepos() -> None {
-        if sessionToken == "" {
+        if sessionToken == "" and githubPatToken == "" {
             return;
         }
         reposLoading = True;
         try {
-            result = await ringtail_list_github_repos(sessionToken);
+            result = await ringtail_list_github_repos(sessionToken, githubPatToken);
             errMsg = str(_value(result, "error", ""));
             if errMsg != "" {
                 uiMessage = "Could not load repos: " + errMsg;
@@ -2200,6 +2511,45 @@ cl def:pub app -> JsxElement {
         reposLoading = False;
     }
 
+    async def loadPasteConfigProfiles() -> None {
+        try {
+            result = await ringtail_list_agent_config_names();
+            names = [];
+            if globalThis.Array.isArray(result) {
+                for name in result {
+                    label = str(name).strip();
+                    if label != "" {
+                        names.append(label);
+                    }
+                }
+            } else {
+                payload = _coerce_plain_object(result);
+                raw = _value(payload, "profiles", _value(payload, "names", []));
+                if globalThis.Array.isArray(raw) {
+                    for name in raw {
+                        label = str(name).strip();
+                        if label != "" {
+                            names.append(label);
+                        }
+                    }
+                }
+            }
+            if len(names) > 0 {
+                pasteConfigProfiles = names;
+                if pasteConfigName not in names {
+                    pasteConfigName = names[0];
+                }
+                return;
+            }
+        } except Exception as e {
+            ignored = str(e);
+        }
+        pasteConfigProfiles = ["default", "live-fast", "candidate-search", "baseline-measure", "test-fast"];
+        if pasteConfigName not in pasteConfigProfiles {
+            pasteConfigName = "live-fast";
+        }
+    }
+
     def renderRepoOptions() -> list {
         opts = [];
         for r in availableRepos {
@@ -2210,6 +2560,15 @@ cl def:pub app -> JsxElement {
                 label = name + " (private)";
             }
             opts.append(<option key={name} value={url}>{label}</option>);
+        }
+        return opts;
+    }
+
+    def renderPasteConfigOptions() -> list {
+        opts = [];
+        for cfg in pasteConfigProfiles {
+            name = str(cfg);
+            opts.append(<option key={name} value={name}>{name}</option>);
         }
         return opts;
     }
@@ -2225,6 +2584,7 @@ cl def:pub app -> JsxElement {
                 saved = await ringtail_get_session(stateToken);
                 if "error" not in saved {
                     sessionToken = stateToken;
+                    githubAuthMode = "oauth";
                     githubLogin = str(_value(saved, "github_login", ""));
                     githubUserId = int(_value(saved, "github_user_id", 0));
                     githubAvatarUrl = str(_value(saved, "github_avatar_url", ""));
@@ -2244,10 +2604,12 @@ cl def:pub app -> JsxElement {
     }
 
     async def submitRepoJob -> None {
-        repoStreamGen = repoStreamGen + 1;
-        rg = repoStreamGen;
-        repoPollGen = repoPollGen + 1;
-        pg = repoPollGen;
+        next_repo_stream_gen = repoStreamGen + 1;
+        repoStreamGen = next_repo_stream_gen;
+        rg = next_repo_stream_gen;
+        next_repo_poll_gen = repoPollGen + 1;
+        repoPollGen = next_repo_poll_gen;
+        pg = next_repo_poll_gen;
         repoStreamSeq = 0;
         repoJobStatus = "submitting";
         repoJobResult = "";
@@ -2276,6 +2638,9 @@ cl def:pub app -> JsxElement {
                 "session_token": sessionToken,
                 "backend_config": {"backend": "local"}
             };
+            if githubPatToken != "" {
+                payload["token"] = githubPatToken;
+            }
             if repoTestCommand != "" {
                 payload["test_command"] = repoTestCommand;
             }
@@ -2302,17 +2667,22 @@ cl def:pub app -> JsxElement {
             }
             submitted = await ringtail_submit_repo_agent_job(payload_json);
             submitted = _flatten_function_job_payload(submitted);
-            repoJobId = str(_value(submitted, "job_id", ""));
-            repoJobStatus = str(_value(submitted, "status", "queued"));
+            returned_repo_job_id = str(_value(submitted, "job_id", ""));
+            returned_repo_status = str(_value(submitted, "status", "queued"));
+            repoJobId = returned_repo_job_id;
+            repoJobStatus = returned_repo_status;
             _apply_repo_job_payload(submitted);
-            if repoJobId == "" {
+            if returned_repo_job_id == "" {
                 repoJobStatus = "failed";
                 repoJobResult = str(_value(submitted, "error", "No job ID returned"));
             } else {
                 # Keep the UI responsive while stream events arrive, and fall back
                 # to direct polling in case observer delivery is flaky in dev.
                 globalThis.setTimeout(lambda -> None { _repo_job_stream_tick(rg); }, 0);
-                globalThis.setTimeout(lambda -> None { _repo_job_poll_tick(repoJobId, pg); }, 1500);
+                globalThis.setTimeout(lambda -> None { _repo_job_poll_tick(returned_repo_job_id, pg); }, 1500);
+                # Additional direct polling path avoids stale closure issues in
+                # async callback guards and guarantees visible job progress.
+                globalThis.setTimeout(lambda -> None { _poll_repo_job_by_id(returned_repo_job_id); }, 250);
             }
         } except Exception as err {
             repoJobStatus = "failed";
@@ -2505,12 +2875,19 @@ cl def:pub app -> JsxElement {
             }
             healthStatus = await ringtail_health();
             await restoreSession();
+            savedPat = _load_pat_session();
+            if savedPat != "" {
+                githubPatToken = savedPat;
+                githubAuthMode = "pat";
+                await loadAvailableRepos();
+            }
             if _get_query_param("installation_id") != "" {
                 await handleInstallCallback();
             } elif _get_query_param("code") != "" and _get_query_param("installation_id") == "" {
                 await handleOAuthCallback();
             }
             _update_expected_feedback();
+            await loadPasteConfigProfiles();
             await refreshBenchmarkContext();
             if not pollingInitialized {
                 pollingInitialized = True;
@@ -2621,14 +2998,18 @@ cl def:pub app -> JsxElement {
                         }}>
                             <label className="field field-full">
                                 <span>Source Code</span>
-                                <textarea className="code-editor"
-                                    rows={16}
-                                    spellCheck={False}
-                                    wrap="off"
-                                    value={pasteSourceCode}
-                                    onChange={lambda e -> None { pasteSourceCode = e.target.value; }}
-                                    onPaste={lambda e -> None { handleSourceEditorPaste(e); }}
-                                    onKeyDown={lambda e -> None { handleSourceEditorKeydown(e); }} />
+                                <div className={pasteEditorReady and "code-editor paste-cm-host ready" or "code-editor paste-cm-host"}
+                                    ref={lambda el -> None { setPasteEditorHost(el); }} />
+                                {not pasteEditorReady and
+                                    <textarea className="code-editor code-editor-fallback"
+                                        rows={16}
+                                        spellCheck={False}
+                                        wrap="off"
+                                        value={pasteSourceCode}
+                                        onChange={lambda e -> None { _set_paste_source_code(e.target.value, False); }}
+                                        onPaste={lambda e -> None { handleSourceEditorPaste(e); }}
+                                        onKeyDown={lambda e -> None { handleSourceEditorKeydown(e); }} />
+                                }
                                 <div className="field-help">Shortcuts: Tab indents, Shift+Tab unindents, Cmd/Ctrl+Enter submits. Pasted markdown fences and escaped newline blobs are cleaned automatically.</div>
                             </label>
                             <label className="field">
@@ -2655,7 +3036,9 @@ cl def:pub app -> JsxElement {
                             </label>
                             <label className="field">
                                 <span>Config Profile</span>
-                                <input value={pasteConfigName} onChange={lambda e -> None { pasteConfigName = e.target.value; }} />
+                                <select value={pasteConfigName} onChange={lambda e -> None { pasteConfigName = e.target.value; }}>
+                                    {renderPasteConfigOptions()}
+                                </select>
                             </label>
                             <label className="field">
                                 <span>Analysis Mode</span>
@@ -2698,13 +3081,22 @@ cl def:pub app -> JsxElement {
 
                     {pasteJobId != "" and
                         <div className="section field-full" style={{"marginTop": "0.5rem"}}>
-                            {LiveActivityBox(
-                                "Live Activity",
-                                "While a job is active, the UI subscribes via wait_job_notification (server-side Observer: in-process notify + long-poll) so status and run-log lines update without a client poll timer.",
-                                "paste-live-activity-log",
-                                _live_activity_text("paste-live-activity-log", pasteActivityText),
-                                _live_activity_version("paste-live-activity-log"),
-                            )}
+                            <div className="log-card">
+                                <div className="log-card-header">
+                                    <div>
+                                        <h3>Live Activity</h3>
+                                        <p className="field-help">While a job is active, the UI subscribes via wait_job_notification (server-side Observer: in-process notify + long-poll) so status and run-log lines update without a client poll timer.</p>
+                                    </div>
+                                </div>
+                                <pre
+                                    id="paste-live-activity-log"
+                                    data-live-id="paste-live-activity-log"
+                                    data-activity-version={str(_live_activity_version("paste-live-activity-log"))}
+                                    className="log-feed"
+                                    role="log"
+                                    aria-live="polite"
+                                >{pasteActivityText}</pre>
+                            </div>
                         </div>
                     }
 
@@ -2761,13 +3153,28 @@ cl def:pub app -> JsxElement {
                             {githubLogin == "" and
                                 <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
                                     <h2>Connect GitHub</h2>
-                                    <p className="hero-subtitle">Sign in with GitHub to optimize your repositories.</p>
-                                    <button className="gh-login-button" style={{"marginTop": "1.5rem"}} onClick={lambda -> None { handleGithubLogin(); }}>
-                                        Sign in with GitHub
-                                    </button>
+                                    <p className="hero-subtitle">Paste a personal access token for this browser session, or use OAuth if your server is configured for it.</p>
+                                    <div className="pat-auth-panel">
+                                        <a className="field-help" href="https://github.com/settings/tokens" target="_blank" rel="noreferrer">Create a GitHub token</a>
+                                        <input
+                                            type="password"
+                                            className="pat-input"
+                                            value={githubPatInput}
+                                            placeholder="github_pat_..."
+                                            onChange={lambda e -> None { githubPatInput = e.target.value; }}
+                                        />
+                                        <div className="panel-actions">
+                                            <button type="button" className="primary-button" onClick={lambda -> None { applyPatAuth(); }}>
+                                                Use PAT This Session
+                                            </button>
+                                            <button type="button" className="secondary-button" onClick={lambda -> None { handleGithubLogin(); }}>
+                                                Sign in with GitHub
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             }
-                            {githubLogin != "" and installationId == 0 and
+                            {githubLogin != "" and installationId == 0 and githubPatToken == "" and
                                 <div className="hero-card" style={{"textAlign": "center", "padding": "3rem"}}>
                                     <h2>Install Ringtail on Your Repos</h2>
                                     <p className="hero-subtitle">Ringtail needs access to push branches and open pull requests.</p>
@@ -2776,7 +3183,7 @@ cl def:pub app -> JsxElement {
                                     </button>
                                 </div>
                             }
-                            {githubLogin != "" and installationId != 0 and
+                            {(githubPatToken != "" or (githubLogin != "" and installationId != 0)) and
                                 <div className="demo-layout">
                                     <div className="hero-card">
                                         <h2>Optimize a Repository</h2>
@@ -2813,7 +3220,8 @@ cl def:pub app -> JsxElement {
                                             </label>
                                             <label className="field field-full">
                                                 <span>Setup Commands (optional, one per line)</span>
-                                                <textarea rows={3} value={repoSetupCommands} placeholder="uv sync&#10;source .venv/bin/activate" onChange={lambda e -> None { repoSetupCommands = e.target.value; }} />
+                                                <pre className="cli-example">uv sync{"\n"}source .venv/bin/activate{"\n"}python -m pip install -e .</pre>
+                                                <textarea className="cli-setup-input" rows={5} value={repoSetupCommands} placeholder="uv sync&#10;source .venv/bin/activate" onChange={lambda e -> None { repoSetupCommands = e.target.value; }} />
                                             </label>
                                             <label className="checkbox-field">
                                                 <input type="checkbox" checked={repoPublishPr} onChange={lambda e -> None { repoPublishPr = e.target.checked; }} />
@@ -2827,19 +3235,36 @@ cl def:pub app -> JsxElement {
                                     <div className="hero-card">
                                         <h3>Connection Status</h3>
                                         <div className="simple-list">
-                                            <div className="simple-list-item">Signed in as {githubLogin}</div>
-                                            <div className="simple-list-item">Installation ID: {str(installationId)}</div>
+                                            <div className="simple-list-item">Auth mode: {githubPatToken != "" and "PAT (session)" or githubLogin != "" and "OAuth session" or "none"}</div>
+                                            {githubLogin != "" and <div className="simple-list-item">Signed in as {githubLogin}</div>}
+                                            {installationId != 0 and <div className="simple-list-item">Installation ID: {str(installationId)}</div>}
+                                            {githubPatToken != "" and <div className="simple-list-item">PAT loaded for this browser session.</div>}
                                             {installAccountLogin != "" and <div className="simple-list-item">Account: {installAccountLogin}</div>}
                                         </div>
-                                        {LiveActivityBox(
-                                            "Repository Activity",
-                                            "Streams async job status plus structured repo-agent events for auth, git push, and pull request creation.",
-                                            "repo-live-activity-log",
-                                            _live_activity_text("repo-live-activity-log", repoActivityText),
-                                            _live_activity_version("repo-live-activity-log"),
-                                            "Refresh Status",
-                                            lambda -> None { pollRepoJob(); }
-                                        )}
+                                        {githubPatToken != "" and
+                                            <div className="panel-actions" style={{"marginTop": "0.75rem"}}>
+                                                <button type="button" className="secondary-button" onClick={lambda -> None { clearPatAuth(); }}>Clear PAT</button>
+                                            </div>
+                                        }
+                                        <div className="log-card">
+                                            <div className="log-card-header">
+                                                <div>
+                                                    <h3>Repository Activity</h3>
+                                                    <p className="field-help">Streams async job status plus structured repo-agent events for auth, git push, and pull request creation.</p>
+                                                </div>
+                                                <button className="secondary-button" onClick={lambda -> None { pollRepoJob(); }}>
+                                                    Refresh Status
+                                                </button>
+                                            </div>
+                                            <pre
+                                                id="repo-live-activity-log"
+                                                data-live-id="repo-live-activity-log"
+                                                data-activity-version={str(_live_activity_version("repo-live-activity-log"))}
+                                                className="log-feed"
+                                                role="log"
+                                                aria-live="polite"
+                                            >{repoActivityText}</pre>
+                                        </div>
                                     </div>
                                 </div>
                             }
@@ -2949,15 +3374,22 @@ cl def:pub app -> JsxElement {
                     </div>
 
                     <div className="log-card">
-                        {LiveActivityBox(
-                            "Live Activity",
-                            "",
-                            "demo-live-log-feed",
-                            _live_activity_text("demo-live-log-feed", demoLogText),
-                            _live_activity_version("demo-live-log-feed"),
-                            "Refresh Now",
-                            lambda -> None { pollDemoProgress(); },
-                        )}
+                        <div className="log-card-header">
+                            <div>
+                                <h3>Live Activity</h3>
+                            </div>
+                            <button className="secondary-button" onClick={lambda -> None { pollDemoProgress(); }}>
+                                Refresh Now
+                            </button>
+                        </div>
+                        <pre
+                            id="demo-live-log-feed"
+                            data-live-id="demo-live-log-feed"
+                            data-activity-version={str(_live_activity_version("demo-live-log-feed"))}
+                            className="log-feed"
+                            role="log"
+                            aria-live="polite"
+                        >{demoLogText}</pre>
                     </div>
                 </div>
             }

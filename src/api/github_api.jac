@@ -112,6 +112,20 @@ def:pub list_github_repos(session_token: str) -> dict {
 }
 
 
+def:pub list_github_repos_by_token(token: str) -> dict {
+    if token == "" {
+        return {"error": "GitHub token is required", "repositories": []};
+    }
+    try {
+        repo_service = importlib.import_module("src.core.github_repo_service");
+        list_repos = getattr(repo_service, "list_user_repositories");
+        return list_repos(token);
+    } except Exception as e {
+        return {"error": str(e), "repositories": []};
+    }
+}
+
+
 def:pub save_github_installation(session_token: str, installation_id: int, account_login: str = "") -> dict {
     sessions = importlib.import_module("src.core.session_store");
     session = getattr(sessions, "validate_session")(session_token);

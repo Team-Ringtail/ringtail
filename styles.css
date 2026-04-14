@@ -358,6 +358,32 @@ body {
     letter-spacing: 0.01em;
 }
 
+.paste-cm-host {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface-soft);
+    overflow: hidden;
+}
+
+.paste-cm-host .cm-editor {
+    min-height: 320px;
+    background: var(--code-bg);
+    color: var(--code-text);
+}
+
+.paste-cm-host .cm-scroller {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    line-height: 1.55;
+}
+
+.paste-cm-host .cm-content {
+    padding: 0.8rem 0.95rem;
+}
+
+.code-editor-fallback {
+    margin-top: 0.55rem;
+}
+
 .field-help {
     font-size: 0.82rem;
     color: var(--text-muted);
@@ -392,6 +418,47 @@ body {
     flex-wrap: wrap;
     gap: 0.7rem;
     margin: 0.35rem 0 0.2rem;
+}
+
+.pat-auth-panel {
+    margin-top: 1rem;
+    display: grid;
+    gap: 0.7rem;
+    text-align: left;
+}
+
+.pat-input {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.82rem 0.95rem;
+    font-size: 0.93rem;
+    background: var(--surface-soft);
+    color: var(--text-main);
+}
+
+.pat-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: var(--focus-ring);
+}
+
+.cli-example {
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.7rem 0.8rem;
+    background: var(--code-bg);
+    color: var(--code-text);
+    font-size: 0.83rem;
+    line-height: 1.45;
+    overflow-x: auto;
+}
+
+.cli-setup-input {
+    min-height: 170px !important;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    line-height: 1.55;
 }
 
 .editor-status {

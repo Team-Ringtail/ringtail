@@ -35,6 +35,20 @@ def:pub resolve_default_llm_model(
     return "claude-opus-4-6";
 }
 
+def:pub list_agent_config_names() -> list {
+    return [
+        "default",
+        "heuristic",
+        "candidate-search",
+        "live-fast",
+        "baseline-measure",
+        "test-fast",
+        "test-fast-candidate-search",
+        "anthropic-sonnet",
+        "anthropic-opus",
+    ];
+}
+
 
 """Return an AgentConfig instance for a given named profile.
 
