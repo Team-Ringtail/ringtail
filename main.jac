@@ -29,6 +29,7 @@ def:pub get_optimization_contract -> dict {
 import from src.api.jobs_api {
     submit_optimization_job as _jobs_submit_optimization_job,
     get_optimization_job as _jobs_get_optimization_job,
+    cancel_optimization_job as _jobs_cancel_optimization_job,
     run_repo_agent_sync as _jobs_run_repo_agent_sync,
     submit_repo_agent_job as _jobs_submit_repo_agent_job,
     get_repo_agent_job as _jobs_get_repo_agent_job,
@@ -43,6 +44,10 @@ def:pub submit_optimization_job(payload: dict) -> dict {
 
 def:pub get_optimization_job(job_id: str) -> dict {
     return _jobs_get_optimization_job(job_id);
+}
+
+def:pub cancel_optimization_job(job_id: str) -> dict {
+    return _jobs_cancel_optimization_job(job_id);
 }
 
 def:pub run_repo_agent_sync(payload: dict) -> dict {
@@ -233,12 +238,15 @@ cl def:pub app -> JsxElement {
     has repoPrompt: str = "make this faster";
     has repoTestCommand: str = "";
     has repoEntryPoint: str = "";
+    has repoBaseBranch: str = "";
     has repoSetupCommands: str = "";
     has repoPublishPr: bool = False;
     has repoJobId: str = "";
     has repoJobStatus: str = "";
     has repoJobResult: str = "";
-    has repoActivityText: str = "Submit a repository job to stream worker status and PR publish events.";
+    has repoSubmitting: bool = False;
+    has repoCancelling: bool = False;
+    has repoActivityText: list = ["Submit a repository job to stream worker status and PR publish events."];
     has repoRunLogPath: str = "";
     has repoRunId: str = "";
     has repoPullRequestUrl: str = "";
@@ -253,7 +261,7 @@ cl def:pub app -> JsxElement {
     has pasteEnableRunLog: bool = True;
     has pasteJobId: str = "";
     has pasteJobStatus: str = "";
-    has pasteActivityText: str = "Submit a job to stream live status and run-log events from the server.";
+    has pasteActivityText: list = ["Submit a job to stream live status and run-log events from the server."];
     has pasteRunLogPath: str = "";
     has pasteRunId: str = "";
     has pasteError: str = "";
@@ -265,6 +273,7 @@ cl def:pub app -> JsxElement {
     has pasteOriginalCode: str = "";
     has pasteOptimizedCode: str = "";
     has pasteSubmitting: bool = False;
+    has pasteCancelling: bool = False;
     has pasteSubmittedSourceCode: str = "";
     has pasteExpectedStatus: str = "idle";
     has pasteExpectedPreview: str = "";
@@ -279,7 +288,7 @@ cl def:pub app -> JsxElement {
     has demoRunStatus: str = "idle";
     has demoRunStage: str = "Ready to run";
     has demoProgressPct: int = 0;
-    has demoLogText: str = "Live run events will appear here.";
+    has demoLogText: list = ["Live run events will appear here."];
     has demoOverviewSvg: str = "";
     has demoPassCount: str = "0";
     has demoTargetCount: str = "0";
@@ -328,17 +337,12 @@ cl def:pub app -> JsxElement {
     has demoCard3GraphSvg: str = "";
     has demoCard3Original: str = "";
     has demoCard3Optimized: str = "";
-    has pollingInitialized: bool = False;
     # Coalesce duplicate refreshBenchmarkContext calls (e.g. React 18 Strict Mode
     # double-mount in dev) for the same benchmark_id within a short window.
     has benchmarkContextRefreshSig: str = "";
     has benchmarkContextRefreshAtMs: int = 0;
-    has pasteStreamGen: int = 0;
     has demoStreamSeq: int = 0;
     has demoStreamGen: int = 0;
-    has repoStreamSeq: int = 0;
-    has repoStreamGen: int = 0;
-    has repoPollGen: int = 0;
     has repoNotifiedJobId: str = "";
     has pasteActivityVersion: int = 0;
     has demoActivityVersion: int = 0;
@@ -489,18 +493,14 @@ cl def:pub app -> JsxElement {
         r0_direct_json = "";
         try { r0_direct_json = str(globalThis.JSON.stringify(r0_direct)); } except Exception { r0_direct_json = ""; }
         r0_source = "none";
-        globalThis.console.log("r01_direct_json: ", r0_direct_json);
         if r0_direct_json != "" and r0_direct_json != "null" and r0_direct_json != "undefined" {
             r0 = r0_direct; 
-            globalThis.console.log("r01: ", r0);
             r0_source = "direct";
         } elif d0 is not None and (not globalThis.Array.isArray(d0)) {
             r0 = _safe_get(d0, "result");
-            globalThis.console.log("r02: ", r0);
             if r0 is not None { r0_source = "safe"; }
         }
         top_r = _safe_get(parsed_plain, "result");
-        globalThis.console.log("top_r: ", top_r);
         reports0 = None;
         reports0_len = -1;
         reports0_r = None;
@@ -530,8 +530,6 @@ cl def:pub app -> JsxElement {
         # IMPORTANT: We have runtime evidence that JSON.stringify(unwrapped) can
         # collapse to "null" even when JSON.stringify(parsed.data.result) is fine.
         # If we selected the direct path, use the already-good JSON string.
-       unwrapped_json = globalThis.JSON.stringify(unwrapped);
-       globalThis.console.log("unwrapped_json: ", unwrapped_json);
         try {
             if r0_source == "direct"
                 and r0_direct_json != ""
@@ -547,7 +545,6 @@ cl def:pub app -> JsxElement {
         } except Exception {
             ignored = "";
         }
-        globalThis.console.log("unwrapped final: ", unwrapped);
         return unwrapped;
     }
 
@@ -570,6 +567,10 @@ cl def:pub app -> JsxElement {
 
     async def ringtail_get_optimization_job(job_id: str) -> dict | list | str | int | float | bool | None {
         return await ringtail_post_function("get_optimization_job", {"job_id": job_id});
+    }
+
+    async def ringtail_cancel_optimization_job(job_id: str) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("cancel_optimization_job", {"job_id": job_id});
     }
 
     async def ringtail_submit_repo_agent_job(request_json: str) -> dict | list | str | int | float | bool | None {
@@ -982,98 +983,108 @@ cl def:pub app -> JsxElement {
         # Some payloads stringify newlines; normalize for <pre> display.
         norm: list = [];
         for ln in lines {
-            norm.append(str(ln).replace("\\n", "\n"));
+            txt = str(ln);
+            # Handle different escaping levels emitted by worker/log bridges.
+            txt = txt.replace("\\r\\n", "\n");
+            txt = txt.replace("\\\\n", "\n");
+            txt = txt.replace("\\n", "\n");
+            txt = txt.replace("\\\\t", "    ");
+            txt = txt.replace("\\t", "    ");
+            norm.append(txt);
         }
         out = "\n".join(norm);
         return out;
     }
 
-    def liveActivityBox(
-        title: str,
-        help_text: str,
-        pre_id: str,
-        body_text: str,
-        update_version: int = 0,
-        refresh_label: str = "Refresh Now",
-        on_refresh: Any = None,
-        header_right: Any = None,
-    ) -> Any {
-        safe_title = str(title);
-        safe_help_text = str(help_text);
-        safe_pre_id = str(pre_id);
-        safe_body_text = str(body_text);
-        if safe_body_text == "" or safe_body_text == "undefined" or safe_body_text == "null" {
-            safe_body_text = "Live run events will appear here.";
-        }
-        safe_update_version = 0;
-        try {
-            uv = str(update_version);
-            if uv != "" and uv != "undefined" and uv != "null" {
-                safe_update_version = int(update_version);
-            }
-        } except Exception {
-            safe_update_version = 0;
-        }
-        has_on_refresh = False;
-        has_header_right = False;
-        try { has_on_refresh = on_refresh is not None and str(on_refresh) != "undefined" and str(on_refresh) != "null"; } except Exception { has_on_refresh = False; }
-        try { has_header_right = header_right is not None and str(header_right) != "undefined" and str(header_right) != "null"; } except Exception { has_header_right = False; }
+    # def liveActivityBox(
+    #     title: str,
+    #     help_text: str,
+    #     pre_id: str,
+    #     body_text: str,
+    #     update_version: int = 0,
+    #     refresh_label: str = "Refresh Now",
+    #     on_refresh: Any = None,
+    #     header_right: Any = None,
+    # ) -> Any {
+    #     safe_title = str(title);
+    #     safe_help_text = str(help_text);
+    #     safe_pre_id = str(pre_id);
+    #     safe_body_text = str(body_text);
+    #     if safe_body_text == "" or safe_body_text == "undefined" or safe_body_text == "null" {
+    #         safe_body_text = "Live run events will appear here.";
+    #     }
+    #     safe_update_version = 0;
+    #     try {
+    #         uv = str(update_version);
+    #         if uv != "" and uv != "undefined" and uv != "null" {
+    #             safe_update_version = int(update_version);
+    #         }
+    #     } except Exception {
+    #         safe_update_version = 0;
+    #     }
+    #     has_on_refresh = False;
+    #     has_header_right = False;
+    #     try { has_on_refresh = on_refresh is not None and str(on_refresh) != "undefined" and str(on_refresh) != "null"; } except Exception { has_on_refresh = False; }
+    #     try { has_header_right = header_right is not None and str(header_right) != "undefined" and str(header_right) != "null"; } except Exception { has_header_right = False; }
 
-        return <div className="log-card">
-            <div className="log-card-header">
-                <div>
-                    <h3>{safe_title}</h3>
-                    {safe_help_text != "" and <p className="field-help">{safe_help_text}</p>}
-                </div>
-                {has_header_right and header_right}
-                {has_on_refresh and
-                    <button className="secondary-button" onClick={lambda -> None { on_refresh(); }}>
-                        {refresh_label}
-                    </button>
-                }
-            </div>
-            <pre
-                key={safe_pre_id}
-                id={safe_pre_id}
-                data-live-id={safe_pre_id}
-                data-activity-version={str(safe_update_version)}
-                className="log-feed"
-                role="log"
-                aria-live="polite"
-                ref={lambda el -> None {
-                    try {
-                        # Register the in-document node; clear on unmount so we never
-                        # hold a detached element (version-based keys used to remount
-                        # and stale the cache).
-                        # Some Jac client runtimes may pass JS `undefined` instead of null.
-                        try {
-                            if el is not None and globalThis.Object.is(el, globalThis.undefined) {
-                                el = None;
-                            }
-                        } except Exception { ignored = ""; }
-                        if el != None {
-                            liveActivityEls[safe_pre_id] = el;
-                            # If live activity was updated before this <pre> mounted,
-                            # catch up immediately by writing the latest cached text.
-                            # This avoids timing where _sync_live_activity_dom runs
-                            # while the tab is not rendered, yielding undefined/null.
-                            try {
-                                latest_txt = _live_activity_text(safe_pre_id, "");
-                                if latest_txt != "" {
-                                    el.textContent = latest_txt;
-                                    el.scrollTop = el.scrollHeight;
-                                }
-                            } except Exception { ignored = ""; }
-                        } else {
-                            try {
-                                globalThis.Reflect.deleteProperty(liveActivityEls, safe_pre_id);
-                            } except Exception { ignored = ""; }
-                        }
-                    } except Exception { ignored = ""; }
-                }}
-            >{safe_body_text}</pre>
-        </div>;
-    }
+    #     return <div className="log-card">
+    #         <div className="log-card-header">
+    #             <div>
+    #                 <h3>{safe_title}</h3>
+    #                 {safe_help_text != "" and <p className="field-help">{safe_help_text}</p>}
+    #             </div>
+    #             {has_header_right and header_right}
+    #             {has_on_refresh and
+    #                 <button className="secondary-button" onClick={lambda -> None { on_refresh(); }}>
+    #                     {refresh_label}
+    #                 </button>
+    #             }
+    #         </div>
+    #         <pre
+    #             key={safe_pre_id}
+    #             id={safe_pre_id}
+    #             data-live-id={safe_pre_id}
+    #             data-activity-version={str(safe_update_version)}
+    #             className="log-feed"
+    #             role="log"
+    #             aria-live="polite"
+    #             style={{"whiteSpace": "pre-wrap", "wordBreak": "break-word"}} 
+    #             ref={lambda el -> None {
+    #                 try {
+    #                     # Register the in-document node; clear on unmount so we never
+    #                     # hold a detached element (version-based keys used to remount
+    #                     # and stale the cache).
+    #                     # Some Jac client runtimes may pass JS `undefined` instead of null.
+    #                     try {
+    #                         if el is not None and globalThis.Object.is(el, globalThis.undefined) {
+    #                             el = None;
+    #                         }
+    #                     } except Exception { ignored = ""; }
+    #                     if el != None {
+    #                         liveActivityEls[safe_pre_id] = el;
+    #                         # If live activity was updated before this <pre> mounted,
+    #                         # catch up immediately by writing the latest cached text.
+    #                         # This avoids timing where _sync_live_activity_dom runs
+    #                         # while the tab is not rendered, yielding undefined/null.
+    #                         try {
+    #                             latest_txt = _live_activity_text(safe_pre_id, "");
+    #                             if latest_txt != "" {
+    #                                 # Replace the textContent assignment with this:
+    #                                 clean_txt = str(latest_txt).replace("\\r\\n", "\n").replace("\\\\n", "\n").replace("\\n", "\n");
+    #                                 el.textContent = clean_txt;
+    #                                 el.scrollTop = el.scrollHeight;
+    #                             }
+    #                         } except Exception { ignored = ""; }
+    #                     } else {
+    #                         try {
+    #                             globalThis.Reflect.deleteProperty(liveActivityEls, safe_pre_id);
+    #                         } except Exception { ignored = ""; }
+    #                     }
+    #                 } except Exception { ignored = ""; }
+    #             }}
+    #         >{safe_body_text}</pre>
+    #     </div>;
+    # }
 
     # Imperative DOM sync is centralized via reusable activity helpers.
 
@@ -1140,9 +1151,6 @@ cl def:pub app -> JsxElement {
                     el = None;
                 }
             } except Exception { ignored = ""; }
-            if el != None {
-                el.scrollTop = el.scrollHeight;
-            }
         } except Exception {
             ignored = "";
         }
@@ -1211,8 +1219,15 @@ cl def:pub app -> JsxElement {
                     }
                 } except Exception { ignored = ""; }
                 if el != None {
-                    el.textContent = text;
-                    el.scrollTop = el.scrollHeight;
+                    clean_txt = str(text).replace("\\r\\n", "\n").replace("\\\\n", "\n").replace("\\n", "\n");
+                    lines = clean_txt.split("\n");
+                    el.innerHTML = "";
+                    for ln in lines {
+                        d = globalThis.document.createElement("div");
+                        d.className = "log-line";
+                        d.textContent = str(ln);
+                        el.appendChild(d);
+                    }
                     liveActivityEls[element_id] = el;
                 }
             } except Exception {
@@ -1243,55 +1258,19 @@ cl def:pub app -> JsxElement {
     }
 
     def _set_live_activity(target_id: str, text: str, bump_version: bool = True) -> None {
-        # IMPORTANT: Treat live activity dicts as immutable for React updates.
-        # In-place mutation of dict keys often does not trigger a re-render in the
-        # Jac client runtime. Clone + reassign to force a new reference.
         try {
-            # `dict(existingObj)` can explode in the generated JS if the runtime
-            # represents `dict` values as plain objects (non-iterable).
-            # Use Object.assign for a safe shallow clone.
-            nxt_text = globalThis.Object.assign({}, liveActivityTextById);
-            nxt_text[target_id] = text;
-            liveActivityTextById = nxt_text;
-        } except Exception {
-            # Fallback: best-effort mutation (should be rare)
             liveActivityTextById[target_id] = text;
+        } except Exception {
+            ignored = "";
         }
-        if bump_version {
-            next_ver = _live_activity_version(target_id) + 1;
-            try {
-                nxt_vermap = globalThis.Object.assign({}, liveActivityVersionById);
-                nxt_vermap[target_id] = next_ver;
-                liveActivityVersionById = nxt_vermap;
-            } except Exception {
-                liveActivityVersionById[target_id] = next_ver;
-            }
-            if target_id == "paste-live-activity-log" {
-                pasteActivityVersion = next_ver;
-            }
-            if target_id == "demo-live-log-feed" {
-                demoActivityVersion = next_ver;
-            }
-        }
-        if target_id == "paste-live-activity-log" {
-            pasteActivityText = text;
-        }
-        if target_id == "demo-live-log-feed" {
-            demoLogText = text;
-        }
-
-        # Keep React state as source of truth, but also push text directly into the
-        # mounted <pre> so activity lines appear even if object-state reconciliation
-        # skips a render tick in this runtime.
         _sync_live_activity_dom(target_id, text);
-        # If the <pre> is mounted, scroll it; otherwise it will scroll on mount.
-        # Use _value() to read from the dict: it converts JS `undefined` to None,
-        # preventing `undefined.scrollHeight` crashes when the key is absent.
-        el = _value(liveActivityEls, target_id, None);
-        if el != None {
-            try {
+        try {
+            el = globalThis.document.getElementById(target_id);
+            if el is not None {
                 el.scrollTop = el.scrollHeight;
-            } except Exception { ignored = ""; }
+            }
+        } except Exception {
+            ignored = "";
         }
     }
 
@@ -1347,11 +1326,15 @@ cl def:pub app -> JsxElement {
 
     def _apply_paste_job_payload(raw: dict) -> None {
         result = _flatten_function_job_payload(raw);
-        pasteJobStatus = _lower_text(_value(result, "status", "running"));
+        st = _extract_job_status(result, "running");
+        if st == "" {
+            st = "running";
+        }
+        pasteJobStatus = st;
         pasteRunId = str(_value(result, "run_id", ""));
         pasteRunLogPath = str(_value(result, "run_log_path", ""));
         act_lines = _coerce_list(_value(result, "activity_log_lines", []));
-        next_activity_text = _apply_live_activity_payload("paste-live-activity-log", result, pasteJobStatus);
+        _apply_live_activity_payload("paste-live-activity-log", result, st);
         resolved = _extract_paste_result_payload(result);
         has_result_fields = (
             str(_value(resolved, "optimized_code", "")).strip() != ""
@@ -1361,21 +1344,22 @@ cl def:pub app -> JsxElement {
         if has_result_fields {
             _apply_paste_result(resolved);
         }
-        if pasteJobStatus in ["queued", "running", "submitting"] {
+        if st in ["queued", "running", "submitting"] {
             pasteError = "";
         }
-        if pasteJobStatus == "succeeded" {
+        if st == "succeeded" {
             fe = _format_error_display(_value(resolved, "error", None));
             if fe != "" {
-                pasteJobStatus = "failed";
+                st = "failed";
+                pasteJobStatus = st;
                 pasteError = fe;
             }
         }
-        if pasteJobStatus == "failed" {
+        if st == "failed" {
             fe = _format_error_display(_value(result, "error", None));
             pasteError = fe != "" and fe or "Optimization job failed";
         }
-        if pasteJobStatus == "not_found" {
+        if st == "not_found" {
             fe = _format_error_display(_value(result, "error", None));
             pasteError = fe != "" and fe or "Job not found on server";
         }
@@ -1385,25 +1369,30 @@ cl def:pub app -> JsxElement {
         result = _flatten_function_job_payload(raw);
         payload = _coerce_plain_object(_value(result, "result", {}));
         pr = _coerce_plain_object(_value(payload, "pull_request", {}));
-        repoJobId = str(_value(result, "job_id", repoJobId));
-        repoJobStatus = str(_value(result, "status", "running"));
+        repoJobId = str(_value(result, "job_id", ""));
+        st = _extract_job_status(result, "running");
+        if st == "" {
+            st = "running";
+        }
+        repoJobStatus = st;
         repoRunId = str(_value(result, "run_id", ""));
         repoRunLogPath = str(_value(result, "run_log_path", ""));
         repoPullRequestUrl = str(_value(pr, "url", ""));
-        repoActivityText = _apply_live_activity_payload("repo-live-activity-log", result, repoJobStatus);
-        if repoJobStatus in ["queued", "running", "submitting"] {
+        tmp = _apply_live_activity_payload("repo-live-activity-log", result, st);
+        repoActivityText = tmp.split("\n") if tmp else [];
+        if st in ["queued", "running", "submitting"] {
             repoJobResult = "";
         }
-        if repoJobStatus == "succeeded" {
+        if st == "succeeded" {
             repoJobResult = _repo_job_completion_message(result);
             uiMessage = repoJobResult;
-            _notify_repo_job_completion(repoJobId, repoJobResult);
+            _notify_repo_job_completion(str(_value(result, "job_id", "")), repoJobResult);
         }
-        if repoJobStatus == "failed" {
+        if st == "failed" {
             repoJobResult = str(_value(result, "error", "Job failed"));
             uiMessage = repoJobResult;
         }
-        if repoJobStatus == "not_found" {
+        if st == "not_found" {
             repoJobResult = str(_value(result, "error", "Job not found on server"));
             uiMessage = repoJobResult;
         }
@@ -1954,9 +1943,6 @@ cl def:pub app -> JsxElement {
         pasteSubmitting = True;
         pasteJobStatus = "submitting";
         pasteJobId = expected_job_id;
-        next_paste_stream_gen = pasteStreamGen + 1;
-        pasteStreamGen = next_paste_stream_gen;
-        stream_g = next_paste_stream_gen;
         job_id_to_stream = expected_job_id;
         _reset_paste_result();
         uiMessage = "";
@@ -2008,6 +1994,18 @@ cl def:pub app -> JsxElement {
                     returned_status = probe_st;
                 }
             }
+            # Defensive fallback: if envelope parsing missed job_id, keep polling
+            # the client-generated expected id (server honors provided job_id).
+            if returned_job_id == "" {
+                fallback_id = str(pasteJobId).strip();
+                if fallback_id == "" {
+                    fallback_id = str(expected_job_id).strip();
+                }
+                returned_job_id = fallback_id;
+            }
+            if str(returned_status).strip() == "" {
+                returned_status = "running";
+            }
             if returned_job_id != "" and returned_job_id != expected_job_id {
                 pasteJobId = returned_job_id;
                 job_id_to_stream = returned_job_id;
@@ -2018,15 +2016,10 @@ cl def:pub app -> JsxElement {
                 pasteError = fe != "" and fe or "No job ID returned";
             } else {
                 pasteJobStatus = returned_status;
-                # Schedule streaming out-of-band so UI updates can flush between
-                # long-poll notifications in this runtime.
-                globalThis.setTimeout(
-                    lambda -> None { _paste_job_stream_tick(job_id_to_stream, stream_g, 0); },
-                    0
-                );
-                # Additional direct polling path avoids stale closure issues in
-                # async callback guards and guarantees visible job progress.
-                globalThis.setTimeout(lambda -> None { _poll_paste_job_by_id(job_id_to_stream); }, 250);
+
+                globalThis.setTimeout(lambda -> None {
+                    _poll_active_job(job_id_to_stream, "paste");
+                }, 1500);
             }
         } except Exception as err {
             pasteJobStatus = "failed";
@@ -2037,12 +2030,23 @@ cl def:pub app -> JsxElement {
         }
     }
 
-    async def submitPasteJob -> None {
-        await _submit_paste_job();
+    async def cancelPasteJob -> None {
+        if str(pasteJobId).strip() == "" or pasteCancelling {
+            return;
+        }
+        pasteCancelling = True;
+        try {
+            await ringtail_cancel_optimization_job(pasteJobId);
+            await pollPasteJobForce();
+        } except Exception as err {
+            uiMessage = "Could not cancel job: " + str(err);
+        } finally {
+            pasteCancelling = False;
+        }
     }
 
-    async def pollPasteJob -> None {
-        await _poll_paste_job_impl(False);
+    async def submitPasteJob -> None {
+        await _submit_paste_job();
     }
 
     async def pollPasteJobForce -> None {
@@ -2069,267 +2073,133 @@ cl def:pub app -> JsxElement {
         _apply_paste_job_payload(result);
     }
 
-    async def _poll_paste_job_by_id(job_id: str) -> None {
-        if str(job_id).strip() == "" {
-            return;
+    def _is_terminal_job_status(status: str) -> bool {
+        st = _lower_text(status);
+        return (
+            st == "succeeded"
+            or st == "success"
+            or st == "failed"
+            or st == "interrupted"
+            or st == "not_found"
+            or st == "completed"
+            or st == "done"
+            or st == "error"
+            or st == "cancelled"
+            or st == "canceled"
+            or st == "aborted"
+            or st == "stopped"
+            or st == "timeout"
+            or st == "timed_out"
+        );
+    }
+
+    def _paste_job_active() -> bool {
+        return str(pasteJobId).strip() != "" and not _is_terminal_job_status(pasteJobStatus);
+    }
+
+    def _repo_job_active() -> bool {
+        return str(repoJobId).strip() != "" and not _is_terminal_job_status(repoJobStatus);
+    }
+
+    def _extract_job_status(
+        payload: dict | list | str | int | float | bool | None,
+        fallback: str = ""
+    ) -> str {
+        flat = _flatten_function_job_payload(payload);
+        # Some responses put status in slightly different keys or nested objects.
+        candidates = [
+            _value(flat, "status", ""),
+            _value(flat, "job_status", ""),
+            _value(flat, "state", "")
+        ];
+        nested_result = _coerce_plain_object(_value(flat, "result", {}));
+        candidates.append(_value(nested_result, "status", ""));
+        candidates.append(_value(nested_result, "job_status", ""));
+        for raw_st in candidates {
+            st = _lower_text(raw_st);
+            if st != "" and st != "none" and st != "null" and st != "undefined" {
+                return st;
+            }
         }
-        status = "running";
+        # If status is missing but the job has a finish marker or an error, treat
+        # it as terminal to avoid accidental infinite polling.
+        finished_at = str(_value(flat, "finished_at", "")).strip();
+        if finished_at != "" and finished_at != "None" and finished_at != "null" {
+            return "completed";
+        }
+        err_txt = str(_value(flat, "error", "")).strip();
+        if err_txt != "" and err_txt != "None" and err_txt != "null" {
+            return "failed";
+        }
+        return _lower_text(fallback);
+    }
+
+    def _active_job_id_for_type(job_type: str) -> str {
+        if job_type == "repo" {
+            return str(repoJobId).strip();
+        }
+        if job_type == "paste" {
+            return str(pasteJobId).strip();
+        }
+        return "";
+    }
+
+    def _active_job_status_for_type(job_type: str) -> str {
+        if job_type == "repo" {
+            return _lower_text(repoJobStatus);
+        }
+        if job_type == "paste" {
+            return _lower_text(pasteJobStatus);
+        }
+        return "";
+    }
+
+    async def _poll_active_job(job_id: str, job_type: str) -> None {
+        done = False;
         try {
-            latest = _flatten_function_job_payload(await ringtail_get_optimization_job(job_id));
-            _apply_paste_job_payload(latest);
-            status = _lower_text(_value(latest, "status", "running"));
-        } except Exception as pollErr {
-            ignored = str(pollErr);
-            status = _lower_text(pasteJobStatus);
-            if status == "" {
+            if str(job_id).strip() == "" or (job_type != "repo" and job_type != "paste") {
+                done = True;
+            }
+            if not done {
                 status = "running";
-            }
-        }
-        if status in ["succeeded", "failed", "not_found", "interrupted"] {
-            return;
-        }
-        globalThis.setTimeout(lambda -> None { _poll_paste_job_by_id(job_id); }, 1500);
-    }
-
-    def _unwrap_wait_job_notification_payload(raw: Any) -> dict {
-        chunk = _coerce_plain_object(raw);
-        try { chunk = globalThis.JSON.parse(globalThis.JSON.stringify(chunk)); } except Exception { ignored = ""; }
-        # Defensive: some server responses may still be wrapped in an envelope
-        # like {ok,type,data:{result:{...}}}. Ensure we operate on the inner
-        # snapshot {seq,heartbeat,terminal,kind,data}.
-        # Unwrap envelope shapes explicitly; avoid `in` (proxy semantics).
-        try {
-            d0 = None;
-            r0 = None;
-            top_r = None;
-            try { d0 = chunk["data"]; } except Exception { d0 = None; }
-            if d0 is not None and (not globalThis.Array.isArray(d0)) {
-                try { r0 = d0["result"]; } except Exception { r0 = None; }
-            }
-            try { top_r = chunk["result"]; } except Exception { top_r = None; }
-            if r0 is not None and str(r0) != "undefined" and str(r0) != "null" {
-                chunk = r0;
-            } elif top_r is not None and str(top_r) != "undefined" and str(top_r) != "null" {
-                chunk = top_r;
-            }
-        } except Exception {
-            ignored = "";
-        }
-        # Peel nested {data:{result:...}} / {result:...} layers until hub snapshot (has seq).
-        # Jac HTTP may return the wait_job_notification value inside more than one envelope.
-        peel_i = 0;
-        while peel_i < 8 {
-            has_seq_key = False;
-            try {
-                sq0 = chunk["seq"];
-                sv0 = str(sq0);
-                if sv0 != "undefined" and sv0 != "null" {
-                    has_seq_key = True;
+                try {
+                    if job_type == "repo" {
+                        latest = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
+                        active_st = _extract_job_status(latest, "");
+                        if active_st == "not_found" {
+                            status = "running";
+                        } else {
+                            _apply_repo_job_payload(latest);
+                            status = active_st;
+                        }
+                    } elif job_type == "paste" {
+                        raw = await ringtail_get_optimization_job(job_id);
+                        flat = _flatten_function_job_payload(raw);
+                        flat_st = _extract_job_status(flat, "");
+                        if flat_st == "not_found" {
+                            status = "running";
+                        } else {
+                            _apply_paste_job_payload(raw);
+                            status = flat_st;
+                        }
+                    }
+                } except Exception as pollErr {
+                    ignored = str(pollErr);
+                    status = "running";
                 }
-            } except Exception {
-                has_seq_key = False;
-            }
-            if has_seq_key {
-                break;
-            }
-            nxt = None;
-            try {
-                d1 = chunk["data"];
-                if d1 is not None and (not globalThis.Array.isArray(d1)) {
-                    try { nxt = d1["result"]; } except Exception { nxt = None; }
+                if status == "" {
+                    status = "running";
                 }
-            } except Exception {
-                nxt = None;
-            }
-            if nxt is None {
-                try { nxt = chunk["result"]; } except Exception { nxt = None; }
-            }
-            if nxt is None {
-                break;
-            }
-            ns = str(nxt);
-            if ns == "undefined" or ns == "null" {
-                break;
-            }
-            chunk = _coerce_plain_object(nxt);
-            try { chunk = globalThis.JSON.parse(globalThis.JSON.stringify(chunk)); } except Exception { ignored = ""; }
-            peel_i = peel_i + 1;
-        }
-        out = _coerce_plain_object(chunk);
-        return out;
-    }
-
-    async def _stream_job_notifications(
-        job_id: str,
-        stream_gen: int,
-        since_seq: int,
-        stream_kind: str,
-    ) -> None {
-        current_gen = 0;
-        if stream_kind == "paste" {
-            current_gen = pasteStreamGen;
-        } elif stream_kind == "demo" {
-            current_gen = demoStreamGen;
-        } else {
-            current_gen = repoStreamGen;
-        }
-        if int(current_gen) != int(stream_gen) {
-            return;
-        }
-        snap = {};
-        wait_failed = False;
-        try {
-            snap = _unwrap_wait_job_notification_payload(
-                await ringtail_wait_job_notification(job_id, since_seq, 25.0)
-            );
-        } except Exception as err {
-            wait_failed = True;
-            snap = {"error": str(err)};
-        }
-        current_gen = 0;
-        if stream_kind == "paste" {
-            current_gen = pasteStreamGen;
-        } elif stream_kind == "demo" {
-            current_gen = demoStreamGen;
-        } else {
-            current_gen = repoStreamGen;
-        }
-        if int(current_gen) != int(stream_gen) {
-            return;
-        }
-        if wait_failed or "error" in snap {
-            if stream_kind == "paste" {
-                fallback = _flatten_function_job_payload(await ringtail_get_optimization_job(job_id));
-                _apply_paste_job_payload(fallback);
-                st = str(_value(fallback, "status", ""));
-                if st in ["succeeded", "failed", "interrupted", "not_found"] {
-                    return;
-                }
-            } elif stream_kind == "demo" {
-                prog = await ringtail_get_ranked_demo_job_progress(job_id);
-                parsed = _coerce_plain_object(prog);
-                _apply_demo_progress_payload(parsed);
-                st = str(_value(parsed, "job_status", _value(parsed, "status", "")));
-                if st in ["succeeded", "failed", "interrupted"] {
-                    return;
-                }
-            } else {
-                fallback = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
-                _apply_repo_job_payload(fallback);
-                st = str(_value(fallback, "status", ""));
-                if st in ["succeeded", "failed", "interrupted", "not_found"] {
-                    return;
+                if _is_terminal_job_status(status) {
+                    done = True;
                 }
             }
-            await _stream_job_notifications(job_id, stream_gen, since_seq, stream_kind);
-            return;
+        } except Exception as outerErr {
+            ignored = str(outerErr);
         }
-        next_since = since_seq;
-        terminal = bool(_value(snap, "terminal", False));
-        if stream_kind == "paste" {
-            # Reconcile with canonical job payload after each observer event.
-            # This keeps observer semantics (no timer polling) while ensuring
-            # the UI receives the full normalized shape expected by the
-            # LiveActivityBox flow.
-            latest = _flatten_function_job_payload(await ringtail_get_optimization_job(job_id));
-            _apply_paste_job_payload(latest);
-            next_since = int(_value(snap, "seq", since_seq));
-        } elif stream_kind == "demo" {
-            data = _coerce_plain_object(_value(snap, "data", {}));
-            _apply_demo_progress_payload(data);
-            next_since = int(_value(snap, "seq", since_seq));
-            demoStreamSeq = next_since;
-        } else {
-            data = _coerce_plain_object(_value(snap, "data", {}));
-            if str(_value(snap, "kind", "")) == "async_job" {
-                _apply_repo_job_payload(data);
-            } else {
-                fallback = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
-                _apply_repo_job_payload(fallback);
-            }
-            repoStreamSeq = int(_value(snap, "seq", since_seq));
-            next_since = repoStreamSeq;
+        if not done {
+            globalThis.setTimeout(lambda -> None { _poll_active_job(job_id, job_type); }, 1500);
         }
-        if terminal {
-            return;
-        }
-        await _stream_job_notifications(job_id, stream_gen, next_since, stream_kind);
-    }
-
-    async def _paste_job_stream_tick(job_id: str, stream_gen: int, since_seq: int) -> None {
-        await _stream_job_notifications(
-            job_id,
-            stream_gen,
-            since_seq,
-            "paste",
-        );
-    }
-
-    async def _demo_job_stream_tick(stream_gen: int) -> None {
-        if demoJobId == "" or stream_gen != demoStreamGen {
-            return;
-        }
-        await _stream_job_notifications(
-            demoJobId,
-            stream_gen,
-            demoStreamSeq,
-            "demo",
-        );
-    }
-
-    async def _repo_job_stream_tick(stream_gen: int) -> None {
-        if repoJobId == "" or stream_gen != repoStreamGen {
-            return;
-        }
-        await _stream_job_notifications(
-            repoJobId,
-            stream_gen,
-            repoStreamSeq,
-            "repo",
-        );
-    }
-
-    async def _repo_job_poll_tick(job_id: str, poll_gen: int) -> None {
-        if job_id == "" or repoJobId == "" or repoJobId != job_id or poll_gen != repoPollGen {
-            return;
-        }
-        if repoJobStatus in ["succeeded", "interrupted", "not_found", ""] {
-            return;
-        }
-        try {
-            await pollRepoJob(True);
-        } except Exception {
-            ignored = "";
-        }
-        if job_id == "" or repoJobId == "" or repoJobId != job_id or poll_gen != repoPollGen {
-            return;
-        }
-        if repoJobStatus in ["succeeded", "interrupted", "not_found", ""] {
-            return;
-        }
-        globalThis.setTimeout(lambda -> None { _repo_job_poll_tick(job_id, poll_gen); }, 2000);
-    }
-
-    async def _poll_repo_job_by_id(job_id: str) -> None {
-        if str(job_id).strip() == "" {
-            return;
-        }
-        status = "running";
-        try {
-            latest = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
-            _apply_repo_job_payload(latest);
-            status = _lower_text(_value(latest, "status", "running"));
-        } except Exception as pollErr {
-            ignored = str(pollErr);
-            status = _lower_text(repoJobStatus);
-            if status == "" {
-                status = "running";
-            }
-        }
-        if status in ["succeeded", "failed", "interrupted", "not_found"] {
-            return;
-        }
-        globalThis.setTimeout(lambda -> None { _poll_repo_job_by_id(job_id); }, 1500);
     }
 
     async def handleGithubLogin() -> None {
@@ -2499,16 +2369,38 @@ cl def:pub app -> JsxElement {
                 for r in repos {
                     loaded.append({
                         "full_name": str(_value(r, "full_name", "")),
-                        "private": bool(_value(r, "private", False))
+                        "private": bool(_value(r, "private", False)),
+                        "default_branch": str(_value(r, "default_branch", ""))
                     });
                 }
                 availableRepos = loaded;
+                if repoBaseBranch.strip() == "" and repoUrl.strip() != "" {
+                    guessed = _repo_default_branch_for_url(repoUrl);
+                    if guessed != "" {
+                        repoBaseBranch = guessed;
+                    }
+                }
             }
         } except Exception as e {
             uiMessage = "Could not load repos: " + str(e);
             availableRepos = [];
         }
         reposLoading = False;
+    }
+
+    def _repo_default_branch_for_url(url: str) -> str {
+        target = str(url).strip();
+        if target == "" {
+            return "";
+        }
+        for r in availableRepos {
+            name = str(_value(r, "full_name", ""));
+            repo_url = "https://github.com/" + name;
+            if repo_url == target {
+                return str(_value(r, "default_branch", "")).strip();
+            }
+        }
+        return "";
     }
 
     async def loadPasteConfigProfiles() -> None {
@@ -2559,6 +2451,10 @@ cl def:pub app -> JsxElement {
             if bool(_value(r, "private", False)) {
                 label = name + " (private)";
             }
+            branch = str(_value(r, "default_branch", "")).strip();
+            if branch != "" {
+                label = label + " [" + branch + "]";
+            }
             opts.append(<option key={name} value={url}>{label}</option>);
         }
         return opts;
@@ -2604,13 +2500,7 @@ cl def:pub app -> JsxElement {
     }
 
     async def submitRepoJob -> None {
-        next_repo_stream_gen = repoStreamGen + 1;
-        repoStreamGen = next_repo_stream_gen;
-        rg = next_repo_stream_gen;
-        next_repo_poll_gen = repoPollGen + 1;
-        repoPollGen = next_repo_poll_gen;
-        pg = next_repo_poll_gen;
-        repoStreamSeq = 0;
+        repoSubmitting = True;
         repoJobStatus = "submitting";
         repoJobResult = "";
         repoRunId = "";
@@ -2647,6 +2537,9 @@ cl def:pub app -> JsxElement {
             if repoEntryPoint != "" {
                 payload["entry_point"] = repoEntryPoint;
             }
+            if repoBaseBranch.strip() != "" {
+                payload["base_branch"] = repoBaseBranch.strip();
+            }
             if repoSetupCommands != "" {
                 parts = repoSetupCommands.split("\n");
                 cmds = [];
@@ -2676,18 +2569,31 @@ cl def:pub app -> JsxElement {
                 repoJobStatus = "failed";
                 repoJobResult = str(_value(submitted, "error", "No job ID returned"));
             } else {
-                # Keep the UI responsive while stream events arrive, and fall back
-                # to direct polling in case observer delivery is flaky in dev.
-                globalThis.setTimeout(lambda -> None { _repo_job_stream_tick(rg); }, 0);
-                globalThis.setTimeout(lambda -> None { _repo_job_poll_tick(returned_repo_job_id, pg); }, 1500);
-                # Additional direct polling path avoids stale closure issues in
-                # async callback guards and guarantees visible job progress.
-                globalThis.setTimeout(lambda -> None { _poll_repo_job_by_id(returned_repo_job_id); }, 250);
+                globalThis.setTimeout(lambda -> None {
+                    _poll_active_job(returned_repo_job_id, "repo");
+                }, 250);
             }
         } except Exception as err {
             repoJobStatus = "failed";
             repoJobResult = str(err);
             uiMessage = "Job submission failed: " + str(err);
+        } finally {
+            repoSubmitting = False;
+        }
+    }
+
+    async def cancelRepoJob -> None {
+        if str(repoJobId).strip() == "" or repoCancelling {
+            return;
+        }
+        repoCancelling = True;
+        try {
+            await ringtail_cancel_optimization_job(repoJobId);
+            await pollRepoJob(True);
+        } except Exception as err {
+            uiMessage = "Could not cancel job: " + str(err);
+        } finally {
+            repoCancelling = False;
         }
     }
 
@@ -2847,14 +2753,22 @@ cl def:pub app -> JsxElement {
         _apply_demo_progress_payload(_coerce_plain_object(progress));
     }
 
-    async def _run_background_pollers() -> None {
-        # Do not refresh demo catalog here — entry + benchmark dropdown already load it.
-        # Polling every 5s duplicated get_ranked_demo_* traffic for no benefit.
-        # Safety net: long-poll stream can miss ticks; paste tab no longer had any
-        # periodic get_optimization_job refresh (only manual Refresh). _poll_paste_job_impl
-        # no-ops when idle or job is terminal.
-        await pollPasteJob();
-        await pollRepoJob();
+    async def _demo_job_stream_tick(expected_gen: int) -> None {
+        if int(demoStreamGen) != int(expected_gen) {
+            return;
+        }
+        if str(demoJobId).strip() == "" {
+            return;
+        }
+        await pollDemoProgress();
+        if int(demoStreamGen) != int(expected_gen) {
+            return;
+        }
+        st = _lower_text(demoRunStatus);
+        if _is_terminal_job_status(st) {
+            return;
+        }
+        globalThis.setTimeout(lambda -> None { _demo_job_stream_tick(expected_gen); }, 1500);
     }
 
     async def resetToSetup() -> None {
@@ -2889,11 +2803,6 @@ cl def:pub app -> JsxElement {
             _update_expected_feedback();
             await loadPasteConfigProfiles();
             await refreshBenchmarkContext();
-            if not pollingInitialized {
-                pollingInitialized = True;
-                # Catalog refresh + paste/repo job poll fallback (streams are best-effort).
-                globalThis.setInterval(lambda -> None { _run_background_pollers(); }, 5000);
-            }
         } except Exception as e {
             healthStatus = {"status": "error", "message": str(e)};
             uiMessage = str(e);
@@ -3052,9 +2961,14 @@ cl def:pub app -> JsxElement {
                                 <span>Enable run logs</span>
                             </label>
                             <div className="panel-actions field-full">
-                                <button type="submit" className="primary-button" disabled={pasteSubmitting or pasteJobStatus in ["queued", "running", "submitting"]}>
-                                    {pasteSubmitting and "Submitting..." or pasteJobStatus in ["queued", "running"] and "Job In Progress" or "Optimize Pasted Code"}
+                                <button type="submit" className="primary-button" disabled={pasteSubmitting or _paste_job_active()}>
+                                    {pasteSubmitting and "Submitting..." or _paste_job_active() and "Job In Progress" or "Optimize Pasted Code"}
                                 </button>
+                                {_paste_job_active() and not pasteSubmitting and
+                                    <button type="button" className="secondary-button" disabled={pasteCancelling} onClick={lambda -> None { cancelPasteJob(); }}>
+                                        {pasteCancelling and "Cancelling..." or "Cancel job"}
+                                    </button>
+                                }
                                 {pasteJobId != "" and <button type="button" className="secondary-button" disabled={pasteSubmitting} onClick={lambda -> None { pollPasteJobForce(); }}>Refresh now</button>}
                             </div>
                         </form>
@@ -3085,17 +2999,18 @@ cl def:pub app -> JsxElement {
                                 <div className="log-card-header">
                                     <div>
                                         <h3>Live Activity</h3>
-                                        <p className="field-help">While a job is active, the UI subscribes via wait_job_notification (server-side Observer: in-process notify + long-poll) so status and run-log lines update without a client poll timer.</p>
+                                        <p className="field-help">While a job is active, the dashboard polls the server every few seconds so status and run-log lines stay in sync without a manual refresh.</p>
                                     </div>
                                 </div>
                                 <pre
                                     id="paste-live-activity-log"
                                     data-live-id="paste-live-activity-log"
-                                    data-activity-version={str(_live_activity_version("paste-live-activity-log"))}
                                     className="log-feed"
                                     role="log"
                                     aria-live="polite"
-                                >{pasteActivityText}</pre>
+                                    style={{"whiteSpace": "pre-wrap", "wordBreak": "break-word"}}
+                                    ref={lambda el -> None { if el is not None { _sync_live_activity_dom("paste-live-activity-log", _live_activity_text("paste-live-activity-log", "Submit a job to stream live status and run-log events from the server.")); } }}
+                                ></pre>
                             </div>
                         </div>
                     }
@@ -3195,7 +3110,14 @@ cl def:pub app -> JsxElement {
                                             <label className="field field-full">
                                                 <span>Repository</span>
                                                 {len(availableRepos) > 0 and
-                                                    <select value={repoUrl} onChange={lambda e -> None { repoUrl = e.target.value; }}>
+                                                    <select value={repoUrl} onChange={lambda e -> None {
+                                                        selectedUrl = str(e.target.value);
+                                                        repoUrl = selectedUrl;
+                                                        autoBranch = _repo_default_branch_for_url(selectedUrl);
+                                                        if autoBranch != "" {
+                                                            repoBaseBranch = autoBranch;
+                                                        }
+                                                    }}>
                                                         <option value="">Select a repository...</option>
                                                         {renderRepoOptions()}
                                                     </select>
@@ -3218,6 +3140,11 @@ cl def:pub app -> JsxElement {
                                                 <input value={repoEntryPoint} placeholder="python runner.py" onChange={lambda e -> None { repoEntryPoint = e.target.value; }} />
                                                 <span className="field-help">Required. Provide the command Ringtail should profile, such as `python runner.py`.</span>
                                             </label>
+                                            <label className="field">
+                                                <span>Base Branch (optional)</span>
+                                                <input value={repoBaseBranch} placeholder="main" onChange={lambda e -> None { repoBaseBranch = e.target.value; }} />
+                                                <span className="field-help">Matches CLI `--branch`; if blank, server default is used.</span>
+                                            </label>
                                             <label className="field field-full">
                                                 <span>Setup Commands (optional, one per line)</span>
                                                 <pre className="cli-example">uv sync{"\n"}source .venv/bin/activate{"\n"}python -m pip install -e .</pre>
@@ -3228,7 +3155,14 @@ cl def:pub app -> JsxElement {
                                                 <span>Open a real PR</span>
                                             </label>
                                             <div className="panel-actions field-full">
-                                                <button type="submit" className="primary-button">Submit Optimization Job</button>
+                                                <button type="submit" className="primary-button" disabled={repoSubmitting or _repo_job_active()}>
+                                                    {repoSubmitting and "Submitting..." or _repo_job_active() and "Job In Progress" or "Submit Optimization Job"}
+                                                </button>
+                                                {_repo_job_active() and not repoSubmitting and
+                                                    <button type="button" className="secondary-button" disabled={repoCancelling} onClick={lambda -> None { cancelRepoJob(); }}>
+                                                        {repoCancelling and "Cancelling..." or "Cancel job"}
+                                                    </button>
+                                                }
                                             </div>
                                         </form>
                                     </div>
@@ -3259,11 +3193,12 @@ cl def:pub app -> JsxElement {
                                             <pre
                                                 id="repo-live-activity-log"
                                                 data-live-id="repo-live-activity-log"
-                                                data-activity-version={str(_live_activity_version("repo-live-activity-log"))}
                                                 className="log-feed"
                                                 role="log"
                                                 aria-live="polite"
-                                            >{repoActivityText}</pre>
+                                                style={{"whiteSpace": "pre-wrap", "wordBreak": "break-word"}}
+                                                ref={lambda el -> None { if el is not None { _sync_live_activity_dom("repo-live-activity-log", _live_activity_text("repo-live-activity-log", "Submit a repository job to stream worker status and PR publish events.")); } }}
+                                            ></pre>
                                         </div>
                                     </div>
                                 </div>
@@ -3316,7 +3251,7 @@ cl def:pub app -> JsxElement {
                                     <button type="submit" className="primary-button">Run Benchmark</button>
                                 </div>
                                 <p className="field-help field-full" style={{"marginTop": "0.6rem"}}>
-                                    Note: the Live Activity box updates for benchmark runs submitted from this dashboard (it streams server notifications via wait_job_notification). If you run benchmarks from the CLI or runner scripts, progress logs will print to your terminal instead.
+                                    Note: the Live Activity box updates while a benchmark runs via periodic progress polling. If you run benchmarks from the CLI or runner scripts, progress logs will print to your terminal instead.
                                 </p>
                             </form>
                         </div>
@@ -3385,11 +3320,12 @@ cl def:pub app -> JsxElement {
                         <pre
                             id="demo-live-log-feed"
                             data-live-id="demo-live-log-feed"
-                            data-activity-version={str(_live_activity_version("demo-live-log-feed"))}
                             className="log-feed"
                             role="log"
                             aria-live="polite"
-                        >{demoLogText}</pre>
+                            style={{"whiteSpace": "pre-wrap", "wordBreak": "break-word"}}
+                            ref={lambda el -> None { if el is not None { _sync_live_activity_dom("demo-live-log-feed", _live_activity_text("demo-live-log-feed", "Live run events will appear here.")); } }}
+                        ></pre>
                     </div>
                 </div>
             }

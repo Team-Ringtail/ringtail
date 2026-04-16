@@ -118,6 +118,7 @@ body {
     border-radius: 20px;
     box-shadow: var(--shadow);
     backdrop-filter: blur(14px);
+    white-space: pre-wrap;
 }
 
 .container {
@@ -133,6 +134,7 @@ body {
     padding: 1.5rem;
     position: relative;
     overflow: hidden;
+    white-space: pre-wrap;
 }
 
 .hero-card::before,
@@ -141,6 +143,7 @@ body {
     content: "";
     position: absolute;
     inset: 0;
+    white-space: pre-wrap;
     pointer-events: none;
     background: linear-gradient(120deg,
         color-mix(in srgb, var(--accent-cyan) 6%, transparent) 0%,
@@ -522,6 +525,7 @@ body {
     font-size: 0.82rem;
     line-height: 1.5;
     letter-spacing: 0.01em;
+    white-space: pre-wrap;
     border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--code-bg) 70%, var(--border));
 }

@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import signal
 import threading
 import time
 import uuid
@@ -172,6 +173,7 @@ class AsyncJobManager:
     def __init__(self) -> None:
         self._jobs: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
+        self._cancel_requested: set[str] = set()
         _ensure_jobs_dir()
         self._load_persisted_jobs()
 
@@ -242,6 +244,12 @@ class AsyncJobManager:
             job = self._jobs.get(job_id)
             if job is None:
                 return
+            if str(job.get("status", "")) == "interrupted" and "status" in changes:
+                new_st = str(changes.get("status", ""))
+                if new_st != "interrupted":
+                    changes = {k: v for k, v in changes.items() if k != "status"}
+                    if not changes:
+                        return
             job.update(changes)
             self._persist_job(job)
         try:
@@ -266,6 +274,26 @@ class AsyncJobManager:
 
     def _run_job(self, job_id: str, request: dict[str, Any]) -> None:
         try:
+            with self._lock:
+                if job_id in self._cancel_requested:
+                    self._cancel_requested.discard(job_id)
+                    job = self._jobs.get(job_id)
+                    if job is not None and str(job.get("status", "")) not in _TERMINAL_STATES:
+                        job.update(
+                            status="interrupted",
+                            finished_at=_utc_timestamp(),
+                            error="Cancelled by user",
+                            worker_message="",
+                        )
+                        self._persist_job(job)
+                    try:
+                        from src.core.job_event_hub import get_hub
+
+                        get_hub().notify(job_id)
+                    except Exception:
+                        pass
+                    return
+
             self._update_job(
                 job_id,
                 status="running",
@@ -273,8 +301,19 @@ class AsyncJobManager:
                 worker_message="Worker thread started; invoking `jac run async_optimize_worker.jac`…",
             )
             worker = run_local_worker_request(request)
+
+            with self._lock:
+                job = self._jobs.get(job_id)
+                if job is not None and str(job.get("status", "")) == "interrupted":
+                    return
+
             self._update_job(job_id, pid=worker.get("pid"))
             result = worker.get("result")
+
+            with self._lock:
+                job = self._jobs.get(job_id)
+                if job is not None and str(job.get("status", "")) == "interrupted":
+                    return
 
             if int(worker.get("returncode", -1)) == 0 and isinstance(result, dict):
                 err_txt = str(result.get("error", "")).strip()
@@ -315,6 +354,10 @@ class AsyncJobManager:
                 worker_message="",
             )
         except Exception as exc:  # pragma: no cover - defensive bridge path
+            with self._lock:
+                job = self._jobs.get(job_id)
+                if job is not None and str(job.get("status", "")) == "interrupted":
+                    return
             self._update_job(
                 job_id,
                 status="failed",
@@ -323,6 +366,99 @@ class AsyncJobManager:
                 pid=None,
                 worker_message="",
             )
+
+    def cancel_job(self, job_id: str) -> dict[str, Any]:
+        """Mark a queued or running job interrupted; SIGTERM the worker PID when known."""
+        job_id = str(job_id or "").strip()
+        if not job_id:
+            return _attach_activity_view(
+                {
+                    "success": False,
+                    "error": "job_id required",
+                    "job_id": "",
+                    "status": "not_found",
+                }
+            )
+
+        pid_to_kill: int | None = None
+        not_found = False
+        already_terminal = False
+        terminal_status = ""
+
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None:
+                persisted = self._read_persisted_job(job_id)
+                if persisted is not None:
+                    self._jobs[job_id] = persisted
+                    job = persisted
+            if job is None:
+                not_found = True
+            else:
+                st = str(job.get("status", ""))
+                if st in _TERMINAL_STATES:
+                    already_terminal = True
+                    terminal_status = st
+                elif st == "queued":
+                    self._cancel_requested.add(job_id)
+                elif st == "running":
+                    raw_pid = job.get("pid")
+                    if isinstance(raw_pid, int) and raw_pid > 0:
+                        pid_to_kill = raw_pid
+                    job.update(
+                        status="interrupted",
+                        finished_at=_utc_timestamp(),
+                        error="Cancelled by user",
+                        pid=None,
+                        worker_message="",
+                    )
+                    self._persist_job(job)
+                else:
+                    self._cancel_requested.add(job_id)
+
+        if not_found:
+            return _attach_activity_view(
+                {
+                    "success": False,
+                    "error": "not_found",
+                    "job_id": job_id,
+                    "status": "not_found",
+                }
+            )
+
+        if already_terminal:
+            view = self.get_job(job_id)
+            if isinstance(view, dict):
+                merged = dict(view)
+                merged["success"] = False
+                merged["error"] = "already_terminal"
+                return merged
+            return {
+                "success": False,
+                "error": "already_terminal",
+                "job_id": job_id,
+                "status": terminal_status,
+            }
+
+        if pid_to_kill is not None:
+            try:
+                os.kill(pid_to_kill, signal.SIGTERM)
+            except (ProcessLookupError, PermissionError, ValueError, TypeError, OSError):
+                pass
+
+        try:
+            from src.core.job_event_hub import get_hub
+
+            get_hub().notify(job_id)
+        except Exception:
+            pass
+
+        view = self.get_job(job_id)
+        if isinstance(view, dict):
+            merged = dict(view)
+            merged["success"] = True
+            return merged
+        return {"success": True, "job_id": job_id, "status": "interrupted"}
 
     def _persist_job(self, job: dict[str, Any]) -> None:
         path = _job_path(str(job["job_id"]))
@@ -372,6 +508,10 @@ def submit_job(request: dict[str, Any]) -> dict[str, Any]:
 
 def get_job(job_id: str) -> dict[str, Any]:
     return _MANAGER.get_job(job_id)
+
+
+def cancel_job(job_id: str) -> dict[str, Any]:
+    return _MANAGER.cancel_job(job_id)
 
 
 def list_jobs(limit: int = 10) -> list[dict[str, Any]]:
