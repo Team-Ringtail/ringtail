@@ -361,6 +361,10 @@ body {
     letter-spacing: 0.01em;
 }
 
+.paste-cm-host:not(.ready) {
+    display: none;
+}
+
 .paste-cm-host {
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -384,7 +388,7 @@ body {
 }
 
 .code-editor-fallback {
-    margin-top: 0.55rem;
+    margin-top: 0;
 }
 
 .field-help {

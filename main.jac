@@ -6,6 +6,13 @@
 # the Jac server exposes a flat endpoint namespace.
 
 cl import "./styles.css";
+cl import from "@codemirror/state" { * as cmState }
+cl import from "@codemirror/view" { * as cmView }
+cl import from "@codemirror/lang-python" { * as cmLangPython }
+cl import from "@codemirror/commands" { * as cmCommands }
+cl import from "@codemirror/language" { * as cmLanguage }
+cl import from "@codemirror/autocomplete" { * as cmAutocomplete }
+cl import from "@codemirror/search" { * as cmSearch }
 import from typing { Any }
 
 # --- Optimization -----------------------------------------------------------
@@ -1721,7 +1728,9 @@ cl def:pub app -> JsxElement {
     }
 
     def _destroy_paste_editor() -> None {
-        if pasteEditorView is not None {
+        globalThis.console.log("[CM] _destroy called");
+        viewExists = str(pasteEditorView) != "null" and str(pasteEditorView) != "undefined" and str(pasteEditorView) != "None";
+        if viewExists {
             try {
                 pasteEditorView.destroy();
             } except Exception as destroyErr {
@@ -1733,16 +1742,26 @@ cl def:pub app -> JsxElement {
         pasteEditorSyncingFromState = False;
     }
 
-    async def _ensure_paste_editor() -> None {
-        if pasteEditorHostEl is None or pasteEditorView is not None {
+    def _ensure_paste_editor_on(hostEl: Any) -> None {
+        globalThis.console.log("[CM] _ensure called, hostEl=", hostEl, "mounted=", hostEl and hostEl.__cmMounted);
+        if hostEl is None {
+            globalThis.console.log("[CM] hostEl is null, skip");
             return;
         }
+        if hostEl.__cmMounted {
+            globalThis.console.log("[CM] already mounted, skip");
+            return;
+        }
+        hostEl.__cmMounted = True;
+        globalThis.console.log("[CM] creating editor...");
         try {
-            dynImport = globalThis.Function("path", "return import(path);");
-            stateMod = await dynImport("@codemirror/state");
-            viewMod = await dynImport("@codemirror/view");
-            langMod = await dynImport("@codemirror/lang-python");
-            commandsMod = await dynImport("@codemirror/commands");
+            stateMod = cmState;
+            viewMod = cmView;
+            langMod = cmLangPython;
+            commandsMod = cmCommands;
+            languageMod = cmLanguage;
+            autocompleteMod = cmAutocomplete;
+            searchMod = cmSearch;
             submitShortcut = viewMod.keymap.of(
                 [
                     {
@@ -1754,6 +1773,15 @@ cl def:pub app -> JsxElement {
                     }
                 ]
             );
+            indentWithTabBinding = viewMod.keymap.of(
+                [
+                    {
+                        "key": "Tab",
+                        "run": commandsMod.indentMore,
+                        "shift": commandsMod.indentLess
+                    }
+                ]
+            );
             updateListener = viewMod.EditorView.updateListener.of(
                 lambda update -> None {
                     if bool(_value(update, "docChanged", False)) and (not pasteEditorSyncingFromState) {
@@ -1761,25 +1789,87 @@ cl def:pub app -> JsxElement {
                     }
                 }
             );
+            editorTheme = viewMod.EditorView.theme(
+                {
+                    "&": {
+                        "min-height": "320px",
+                        "background": "var(--code-bg)",
+                        "color": "var(--code-text)"
+                    },
+                    ".cm-scroller": {
+                        "font-family": "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace",
+                        "line-height": "1.55",
+                        "font-size": "0.93rem"
+                    },
+                    ".cm-content": {
+                        "padding": "0.8rem 0.95rem"
+                    },
+                    ".cm-gutters": {
+                        "background": "var(--surface-soft)",
+                        "border-right": "1px solid var(--border)",
+                        "color": "var(--text-muted)"
+                    },
+                    ".cm-activeLineGutter": {
+                        "background": "var(--surface-hover, rgba(0,0,0,0.06))"
+                    },
+                    ".cm-activeLine": {
+                        "background": "var(--surface-hover, rgba(0,0,0,0.03))"
+                    },
+                    "&.cm-focused .cm-cursor": {
+                        "border-left-color": "var(--primary, #5b5fc7)"
+                    },
+                    "&.cm-focused .cm-selectionBackground, ::selection": {
+                        "background": "var(--selection-bg, rgba(91,95,199,0.2))"
+                    },
+                    ".cm-selectionMatch": {
+                        "background": "var(--selection-bg, rgba(91,95,199,0.15))"
+                    }
+                }
+            );
             editorState = stateMod.EditorState.create(
                 {
                     "doc": pasteSourceCode,
                     "extensions": [
+                        viewMod.lineNumbers(),
+                        viewMod.highlightActiveLine(),
+                        viewMod.highlightActiveLineGutter(),
+                        viewMod.highlightSpecialChars(),
+                        viewMod.drawSelection(),
+                        viewMod.rectangularSelection(),
+                        viewMod.crosshairCursor(),
+                        viewMod.dropCursor(),
+                        stateMod.EditorState.tabSize.of(4),
+                        languageMod.indentUnit.of("    "),
+                        languageMod.indentOnInput(),
+                        languageMod.bracketMatching(),
+                        languageMod.foldGutter(),
+                        viewMod.keymap.of(languageMod.foldKeymap),
+                        autocompleteMod.closeBrackets(),
+                        viewMod.keymap.of(autocompleteMod.closeBracketsKeymap),
+                        autocompleteMod.autocompletion(),
+                        viewMod.keymap.of(autocompleteMod.completionKeymap),
+                        searchMod.highlightSelectionMatches(),
+                        viewMod.keymap.of(searchMod.searchKeymap),
                         langMod.python(),
                         viewMod.keymap.of(commandsMod.defaultKeymap),
+                        viewMod.keymap.of(commandsMod.historyKeymap),
+                        commandsMod.history(),
+                        indentWithTabBinding,
                         submitShortcut,
                         updateListener,
+                        editorTheme,
                     ]
                 }
             );
-            pasteEditorView = viewMod.EditorView(
-                {
-                    "state": editorState,
-                    "parent": pasteEditorHostEl
-                }
+            pasteEditorView = globalThis.Reflect.construct(
+                viewMod.EditorView,
+                [{"state": editorState, "parent": hostEl}]
             );
             pasteEditorReady = True;
+            globalThis.console.log("[CM] SUCCESS, editor ready");
         } except Exception as cmErr {
+            globalThis.console.error("[CM] FAILED:", cmErr);
+            hostEl.__cmMounted = False;
             _destroy_paste_editor();
             uiMessage = "CodeMirror failed to load. Falling back to plain text editing.";
             ignored = str(cmErr);
@@ -1787,12 +1877,12 @@ cl def:pub app -> JsxElement {
     }
 
     def setPasteEditorHost(el: Any) -> None {
-        pasteEditorHostEl = el;
+        globalThis.console.log("[CM] setPasteEditorHost called, el=", el);
         if el is None {
-            _destroy_paste_editor();
             return;
         }
-        _ensure_paste_editor();
+        pasteEditorHostEl = el;
+        _ensure_paste_editor_on(el);
     }
 
     def _update_expected_feedback() -> None {
