@@ -366,25 +366,19 @@ body {
 }
 
 .paste-cm-host {
-    border: 1px solid var(--border);
+    border: 1px solid #3e4452;
     border-radius: 10px;
-    background: var(--surface-soft);
+    background: #21252b;
     overflow: hidden;
 }
 
 .paste-cm-host .cm-editor {
     min-height: 320px;
-    background: var(--code-bg);
-    color: var(--code-text);
+    border-radius: 10px;
 }
 
-.paste-cm-host .cm-scroller {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    line-height: 1.55;
-}
-
-.paste-cm-host .cm-content {
-    padding: 0.8rem 0.95rem;
+.paste-cm-host .cm-editor.cm-focused {
+    outline: none;
 }
 
 .code-editor-fallback {

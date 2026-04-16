@@ -20,6 +20,7 @@ jac-client-node = "1.0.7"
 "@codemirror/language" = "^6.0.0"
 "@codemirror/autocomplete" = "^6.0.0"
 "@codemirror/search" = "^6.0.0"
+"@codemirror/theme-one-dark" = "^6.0.0"
 
 [dependencies.npm.dev]
 vite = "^6.4.1"
