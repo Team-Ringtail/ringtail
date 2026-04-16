@@ -8,6 +8,7 @@ This document explains how to use every public interface currently supported by 
 - **HTTP API**: best for integrations from external tools/services.
 - **CLI**: best for local terminal workflows and scripting.
 - **Python SDK**: best for embedding Ringtail directly in Python automation.
+- **MCP server**: best for coding agents that want fast hotspot analysis and focused optimization patches.
 
 ## Prerequisites
 
@@ -166,7 +167,45 @@ repo_result = sdk.optimize_repo(
 - `discover_targets(...)`
 - `rank_targets(...)`
 
-## 5) Cross-Interface Contract Map
+## 5) MCP Interface
+
+Source: `src/mcp/server.py`
+
+Start the MCP server:
+
+```bash
+ringtail-mcp
+# or
+python -m src.mcp.server
+```
+
+Recommended call order:
+
+1. `profile_repo(...)`
+2. `optimize_hotspot(...)`
+3. `submit_optimize_repo_job(...)` and `get_optimize_repo_job(...)` only when the agent wants a longer async pass
+
+### MCP tools
+
+- `profile_repo(repo_path, entry_point, pct_threshold=5.0, max_results=8, timeout_s=300)`
+  - returns a structured hotspot report with `recommended_targets`, `hotspots`, `message`, and `next_action`
+- `optimize_hotspot(repo_path, entry_point, hotspot_id="", file_path="", function_name="", analysis_mode="llm", llm_model=None, min_speedup=1.10, timeout_s=300)`
+  - returns a strict validation report with `target`, `validation`, `metrics`, `attempts`, and `patch`
+- `submit_optimize_repo_job(...)`
+  - async escalation path for broader repo optimization
+- `get_optimize_repo_job(job_id)`
+  - polls the async repo optimization job
+
+### MCP verification
+
+```bash
+python benchmarks/run_profile_first_mcp_suite.py
+python benchmarks/run_profile_first_mcp_suite.py --include-external
+```
+
+The external verification pass clones `https://github.com/pallets/click.git`, writes a small Click parsing workload, runs `profile_repo`, and stores a machine-readable summary at `logs/profile_first_mcp_suite_summary.json`.
+
+## 6) Cross-Interface Contract Map
 
 | Capability | Web UI | HTTP route | CLI | SDK | Operation |
 |---|---|---|---|---|---|
@@ -176,7 +215,7 @@ repo_result = sdk.optimize_repo(
 | Run demo benchmark | Benchmark tab | `submit_optimization_job` + `get_ranked_demo_job_progress` | (runner scripts) | (n/a) | `run_ranked_demo_suite` |
 | Repo optimization | Repo tab | `submit_repo_agent_job` / `get_repo_agent_job` | `ringtail repo submit/run/status/watch/logs` | `optimize_repo` | `run_repo_agent_job` |
 
-## 6) Troubleshooting
+## 7) Troubleshooting
 
 - **UI loads but repo actions fail**
   - Check `get_auth_readiness` and `get_config_doctor`

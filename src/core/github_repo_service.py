@@ -443,6 +443,37 @@ def list_installation_repositories(
     }
 
 
+def list_user_repositories(token: str) -> dict[str, Any]:
+    if not token:
+        return {"error": "GitHub token is required", "repositories": []}
+    repositories: list[dict[str, Any]] = []
+    page = 1
+    while True:
+        payload = _github_api_request(
+            f"/user/repos?per_page=100&page={page}&sort=updated",
+            token=token,
+        )
+        if not isinstance(payload, list):
+            break
+        for repo in payload:
+            repositories.append(
+                {
+                    "full_name": repo.get("full_name", ""),
+                    "private": bool(repo.get("private", False)),
+                    "default_branch": repo.get("default_branch", ""),
+                    "permissions": repo.get("permissions", {}),
+                }
+            )
+        if len(payload) < 100:
+            break
+        page += 1
+    return {
+        "total_count": len(repositories),
+        "repositories": repositories,
+        "auth_mode": "token",
+    }
+
+
 def _run_git(
     command: list[str],
     *,

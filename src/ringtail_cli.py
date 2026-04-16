@@ -19,6 +19,7 @@ from src.utils.run_log import LOGS_DIR
 
 _WORKSPACE_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_SERVER = "http://127.0.0.1:8000"
+_TOKEN_ENV_NAMES = ("RINGTAIL_GITHUB_TOKEN", "GITHUB_TOKEN", "GH_TOKEN")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -88,6 +89,14 @@ def _build_parser() -> argparse.ArgumentParser:
     logs_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
     logs_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
     logs_parser.set_defaults(func=_cmd_repo_logs)
+
+    auth_parser = repo_subparsers.add_parser("auth", help="Validate GitHub PAT and list accessible repos")
+    auth_parser.add_argument("--token", default="", help="GitHub PAT (or use env: RINGTAIL_GITHUB_TOKEN/GITHUB_TOKEN/GH_TOKEN)")
+    auth_parser.add_argument("--limit", type=int, default=20, help="Max repos to print in text mode")
+    auth_parser.add_argument("--json", action="store_true", dest="as_json")
+    auth_parser.add_argument("--server-url", default=_DEFAULT_SERVER)
+    auth_parser.add_argument("--local", action="store_true", help="Run without HTTP server")
+    auth_parser.set_defaults(func=_cmd_repo_auth)
 
     file_parser = subparsers.add_parser("file", help="Optimize a single function")
     file_subparsers = file_parser.add_subparsers(dest="file_command", required=True)
@@ -221,6 +230,42 @@ def _cmd_repo_logs(args: argparse.Namespace) -> int:
     )
 
 
+def _cmd_repo_auth(args: argparse.Namespace) -> int:
+    token = _resolve_cli_token(args.token)
+    if not token:
+        raise RuntimeError(
+            "No GitHub token provided. Use --token or set one of: "
+            + ", ".join(_TOKEN_ENV_NAMES)
+        )
+    if bool(args.local):
+        from src.core.github_repo_service import list_user_repositories
+
+        response = list_user_repositories(token)
+    else:
+        response = _unwrap_function_response(
+            _post_json(args.server_url, _function_route("list_github_repos_by_token"), {"token": token})
+        )
+    if str(response.get("error", "")).strip():
+        _print_output(response, as_json=bool(args.as_json), formatter=lambda p: json.dumps(p, indent=2, sort_keys=True))
+        return 1
+    if args.as_json:
+        print(json.dumps(response, indent=2, sort_keys=True))
+        return 0
+    repos = response.get("repositories", [])
+    lines = [
+        "status: ok",
+        f"auth_mode: {response.get('auth_mode', 'token')}",
+        f"total_count: {response.get('total_count', len(repos))}",
+    ]
+    shown = min(int(args.limit), len(repos))
+    if shown > 0:
+        lines.append("repositories:")
+        for repo in repos[:shown]:
+            lines.append(f"- {repo.get('full_name', '')}")
+    print("\n".join(lines))
+    return 0
+
+
 def _cmd_file_optimize(args: argparse.Namespace) -> int:
     payload = _build_file_optimize_request(args)
     response = _run_optimize_sync_local(payload) if bool(args.local) else _unwrap_function_response(
@@ -255,6 +300,7 @@ def _add_repo_request_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--publish-pr", action="store_true")
     parser.add_argument("--test-command", default="")
     parser.add_argument("--setup-command", action="append", default=[])
+    parser.add_argument("--token", default="", help="GitHub PAT (or env fallback)")
     parser.add_argument("--max-targets", type=int, default=3)
 
 
@@ -277,7 +323,21 @@ def _build_repo_submit_request(args: argparse.Namespace) -> dict[str, Any]:
         payload["test_command"] = args.test_command.strip()
     if args.setup_command:
         payload["setup_commands"] = [entry.strip() for entry in args.setup_command if entry.strip()]
+    token = _resolve_cli_token(args.token)
+    if token:
+        payload["token"] = token
     return normalize_request_defaults(payload)
+
+
+def _resolve_cli_token(raw: str) -> str:
+    token = str(raw or "").strip()
+    if token:
+        return token
+    for name in _TOKEN_ENV_NAMES:
+        value = str(os.environ.get(name, "")).strip()
+        if value:
+            return value
+    return ""
 
 
 def _build_file_optimize_request(args: argparse.Namespace) -> dict[str, Any]:

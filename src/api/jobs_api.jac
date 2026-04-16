@@ -21,6 +21,13 @@ def:pub get_optimization_job(job_id: str) -> dict {
 }
 
 
+def:pub cancel_optimization_job(job_id: str) -> dict {
+    mod = importlib.import_module("src.core.async_jobs");
+    cancel = getattr(mod, "cancel_job");
+    return cancel(job_id);
+}
+
+
 def:pub run_repo_agent_sync(request: dict) -> dict {
     payload = dict(request);
     payload["operation"] = "run_repo_agent_job";

@@ -7,10 +7,12 @@ via a configurable threshold, and builds a bottom-up optimization DAG.
 """
 from __future__ import annotations
 
+import functools
 import os
 import pstats
 import shlex
 import subprocess
+import sys
 import tempfile
 from dataclasses import dataclass, field
 
@@ -49,6 +51,15 @@ def _func_key(filename: str, lineno: int, name: str) -> str:
     return f"{filename}:{lineno}:{name}"
 
 
+_SKIP_SEGMENTS = frozenset({"site-packages", ".venv", "venv", "__pycache__", ".tox", "node_modules"})
+
+
+@functools.lru_cache(maxsize=2048)
+def _repo_realpath(repo_path: str) -> str:
+    return os.path.realpath(repo_path)
+
+
+@functools.lru_cache(maxsize=4096)
 def _normalize_profile_filename(filename: str, repo_path: str) -> str | None:
     """Return an absolute real path for profile entries that refer to source files."""
     if not filename or filename.startswith("<") or filename == "~":
@@ -62,7 +73,7 @@ def _is_user_code(filename: str, repo_path: str) -> bool:
     abs_file = _normalize_profile_filename(filename, repo_path)
     if abs_file is None:
         return False
-    abs_repo = os.path.realpath(repo_path)
+    abs_repo = _repo_realpath(repo_path)
     try:
         common = os.path.commonpath([abs_file, abs_repo])
     except ValueError:
@@ -70,8 +81,7 @@ def _is_user_code(filename: str, repo_path: str) -> bool:
     if common != abs_repo:
         return False
     rel = os.path.relpath(abs_file, abs_repo)
-    skip_segments = {"site-packages", ".venv", "venv", "__pycache__", ".tox", "node_modules"}
-    return not any(seg in rel.split(os.sep) for seg in skip_segments)
+    return not any(seg in _SKIP_SEGMENTS for seg in rel.split(os.sep))
 
 
 def run_cprofile_analysis(
@@ -377,13 +387,27 @@ def _topological_levels(
 
 def _resolve_python(repo_path: str, venv_python: str = "") -> str:
     """Return the python binary to use for profiling."""
-    if venv_python and os.path.isfile(venv_python):
+    if venv_python and os.path.isfile(venv_python) and _python_binary_usable(venv_python):
         return venv_python
     for venv_dir in (".venv", "venv"):
         candidate = os.path.join(repo_path, venv_dir, "bin", "python")
-        if os.path.isfile(candidate):
+        if os.path.isfile(candidate) and _python_binary_usable(candidate):
             return candidate
-    return "python"
+    return sys.executable or "python3"
+
+
+def _python_binary_usable(python_bin: str) -> bool:
+    try:
+        completed = subprocess.run(
+            [python_bin, "-c", "import sys; print(sys.executable)"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return completed.returncode == 0
 
 
 def _rewrite_entry_python(entry_point: str, python_bin: str) -> str:
