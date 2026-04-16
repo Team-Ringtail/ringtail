@@ -2915,8 +2915,6 @@ cl def:pub app -> JsxElement {
                     onClick={lambda -> None { activeTab = "repository"; }}>Repository Optimization</button>
                 <button id="tab-cli" role="tab" aria-selected={activeTab == "cli" and "true" or "false"} className={activeTab == "cli" and "tab-button active" or "tab-button"}
                     onClick={lambda -> None { activeTab = "cli"; }}>CLI Setup</button>
-                <button id="tab-vscode" role="tab" aria-selected={activeTab == "vscode" and "true" or "false"} className={activeTab == "vscode" and "tab-button active" or "tab-button"}
-                    onClick={lambda -> None { activeTab = "vscode"; }}>VS Code Extension</button>
             </div>
 
             {uiMessage != "" and <div className="info-banner" role="status" aria-live="polite">{uiMessage}</div>}
@@ -2926,38 +2924,27 @@ cl def:pub app -> JsxElement {
                     <div className="hero-card">
                         <h2>Build Faster, Verified Code With Ringtail</h2>
                         <p className="hero-subtitle">Ringtail compares original and optimized implementations with measurable before/after runtime, preserving correctness through validation and tests. Use it for quick demos, benchmark suites, and repository-scale optimization workflows.</p>
-                        <div className="panel-actions">
+                        <div className="panel-actions" style={{"marginTop": "1rem"}}>
                             <button className="primary-button" onClick={lambda -> None { activeTab = "paste"; }}>
                                 Try Demo
                             </button>
                             <button className="secondary-button" onClick={lambda -> None { activeTab = "repository"; repoExperienceMode = "local"; }}>
                                 Optimize Project Files
                             </button>
-                            <button className="secondary-button" onClick={lambda -> None { activeTab = "cli"; }}>
-                                CLI Installation Guide
-                            </button>
                         </div>
                     </div>
                     <div className="feature-grid">
-                        <div className="feature-card">
+                        <div className="feature-card clickable" onClick={lambda -> None { activeTab = "paste"; }}>
                             <h3>Paste Demo</h3>
                             <p>Paste one function, run optimization, and inspect side-by-side code plus speedup metrics in minutes.</p>
-                            <button className="secondary-button" onClick={lambda -> None { activeTab = "paste"; }}>Open Paste Demo</button>
                         </div>
-                        <div className="feature-card">
+                        <div className="feature-card clickable" onClick={lambda -> None { activeTab = "repository"; }}>
                             <h3>Repository Optimization</h3>
                             <p>Run ranked optimization on benchmark-style file suites or connect GitHub to create optimization pull requests.</p>
-                            <button className="secondary-button" onClick={lambda -> None { activeTab = "repository"; }}>Open Repository Tools</button>
                         </div>
-                        <div className="feature-card">
+                        <div className="feature-card clickable" onClick={lambda -> None { activeTab = "cli"; }}>
                             <h3>CLI Setup</h3>
                             <p>Install dependencies, start the Jac app, and run command-line optimization workflows locally.</p>
-                            <button className="secondary-button" onClick={lambda -> None { activeTab = "cli"; }}>Open CLI Setup</button>
-                        </div>
-                        <div className="feature-card">
-                            <h3>VS Code Extension</h3>
-                            <p>Track the extension roadmap and early technical interface spec while the extension is being built.</p>
-                            <button className="secondary-button" onClick={lambda -> None { activeTab = "vscode"; }}>View Roadmap</button>
                         </div>
                     </div>
                 </div>
@@ -3001,7 +2988,7 @@ cl def:pub app -> JsxElement {
                                 <input value={pasteTestCall} placeholder="slow_add(5)" onChange={lambda e -> None { pasteTestCall = e.target.value; _update_expected_feedback(); }} />
                             </label>
                             <label className="field">
-                                <span>Expected Result (JSON literal, optional)</span>
+                                <span>Expected Result (optional)</span>
                                 <input value={pasteExpected} placeholder="10, string, true, null, [1,2]" onChange={lambda e -> None { pasteExpected = e.target.value; _update_expected_feedback(); }} />
                                 <div className="editor-status">
                                     <span className={pasteExpectedStatus == "ok" and "validation-chip ok" or pasteExpectedStatus == "warn" and "validation-chip warn" or "validation-chip"}>
@@ -3082,7 +3069,7 @@ cl def:pub app -> JsxElement {
                         </div>
                     }
 
-                    <div className="demo-layout">
+                    <div className="demo-layout" style={{"marginTop": "1.75rem"}}>
                         <div className="section">
                             <h3>Job Details</h3>
                             <div className="simple-list">
@@ -3539,69 +3526,57 @@ cl def:pub app -> JsxElement {
                 <div className="container" role="tabpanel" aria-labelledby="tab-cli">
                     <div className="hero-card">
                         <h2>Install And Run Ringtail CLI</h2>
-                        <p className="hero-subtitle">Clone the repository, install dependencies, then run the Jac app and Python CLI tools for local optimization workflows.</p>
+                        <p className="hero-subtitle">Follow the steps below to clone, install, and start running optimization workflows locally.</p>
                     </div>
-                    <div className="demo-layout" style={{"marginTop": "1rem"}}>
-                        <div className="section">
-                            <h3>Quick Start</h3>
-                            <pre className="result-box">git clone https://github.com/your-org/ringtail.git
+
+                    <div className="stage-grid" style={{"marginTop": "1.5rem"}}>
+                        <div className="stage-card active">
+                            <span>1</span>
+                            <h3>Clone & Install</h3>
+                            <p>Set up a virtual environment and install dependencies.</p>
+                        </div>
+                        <div className="stage-card">
+                            <span>2</span>
+                            <h3>Start The App</h3>
+                            <p>Launch the Jac server and open the dashboard.</p>
+                        </div>
+                        <div className="stage-card">
+                            <span>3</span>
+                            <h3>Run CLI Commands</h3>
+                            <p>Use the Python CLI for headless optimization workflows.</p>
+                        </div>
+                    </div>
+
+                    <div className="hero-card" style={{"marginTop": "0.5rem"}}>
+                        <h3>Step 1 — Clone & Install</h3>
+                        <pre className="result-box" style={{"marginTop": "0.75rem"}}>git clone https://github.com/your-org/ringtail.git
 cd ringtail
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pip install -e .</pre>
-                        </div>
-                        <div className="section">
-                            <h3>Run The App</h3>
-                            <pre className="result-box">jac start main.jac
+                    </div>
+
+                    <div className="demo-layout" style={{"marginTop": "1.25rem"}}>
+                        <div className="hero-card">
+                            <h3>Step 2 — Start The App</h3>
+                            <pre className="result-box" style={{"marginTop": "0.75rem"}}>jac start main.jac
 # then open the local URL shown in terminal</pre>
                         </div>
-                        <div className="section">
-                            <h3>CLI Workflows</h3>
-                            <pre className="result-box">python -m src.ringtail_cli --help
+                        <div className="hero-card">
+                            <h3>Step 3 — CLI Workflows</h3>
+                            <pre className="result-box" style={{"marginTop": "0.75rem"}}>python -m src.ringtail_cli --help
 python -m src.ringtail_cli optimize --help
 jac test tests/unit/</pre>
                         </div>
-                        <div className="section">
-                            <h3>FAQ / Troubleshooting</h3>
-                            <div className="simple-list">
-                                <div className="simple-list-item">If Jac commands fail, confirm `jac --version` and reinstall `jaseci` in your active environment.</div>
-                                <div className="simple-list-item">If LLM calls fail, verify `RINGTAIL_OPENAI_API_KEY` and/or `RINGTAIL_ANTHROPIC_API_KEY` are present in env.</div>
-                                <div className="simple-list-item">If tests fail after dependency changes, recreate the virtual environment and reinstall editable package mode.</div>
-                            </div>
-                        </div>
                     </div>
-                </div>
-            }
-            {activeTab == "vscode" and
-                <div className="container" role="tabpanel" aria-labelledby="tab-vscode">
-                    <div className="hero-card">
-                        <h2>VS Code Extension (Coming Soon)</h2>
-                        <p className="hero-subtitle">The extension is planned to bring Ringtail optimization directly into editor workflows with guided diagnostics and one-click optimization runs.</p>
-                    </div>
-                    <div className="demo-layout" style={{"marginTop": "1rem"}}>
-                        <div className="section">
-                            <h3>Roadmap</h3>
-                            <div className="simple-list">
-                                <div className="simple-list-item">Phase 1: Command palette integration for optimize-current-function and optimize-selected-file.</div>
-                                <div className="simple-list-item">Phase 2: Inline diff view with test/profiling verification summary before apply.</div>
-                                <div className="simple-list-item">Phase 3: GitHub-aware optimization jobs and PR previews from within VS Code.</div>
-                            </div>
-                        </div>
-                        <div className="section">
-                            <h3>Technical Spec Preview</h3>
-                            <div className="simple-list">
-                                <div className="simple-list-item">Commands: `ringtail.optimizeFunction`, `ringtail.optimizeFile`, `ringtail.openRunReport`.</div>
-                                <div className="simple-list-item">Backend: invoke existing Ringtail APIs for paste/repo jobs and stream activity logs to output panel.</div>
-                                <div className="simple-list-item">Artifacts: show before/after code, runtime deltas, and test pass/fail indicators in a custom webview panel.</div>
-                            </div>
-                        </div>
-                        <div className="section">
-                            <h3>Early Access</h3>
-                            <p className="hero-subtitle">Interested in piloting the extension? Open a GitHub issue with your team workflow and preferred language stack so we can prioritize features.</p>
-                            <button className="secondary-button" onClick={lambda -> None { activeTab = "repository"; repoExperienceMode = "github"; }}>
-                                Explore GitHub Integration
-                            </button>
+
+                    <div className="hero-card" style={{"marginTop": "1.25rem"}}>
+                        <h3>FAQ / Troubleshooting</h3>
+                        <div className="simple-list" style={{"marginTop": "0.75rem"}}>
+                            <div className="simple-list-item">If Jac commands fail, confirm `jac --version` and reinstall `jaseci` in your active environment.</div>
+                            <div className="simple-list-item">If LLM calls fail, verify `RINGTAIL_OPENAI_API_KEY` and/or `RINGTAIL_ANTHROPIC_API_KEY` are present in env.</div>
+                            <div className="simple-list-item">If tests fail after dependency changes, recreate the virtual environment and reinstall editable package mode.</div>
                         </div>
                     </div>
                 </div>
