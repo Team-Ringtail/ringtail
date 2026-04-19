@@ -59,7 +59,7 @@ class RunLog:
             self._event_count += 1
             self._file.write(json.dumps(entry, default=str) + "\n")
             self._file.flush()
-        self._print(f"  [{kind}] {self._summary(kind, data)}")
+        self._print(f"  [{kind}] {self._summary(kind, data, max_payload_chars=120)}")
 
     def llm_call(self, *, model: str, prompt_tokens: int = 0, completion_tokens: int = 0, **extra):
         self.event(
@@ -102,7 +102,7 @@ class RunLog:
         print(msg, file=sys.stderr)
 
     @staticmethod
-    def _summary(kind: str, data: dict) -> str:
+    def _summary(kind: str, data: dict, *, max_payload_chars: int = 120) -> str:
         if kind == "llm_call":
             return f"{data.get('model', '?')}  in={data.get('prompt_tokens', '?')} out={data.get('completion_tokens', '?')}"
         if kind == "sandbox_exec":
@@ -112,9 +112,11 @@ class RunLog:
             status = "PASS" if data.get("failed", 1) == 0 else "FAIL"
             return f"{data.get('slug', '?')}  {status}  {data.get('time_s', '?')}s"
         if kind == "error":
-            return data.get("message", "")[:120]
+            msg = str(data.get("message", "") or "")
+            return msg[:max_payload_chars] if max_payload_chars > 0 else msg
         parts = [f"{k}={v}" for k, v in data.items()]
-        return " ".join(parts)[:120]
+        joined = " ".join(parts)
+        return joined[:max_payload_chars] if max_payload_chars > 0 else joined
 
 
 def _append_index(run_id: str, log_path: str, elapsed: float, events: int):

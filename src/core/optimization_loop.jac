@@ -10,7 +10,7 @@ This walker orchestrates the optimization process by:
 
 import from config.optimization_criteria { OptimizationCriteria }
 import from config.agent_config { AgentConfig, get_agent_config }
-import from src.utils.code_parser { parse_function }
+import from src.utils.code_parser { parse_function, format_python_for_display }
 import from src.utils.metrics { compare_metrics, aggregate_metrics, calculate_score }
 import from src.utils.complexity { compute_complexity }
 import from src.models.types { FunctionInput, OptimizationResult, Metrics, OptimizationPlan, ConvergenceStatus }
@@ -68,6 +68,14 @@ def _safe_log(callable: Any) -> None {
 
 
 def _with_run_metadata(result: dict, run_log: Any) -> dict {
+    oc = result.get("optimized_code", None);
+    if oc is not None and str(oc) != "" {
+        result["optimized_code"] = format_python_for_display(str(oc));
+    }
+    ob = result.get("original_source_code", None);
+    if ob is not None and str(ob) != "" {
+        result["original_source_code"] = format_python_for_display(str(ob));
+    }
     if run_log is None {
         return result;
     }
@@ -279,6 +287,7 @@ def _run_optimize(
         }
         return _with_run_metadata({
             "optimized_code": source_code,
+            "original_source_code": source_code,
             "iteration_number": 0,
             "metrics": zero_metrics,
             "test_passed": False,
@@ -326,6 +335,7 @@ def _run_optimize(
         }
         return _with_run_metadata({
             "optimized_code": source_code,
+            "original_source_code": source_code,
             "iteration_number": 0,
             "metrics": zero_metrics,
             "test_passed": False,
@@ -645,6 +655,7 @@ def _run_optimize(
         final_result["baseline_metrics"] = baseline_metrics;
         final_result["termination_reason"] = final_stop_reason;
         final_result["converged"] = final_converged;
+        final_result["original_source_code"] = original_source_code;
         print("Optimization complete. Final improvement ratio: " + str(final_result["improvement_ratio"]));
         return _with_run_metadata(final_result, run_log);
     }
@@ -652,6 +663,7 @@ def _run_optimize(
     print("No results generated");
     return _with_run_metadata({
         "optimized_code": source_code,
+        "original_source_code": source_code,
         "iteration_number": 0,
         "metrics": baseline_metrics,
         "test_passed": False,
@@ -671,6 +683,7 @@ def _run_optimize(
         }
         return _with_run_metadata({
             "optimized_code": source_code,
+            "original_source_code": source_code,
             "iteration_number": 0,
             "metrics": baseline_metrics,
             "test_passed": False,

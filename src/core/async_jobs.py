@@ -26,6 +26,9 @@ _LOGS_ROOT = Path(LOGS_DIR).resolve()
 _JOBS_DIR = Path(os.environ.get("RINGTAIL_ASYNC_JOBS_DIR", Path(LOGS_DIR) / "async_jobs"))
 _TERMINAL_STATES = {"succeeded", "failed", "interrupted"}
 
+# Match RunLog._summary generic branch limit so pollers / UI see full payloads.
+_ACTIVITY_LOG_SUMMARY_CHARS = 8000
+
 
 def _utc_timestamp() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -79,15 +82,15 @@ def _tail_jsonl_activity(log_path: str, *, max_lines: int = 100) -> list[str]:
         try:
             obj = json.loads(raw)
         except json.JSONDecodeError:
-            out.append(raw[:240])
+            out.append(raw[:_ACTIVITY_LOG_SUMMARY_CHARS])
             continue
         if not isinstance(obj, dict):
-            out.append(str(obj)[:240])
+            out.append(str(obj)[:_ACTIVITY_LOG_SUMMARY_CHARS])
             continue
         kind = str(obj.get("kind", "event"))
         elapsed = obj.get("elapsed_s", "")
         payload = {k: v for k, v in obj.items() if k not in ("ts", "seq", "kind", "elapsed_s")}
-        summary = RunLog._summary(kind, payload)
+        summary = RunLog._summary(kind, payload, max_payload_chars=_ACTIVITY_LOG_SUMMARY_CHARS)
         out.append(f"+{elapsed}s  [{kind}]  {summary}")
     return out
 

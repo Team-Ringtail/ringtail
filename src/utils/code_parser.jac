@@ -247,3 +247,19 @@ def parse_function(
     }
     return _parse_generic_function(source_code);
 }
+
+
+def format_python_for_display(source_code: str) -> str {
+    if str(source_code).strip() == "" {
+        return source_code;
+    }
+    try {
+        tree = ast.parse(source_code);
+        if hasattr(ast, "unparse") {
+            return ast.unparse(tree).strip() + "\n";
+        }
+    } except Exception {
+        ignored = "";
+    }
+    return source_code;
+}
