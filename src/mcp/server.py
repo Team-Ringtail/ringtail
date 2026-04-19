@@ -450,6 +450,8 @@ def submit_optimize_repo_job(
         }
         if llm_model:
             request["llm_model"] = llm_model
+        request["submission_channel"] = "api"
+        request["ui_surface"] = "repo_github"
         submitted = submit_job(request)
         return json.dumps(
             {

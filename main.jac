@@ -174,7 +174,9 @@ import from src.api.diagnostics_api {
     hello as _diag_hello,
     get_auth_readiness as _diag_get_auth_readiness,
     get_config_doctor as _diag_get_config_doctor,
-    get_latest_run as _diag_get_latest_run
+    get_latest_run as _diag_get_latest_run,
+    list_recent_runs as _diag_list_recent_runs,
+    hydrate_run_entry as _diag_hydrate_run_entry
 }
 
 def:pub health -> dict {
@@ -195,6 +197,14 @@ def:pub get_config_doctor -> dict {
 
 def:pub get_latest_run(kind: str = "any") -> dict {
     return _diag_get_latest_run(kind);
+}
+
+def:pub list_recent_runs(limit: int = 50, kind: str = "any", surface: str = "any", outcome: str = "any") -> dict {
+    return _diag_list_recent_runs(limit, kind, surface, outcome);
+}
+
+def:pub hydrate_run_entry(entry: dict) -> dict {
+    return _diag_hydrate_run_entry(entry);
 }
 
 # --- Demo / Benchmarks -------------------------------------------------------
@@ -345,6 +355,58 @@ cl def:pub app -> JsxElement {
     has demoCard3GraphSvg: str = "";
     has demoCard3Original: str = "";
     has demoCard3Optimized: str = "";
+    has runHistoryPhase: str = "pick";
+    has runHistorySurfaceFilter: str = "any";
+    has runHistoryOutcomeFilter: str = "any";
+    has runHistoryListFiltered: list = [];
+    has runHistorySelectLabels: list = [];
+    has runHistorySelectedIndex: int = 0;
+    has runHistoryListFetchSeq: int = 0;
+    has runHistoryDetailFetchSeq: int = 0;
+    has runHistoryError: str = "";
+    has runHistoryMetaLine: str = "";
+    has runHistoryOriginSurface: str = "";
+    has runHistoryOriginChannel: str = "";
+    has runHistoryOverviewSvg: str = "";
+    has runHistoryPassCount: str = "0";
+    has runHistoryTargetCount: str = "0";
+    has runHistoryAverageSpeedup: str = "0";
+    has runHistoryAverageSaved: str = "0";
+    has runHistorySelected1Visible: bool = False;
+    has runHistorySelected1Title: str = "";
+    has runHistorySelected1Meta: str = "";
+    has runHistorySelected2Visible: bool = False;
+    has runHistorySelected2Title: str = "";
+    has runHistorySelected2Meta: str = "";
+    has runHistorySelected3Visible: bool = False;
+    has runHistorySelected3Title: str = "";
+    has runHistorySelected3Meta: str = "";
+    has runHistoryFinalist1Visible: bool = False;
+    has runHistoryFinalist1Text: str = "";
+    has runHistoryFinalist2Visible: bool = False;
+    has runHistoryFinalist2Text: str = "";
+    has runHistoryFinalist3Visible: bool = False;
+    has runHistoryFinalist3Text: str = "";
+    has runHistoryFinalist4Visible: bool = False;
+    has runHistoryFinalist4Text: str = "";
+    has runHistoryCard1Visible: bool = False;
+    has runHistoryCard1Title: str = "";
+    has runHistoryCard1Meta: str = "";
+    has runHistoryCard1GraphSvg: str = "";
+    has runHistoryCard1Original: str = "";
+    has runHistoryCard1Optimized: str = "";
+    has runHistoryCard2Visible: bool = False;
+    has runHistoryCard2Title: str = "";
+    has runHistoryCard2Meta: str = "";
+    has runHistoryCard2GraphSvg: str = "";
+    has runHistoryCard2Original: str = "";
+    has runHistoryCard2Optimized: str = "";
+    has runHistoryCard3Visible: bool = False;
+    has runHistoryCard3Title: str = "";
+    has runHistoryCard3Meta: str = "";
+    has runHistoryCard3GraphSvg: str = "";
+    has runHistoryCard3Original: str = "";
+    has runHistoryCard3Optimized: str = "";
     # Coalesce duplicate refreshBenchmarkContext calls (e.g. React 18 Strict Mode
     # double-mount in dev) for the same benchmark_id within a short window.
     has benchmarkContextRefreshSig: str = "";
@@ -358,11 +420,13 @@ cl def:pub app -> JsxElement {
         "paste-live-activity-log": "Submit a job to stream live status and run-log events from the server.",
         "repo-live-activity-log": "Submit a repository job to stream worker status and PR publish events.",
         "demo-live-log-feed": "Live run events will appear here.",
+        "run-history-log-feed": "Load a run to show structured log tail and job lines here.",
     };
     has liveActivityVersionById: dict = {
         "paste-live-activity-log": 0,
         "repo-live-activity-log": 0,
         "demo-live-log-feed": 0,
+        "run-history-log-feed": 0,
     };
     has liveActivityEls: dict = {};
     has liveActivityDomSyncPending: dict = {};
@@ -675,6 +739,22 @@ cl def:pub app -> JsxElement {
 
     async def ringtail_get_latest_run(kind: str = "any") -> dict | list | str | int | float | bool | None {
         return await ringtail_post_function("get_latest_run", {"kind": kind});
+    }
+
+    async def ringtail_list_recent_runs(
+        limit: int = 200,
+        kind: str = "any",
+        surface: str = "any",
+        outcome: str = "any"
+    ) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function(
+            "list_recent_runs",
+            {"limit": limit, "kind": kind, "surface": surface, "outcome": outcome}
+        );
+    }
+
+    async def ringtail_hydrate_run_entry(entry: dict) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("hydrate_run_entry", {"entry": entry});
     }
 
     async def ringtail_wait_job_notification(
@@ -1004,6 +1084,254 @@ cl def:pub app -> JsxElement {
         return out;
     }
 
+    def _run_history_row_label(row: dict) -> str {
+        surf = str(_value(row, "ui_surface", ""));
+        ch = str(_value(row, "submission_channel", ""));
+        if surf == "" {
+            surf = "—";
+        }
+        if ch == "" {
+            ch = "—";
+        }
+        kind = str(_value(row, "kind", ""));
+        st = str(_value(row, "status", ""));
+        jid = str(_value(row, "job_id", ""));
+        rid = str(_value(row, "run_id", ""));
+        fin = str(_value(row, "finished_at", _value(row, "submitted_at", "")));
+        tail = jid != "" and jid or rid;
+        return fin + " · surface=" + surf + " · channel=" + ch + " · kind=" + kind + " · " + st + " · " + tail;
+    }
+
+    def _clear_run_history_layout() -> None {
+        runHistoryOverviewSvg = "";
+        runHistoryPassCount = "0";
+        runHistoryTargetCount = "0";
+        runHistoryAverageSpeedup = "0";
+        runHistoryAverageSaved = "0";
+        runHistoryMetaLine = "";
+        runHistoryOriginSurface = "";
+        runHistoryOriginChannel = "";
+        runHistorySelected1Visible = False;
+        runHistorySelected2Visible = False;
+        runHistorySelected3Visible = False;
+        runHistoryFinalist1Visible = False;
+        runHistoryFinalist2Visible = False;
+        runHistoryFinalist3Visible = False;
+        runHistoryFinalist4Visible = False;
+        runHistoryCard1Visible = False;
+        runHistoryCard2Visible = False;
+        runHistoryCard3Visible = False;
+    }
+
+    def _set_run_history_card(slot: int, row: dict) -> None {
+        title = str(_value(row, "name", ""));
+        meta = "speedup " + str(_value(row, "improvement_ratio", 0.0)) + "x | time saved "
+            + str(_value(row, "time_saved_pct", 0.0)) + "% | ranked "
+            + str(_value(row, "median_ms_ranked", 0.0)) + " ms";
+        graphSvg = str(_value(row, "graph_svg_base64", ""));
+        originalCode = str(_value(row, "original_code", ""));
+        optimizedCode = str(_value(row, "optimized_code", ""));
+        if slot == 1 {
+            runHistoryCard1Visible = True;
+            runHistoryCard1Title = title;
+            runHistoryCard1Meta = meta;
+            runHistoryCard1GraphSvg = graphSvg;
+            runHistoryCard1Original = originalCode;
+            runHistoryCard1Optimized = optimizedCode;
+        }
+        if slot == 2 {
+            runHistoryCard2Visible = True;
+            runHistoryCard2Title = title;
+            runHistoryCard2Meta = meta;
+            runHistoryCard2GraphSvg = graphSvg;
+            runHistoryCard2Original = originalCode;
+            runHistoryCard2Optimized = optimizedCode;
+        }
+        if slot == 3 {
+            runHistoryCard3Visible = True;
+            runHistoryCard3Title = title;
+            runHistoryCard3Meta = meta;
+            runHistoryCard3GraphSvg = graphSvg;
+            runHistoryCard3Original = originalCode;
+            runHistoryCard3Optimized = optimizedCode;
+        }
+    }
+
+    def _set_run_history_target_slot(slot: int, item: dict) -> None {
+        title = str(_value(item, "function_name", ""));
+        fileName = _basename(str(_value(item, "source_file", "")));
+        meta = fileName + " | ranked " + str(_value(item, "median_ms", 0.0)) + " ms";
+        if slot == 1 {
+            runHistorySelected1Visible = True;
+            runHistorySelected1Title = title;
+            runHistorySelected1Meta = meta;
+        }
+        if slot == 2 {
+            runHistorySelected2Visible = True;
+            runHistorySelected2Title = title;
+            runHistorySelected2Meta = meta;
+        }
+        if slot == 3 {
+            runHistorySelected3Visible = True;
+            runHistorySelected3Title = title;
+            runHistorySelected3Meta = meta;
+        }
+    }
+
+    def _set_run_history_finalist_slot(slot: int, item: dict) -> None {
+        text = str(_value(item, "function_name", "")) + " | " + _basename(str(_value(item, "source_file", "")))
+            + " | ranked " + str(_value(item, "median_ms", 0.0)) + " ms";
+        if slot == 1 {
+            runHistoryFinalist1Visible = True;
+            runHistoryFinalist1Text = text;
+        }
+        if slot == 2 {
+            runHistoryFinalist2Visible = True;
+            runHistoryFinalist2Text = text;
+        }
+        if slot == 3 {
+            runHistoryFinalist3Visible = True;
+            runHistoryFinalist3Text = text;
+        }
+        if slot == 4 {
+            runHistoryFinalist4Visible = True;
+            runHistoryFinalist4Text = text;
+        }
+    }
+
+    def _apply_run_history_display(rd: dict) -> None {
+        meta = _coerce_plain_object(_value(rd, "meta", {}));
+        runHistoryOriginSurface = str(_value(meta, "ui_surface", ""));
+        runHistoryOriginChannel = str(_value(meta, "submission_channel", ""));
+        runHistoryMetaLine = "Job " + str(_value(meta, "job_id", "")) + " · run " + str(_value(meta, "run_id", ""))
+            + " · kind " + str(_value(meta, "kind", "")) + " · status " + str(_value(meta, "status", ""));
+        runHistoryOverviewSvg = str(_value(rd, "overview_svg_base64", ""));
+        runHistoryPassCount = str(_value(rd, "pass_count", 0));
+        runHistoryTargetCount = str(_value(rd, "target_count", 0));
+        runHistoryAverageSpeedup = str(_value(rd, "average_speedup", 0.0));
+        runHistoryAverageSaved = str(_value(rd, "average_time_saved_pct", 0.0));
+        rows = _coerce_list(_value(rd, "results", []));
+        selectedTargets = _coerce_list(_value(rd, "final_ranked_targets", []));
+        finalists = _coerce_list(_value(rd, "per_file_finalists", []));
+        runHistorySelected1Visible = False;
+        runHistorySelected2Visible = False;
+        runHistorySelected3Visible = False;
+        runHistoryFinalist1Visible = False;
+        runHistoryFinalist2Visible = False;
+        runHistoryFinalist3Visible = False;
+        runHistoryFinalist4Visible = False;
+        runHistoryCard1Visible = False;
+        runHistoryCard2Visible = False;
+        runHistoryCard3Visible = False;
+        ti = 0;
+        while ti < len(selectedTargets) and ti < 3 {
+            _set_run_history_target_slot(ti + 1, _coerce_plain_object(selectedTargets[ti]));
+            ti = ti + 1;
+        }
+        fi = 0;
+        while fi < len(finalists) and fi < 4 {
+            _set_run_history_finalist_slot(fi + 1, _coerce_plain_object(finalists[fi]));
+            fi = fi + 1;
+        }
+        ri = 0;
+        while ri < len(rows) and ri < 3 {
+            _set_run_history_card(ri + 1, _coerce_plain_object(rows[ri]));
+            ri = ri + 1;
+        }
+    }
+
+    def renderRunHistorySelectOptions() -> list {
+        opts = [];
+        labels = runHistorySelectLabels;
+        i = 0;
+        while i < len(labels) {
+            lab = str(labels[i]);
+            val = str(i);
+            opts.append(<option key={val} value={val}>{lab}</option>);
+            i = i + 1;
+        }
+        return opts;
+    }
+
+    async def refreshRunHistoryList() -> None {
+        runHistoryListFetchSeq = runHistoryListFetchSeq + 1;
+        fetch_id = runHistoryListFetchSeq;
+        surface_arg = runHistorySurfaceFilter;
+        outcome_arg = runHistoryOutcomeFilter;
+        runHistoryError = "";
+        resp = await ringtail_list_recent_runs(200, "any", surface_arg, outcome_arg);
+        if fetch_id != runHistoryListFetchSeq {
+            return;
+        }
+        if not bool(_value(resp, "success", False)) {
+            runHistoryError = str(_value(resp, "error", "Could not list runs"));
+            runHistoryListFiltered = [];
+            runHistorySelectLabels = [];
+            return;
+        }
+        runs = _coerce_list(_value(resp, "runs", []));
+        runHistoryListFiltered = runs;
+        labels = [];
+        ri = 0;
+        while ri < len(runs) {
+            row = runs[ri];
+            labels.append(_run_history_row_label(_coerce_plain_object(row)));
+            ri = ri + 1;
+        }
+        runHistorySelectLabels = labels;
+        runHistorySelectedIndex = 0;
+    }
+
+    async def openRunHistoryTab() -> None {
+        activeTab = "run_history";
+        runHistoryPhase = "pick";
+        await refreshRunHistoryList();
+    }
+
+    def runHistoryBackToPick() -> None {
+        runHistoryPhase = "pick";
+        _clear_run_history_layout();
+        _set_live_activity("run-history-log-feed", "Load a run to show structured log tail and job lines here.", True);
+    }
+
+    async def loadRunHistoryDetail() -> None {
+        runs = runHistoryListFiltered;
+        if len(runs) == 0 {
+            runHistoryError = "No runs loaded. Refresh the list or widen filters.";
+            return;
+        }
+        if runHistorySelectedIndex < 0 or runHistorySelectedIndex >= len(runs) {
+            runHistorySelectedIndex = 0;
+        }
+        runHistoryDetailFetchSeq = runHistoryDetailFetchSeq + 1;
+        detail_fetch_id = runHistoryDetailFetchSeq;
+        row_raw = runs[runHistorySelectedIndex];
+        entry = _coerce_plain_object(row_raw);
+        resp = await ringtail_hydrate_run_entry(entry);
+        if detail_fetch_id != runHistoryDetailFetchSeq {
+            return;
+        }
+        if not bool(_value(resp, "success", False)) {
+            runHistoryError = str(_value(resp, "error", "Could not load run details"));
+            return;
+        }
+        lines = _coerce_list(_value(resp, "activity_log_lines", []));
+        txt = _format_log_text(lines);
+        _set_live_activity("run-history-log-feed", txt, True);
+        rd = _coerce_plain_object(_value(resp, "run_display", {}));
+        _apply_run_history_display(rd);
+        runHistoryPhase = "detail";
+        runHistoryError = "";
+        flush_log_id = runHistoryDetailFetchSeq;
+        globalThis.setTimeout(lambda -> None {
+            if flush_log_id != runHistoryDetailFetchSeq {
+                return;
+            }
+            late = _live_activity_text("run-history-log-feed", txt);
+            _sync_live_activity_dom("run-history-log-feed", late);
+        }, 0);
+    }
+
     # def liveActivityBox(
     #     title: str,
     #     help_text: str,
@@ -1167,6 +1495,8 @@ cl def:pub app -> JsxElement {
     def _sync_live_activity_dom(element_id: str, text: str) -> None {
         # Target the live in-document node: id is stable; getElementById avoids a
         # stale liveActivityEls entry pointing at a detached <pre> after remounts.
+        # Do not gate the liveActivityEls fallback on isConnected — some Jac/JS
+        # bridges misreport it and updates would never paint (see prior fix thread).
         try {
             el = None;
             try {
@@ -1175,19 +1505,13 @@ cl def:pub app -> JsxElement {
                 el = None;
             }
             if el is None {
-                # _value returns the fallback (None) for missing keys or undefined/null values,
-                # avoiding the `undefined !== null` trap that lets `el.scrollHeight` crash.
                 el = _value(liveActivityEls, element_id, None);
             }
-            # IMPORTANT: In JS, missing dict keys often yield `undefined` (no exception).
-            # Treat undefined/null the same as None so we don't think we have a node.
             try {
                 if el is not None and globalThis.Object.is(el, globalThis.undefined) {
                     el = None;
                 }
             } except Exception { ignored = ""; }
-            # If the element isn't mounted yet (common during the same tick as state
-            # updates), schedule a single retry shortly after React commits.
             if el is None {
                 already = False;
                 try { already = bool(_value(liveActivityDomSyncPending, element_id, False)); } except Exception { already = False; }
@@ -1195,7 +1519,8 @@ cl def:pub app -> JsxElement {
                     liveActivityDomSyncPending[element_id] = True;
                     globalThis.setTimeout(lambda -> None {
                         try { globalThis.Reflect.deleteProperty(liveActivityDomSyncPending, element_id); } except Exception { ignored = ""; }
-                        _sync_live_activity_dom(element_id, text);
+                        fresh = _live_activity_text(element_id, text);
+                        _sync_live_activity_dom(element_id, fresh);
                     }, 25);
                 }
                 return;
@@ -1216,11 +1541,8 @@ cl def:pub app -> JsxElement {
                 }
             }
             try {
-                # NOTE: Avoid `null` in Jac client code; use None and short-circuit
-                # before touching DOM properties.
                 is_conn = False;
                 try { is_conn = bool(el != None and bool(el.isConnected)); } except Exception { is_conn = False; }
-                # Extra guard: some runtimes keep `undefined` and `!= None` is still true.
                 try {
                     if el is not None and globalThis.Object.is(el, globalThis.undefined) {
                         el = None;
@@ -2029,6 +2351,8 @@ cl def:pub app -> JsxElement {
             payload = {
                 "operation": "optimize_input",
                 "job_id": expected_job_id,
+                "submission_channel": "ui",
+                "ui_surface": "paste",
                 "config_name": pasteConfigName,
                 "analysis_mode": pasteAnalysisMode,
                 "enable_run_log": pasteEnableRunLog,
@@ -2229,6 +2553,10 @@ cl def:pub app -> JsxElement {
     }
 
     async def _poll_active_job(job_id: str, job_type: str) -> None {
+        # Do not read `has` state (pasteJobId, repoJobId, _active_job_id_for_type) here:
+        # the Jac client often returns "" for those inside async/setTimeout callbacks, which
+        # made `job_id != pasteJobId` always true and stopped polling after one fetch.
+        # Rely on closure `job_id` only; _apply_*_job_payload uses API payload, not guards.
         done = False;
         try {
             if str(job_id).strip() == "" or (job_type != "repo" and job_type != "paste") {
@@ -2600,6 +2928,8 @@ cl def:pub app -> JsxElement {
                 "prompt": repoPrompt,
                 "publish_pr": repoPublishPr,
                 "session_token": sessionToken,
+                "submission_channel": "ui",
+                "ui_surface": repoExperienceMode == "local" and "repo_local" or "repo_github",
                 "backend_config": {"backend": "local"}
             };
             if githubPatToken != "" {
@@ -2794,7 +3124,9 @@ cl def:pub app -> JsxElement {
                 "server_url": serverUrl,
                 "benchmark_id": demoBenchmarkId,
                 "top_k": int(demoTopK),
-                "per_file_k": int(demoPerFileK)
+                "per_file_k": int(demoPerFileK),
+                "submission_channel": "ui",
+                "ui_surface": "repo_local"
             };
             try { payload = globalThis.JSON.parse(globalThis.JSON.stringify(payload)); } except Exception { ignored = ""; }
             payload_json = "";
@@ -2920,6 +3252,8 @@ cl def:pub app -> JsxElement {
                     onClick={lambda -> None { activeTab = "paste"; }}>Paste Demo</button>
                 <button id="tab-repository" role="tab" aria-selected={activeTab == "repository" and "true" or "false"} className={activeTab == "repository" and "tab-button active" or "tab-button"}
                     onClick={lambda -> None { activeTab = "repository"; }}>Repository Optimization</button>
+                <button id="tab-run-history" role="tab" aria-selected={activeTab == "run_history" and "true" or "false"} className={activeTab == "run_history" and "tab-button active" or "tab-button"}
+                    onClick={lambda -> None { openRunHistoryTab(); }}>Run History</button>
                 <button id="tab-cli" role="tab" aria-selected={activeTab == "cli" and "true" or "false"} className={activeTab == "cli" and "tab-button active" or "tab-button"}
                     onClick={lambda -> None { activeTab = "cli"; }}>CLI Setup</button>
             </div>
@@ -3529,6 +3863,218 @@ cl def:pub app -> JsxElement {
                     </div>
                 </div>
             }
+
+            {activeTab == "run_history" and runHistoryPhase == "pick" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-run-history">
+                    <div className="hero-card">
+                        <h2>Run History</h2>
+                        <p className="hero-subtitle">Recent async jobs (ui_surface and submission_channel: paste / repo_local / repo_github, and ui / cli / api). Load a run for metrics and a structured run-log tail.</p>
+                        {runHistoryError != "" and <div className="info-banner" role="status">{runHistoryError}</div>}
+                        <div className="form-grid" style={{"marginTop": "0.75rem"}}>
+                            <label className="field">
+                                <span>Surface</span>
+                                <select value={runHistorySurfaceFilter} onChange={lambda e -> None {
+                                    runHistorySurfaceFilter = e.target.value;
+                                    runHistorySelectedIndex = 0;
+                                    refreshRunHistoryList();
+                                }}>
+                                    <option value="any">Any</option>
+                                    <option value="paste">Paste jobs</option>
+                                    <option value="repo_local">Local repo jobs</option>
+                                    <option value="repo_github">GitHub repo jobs</option>
+                                </select>
+                            </label>
+                            <label className="field">
+                                <span>Status</span>
+                                <select value={runHistoryOutcomeFilter} onChange={lambda e -> None {
+                                    runHistoryOutcomeFilter = e.target.value;
+                                    runHistorySelectedIndex = 0;
+                                    refreshRunHistoryList();
+                                }}>
+                                    <option value="any">Any</option>
+                                    <option value="success">Success</option>
+                                    <option value="failure">Failure</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </label>
+                            <label className="field field-full">
+                                <span>Run (most recent first)</span>
+                                <select value={str(runHistorySelectedIndex)} onChange={lambda e -> None {
+                                    try { runHistorySelectedIndex = int(e.target.value); } except Exception { runHistorySelectedIndex = 0; }
+                                }}>
+                                    {renderRunHistorySelectOptions()}
+                                </select>
+                                <span className="field-help">Rows list surface=… and channel=… for quick scanning.</span>
+                            </label>
+                            <div className="panel-actions field-full">
+                                <button type="button" className="secondary-button" onClick={lambda -> None { refreshRunHistoryList(); }}>Refresh List</button>
+                                <button type="button" className="primary-button" onClick={lambda -> None { loadRunHistoryDetail(); }}>Load Run</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            {activeTab == "run_history" and runHistoryPhase == "detail" and
+                <div className="container" role="tabpanel" aria-labelledby="tab-run-history">
+                    <div className="results-header">
+                        <div>
+                            <p className="eyebrow">Run Snapshot</p>
+                            <h2>Summary And Logs</h2>
+                            <p>{runHistoryMetaLine}</p>
+                        </div>
+                        <div className="panel-actions">
+                            <button className="secondary-button" onClick={lambda -> None { runHistoryBackToPick(); }}>
+                                Back To List
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="stat-grid">
+                        <div className="stat-card">
+                            <span>UI surface</span>
+                            <strong>{runHistoryOriginSurface != "" and runHistoryOriginSurface or "—"}</strong>
+                        </div>
+                        <div className="stat-card">
+                            <span>Submission channel</span>
+                            <strong>{runHistoryOriginChannel != "" and runHistoryOriginChannel or "—"}</strong>
+                        </div>
+                        <div className="stat-card">
+                            <span>Targets Passed</span>
+                            <strong>{runHistoryPassCount}/{runHistoryTargetCount}</strong>
+                        </div>
+                        <div className="stat-card">
+                            <span>Average Speedup</span>
+                            <strong>{runHistoryAverageSpeedup}x</strong>
+                        </div>
+                        <div className="stat-card">
+                            <span>Average Time Saved</span>
+                            <strong>{runHistoryAverageSaved}%</strong>
+                        </div>
+                    </div>
+
+                    <div className="demo-layout">
+                        <div className="section">
+                            <h3>Selected Targets</h3>
+                            <div className="simple-list">
+                                {runHistorySelected1Visible and
+                                    <div className="target-pill">
+                                        <strong>{runHistorySelected1Title}</strong>
+                                        <span>{runHistorySelected1Meta}</span>
+                                    </div>
+                                }
+                                {runHistorySelected2Visible and
+                                    <div className="target-pill">
+                                        <strong>{runHistorySelected2Title}</strong>
+                                        <span>{runHistorySelected2Meta}</span>
+                                    </div>
+                                }
+                                {runHistorySelected3Visible and
+                                    <div className="target-pill">
+                                        <strong>{runHistorySelected3Title}</strong>
+                                        <span>{runHistorySelected3Meta}</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                        <div className="section">
+                            <h3>Ranking Details</h3>
+                            <div className="simple-list">
+                                {runHistoryFinalist1Visible and <div className="simple-list-item">{runHistoryFinalist1Text}</div>}
+                                {runHistoryFinalist2Visible and <div className="simple-list-item">{runHistoryFinalist2Text}</div>}
+                                {runHistoryFinalist3Visible and <div className="simple-list-item">{runHistoryFinalist3Text}</div>}
+                                {runHistoryFinalist4Visible and <div className="simple-list-item">{runHistoryFinalist4Text}</div>}
+                            </div>
+                        </div>
+                    </div>
+
+                    {runHistoryOverviewSvg != "" and
+                        <div className="hero-card" style={{"marginTop": "1rem"}}>
+                            <h3>Suite Overview</h3>
+                            <img className="suite-overview" src={"data:image/svg+xml;base64," + runHistoryOverviewSvg} alt="Suite overview" />
+                        </div>
+                    }
+
+                    <div className="suite-grid" style={{"marginTop": "1rem"}}>
+                        {runHistoryCard1Visible and
+                            <div className="suite-card">
+                                <h3>#1 {runHistoryCard1Title}</h3>
+                                <p className="suite-meta">{runHistoryCard1Meta}</p>
+                                {runHistoryCard1GraphSvg != "" and
+                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + runHistoryCard1GraphSvg} alt={"Timing graph for " + runHistoryCard1Title} />
+                                }
+                                <div className="comparison-grid">
+                                    <div>
+                                        <h4>Original</h4>
+                                        <pre className="result-box">{runHistoryCard1Original}</pre>
+                                    </div>
+                                    <div>
+                                        <h4>Optimized</h4>
+                                        <pre className="result-box">{runHistoryCard1Optimized}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        {runHistoryCard2Visible and
+                            <div className="suite-card">
+                                <h3>#2 {runHistoryCard2Title}</h3>
+                                <p className="suite-meta">{runHistoryCard2Meta}</p>
+                                {runHistoryCard2GraphSvg != "" and
+                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + runHistoryCard2GraphSvg} alt={"Timing graph for " + runHistoryCard2Title} />
+                                }
+                                <div className="comparison-grid">
+                                    <div>
+                                        <h4>Original</h4>
+                                        <pre className="result-box">{runHistoryCard2Original}</pre>
+                                    </div>
+                                    <div>
+                                        <h4>Optimized</h4>
+                                        <pre className="result-box">{runHistoryCard2Optimized}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                        {runHistoryCard3Visible and
+                            <div className="suite-card">
+                                <h3>#3 {runHistoryCard3Title}</h3>
+                                <p className="suite-meta">{runHistoryCard3Meta}</p>
+                                {runHistoryCard3GraphSvg != "" and
+                                    <img className="suite-graph" src={"data:image/svg+xml;base64," + runHistoryCard3GraphSvg} alt={"Timing graph for " + runHistoryCard3Title} />
+                                }
+                                <div className="comparison-grid">
+                                    <div>
+                                        <h4>Original</h4>
+                                        <pre className="result-box">{runHistoryCard3Original}</pre>
+                                    </div>
+                                    <div>
+                                        <h4>Optimized</h4>
+                                        <pre className="result-box">{runHistoryCard3Optimized}</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    <div className="log-card" style={{"marginTop": "1.25rem"}}>
+                        <div className="log-card-header">
+                            <div>
+                                <h3>Run Log</h3>
+                                <p className="field-help">Structured tail of the JSONL run log plus job context lines from the server.</p>
+                            </div>
+                        </div>
+                        <pre
+                            id="run-history-log-feed"
+                            data-live-id="run-history-log-feed"
+                            className="log-feed"
+                            role="log"
+                            aria-live="polite"
+                            style={{"whiteSpace": "pre-wrap", "wordBreak": "break-word"}}
+                            ref={lambda el -> None { if el is not None { _sync_live_activity_dom("run-history-log-feed", _live_activity_text("run-history-log-feed", "Load a run to show structured log tail and job lines here.")); } }}
+                        ></pre>
+                    </div>
+                </div>
+            }
+
             {activeTab == "cli" and
                 <div className="container" role="tabpanel" aria-labelledby="tab-cli">
                     <div className="hero-card">

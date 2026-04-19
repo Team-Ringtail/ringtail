@@ -326,6 +326,8 @@ def _build_repo_submit_request(args: argparse.Namespace) -> dict[str, Any]:
     token = _resolve_cli_token(args.token)
     if token:
         payload["token"] = token
+    payload["submission_channel"] = "cli"
+    payload["ui_surface"] = "repo_local" if bool(getattr(args, "local", False)) else "repo_github"
     return normalize_request_defaults(payload)
 
 
