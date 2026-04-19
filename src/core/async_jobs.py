@@ -67,6 +67,11 @@ def _resolve_safe_log_path(log_path: str) -> Path | None:
     return resolved
 
 
+def tail_run_log_activity(log_path: str, max_lines: int = 100) -> list[str]:
+    """Public alias for structured JSONL tail lines (run registry / diagnostics)."""
+    return _tail_jsonl_activity(log_path, max_lines=max_lines)
+
+
 def _tail_jsonl_activity(log_path: str, *, max_lines: int = 100) -> list[str]:
     path = _resolve_safe_log_path(log_path)
     if path is None or not path.is_file():
@@ -95,6 +100,25 @@ def _tail_jsonl_activity(log_path: str, *, max_lines: int = 100) -> list[str]:
     return out
 
 
+def _activity_error_display(err: str) -> str:
+    """Shorten noisy upstream LLM / gateway errors for the activity overlay."""
+    text = str(err or "").strip()
+    if not text:
+        return ""
+    lower = text.lower()
+    if "529" in lower or "overloaded_error" in lower or "overloaded" in lower:
+        return (
+            "Anthropic returned HTTP 529 (overloaded). Their API is at capacity — wait and retry; "
+            "full error text is stored on the job."
+        )
+    if "internal server error" in lower and ("anthropic" in lower or "api_error" in lower or "500" in lower):
+        return (
+            "Upstream LLM/API error (often quota, billing, or provider outage). "
+            "Check your API key and provider status; full detail is stored on the job."
+        )
+    return text[:800]
+
+
 def _activity_overlay_for_job(job: dict[str, Any]) -> list[str]:
     """Human-readable job status + tail of structured run log for pollers / UI."""
     lines: list[str] = []
@@ -117,7 +141,7 @@ def _activity_overlay_for_job(job: dict[str, Any]) -> list[str]:
     elif status == "failed":
         err = str(job.get("error", "")).strip()
         if err:
-            lines.append(f"[job] Failed — {err[:800]}")
+            lines.append(f"[job] Failed — {_activity_error_display(err)}")
         # If the optimizer produced structured failure feedback, surface the
         # falsifying example to avoid forcing users to open the jsonl log.
         res = job.get("result")
@@ -155,7 +179,7 @@ def _attach_activity_view(job: dict[str, Any]) -> dict[str, Any]:
 
 def _request_summary(request: dict[str, Any]) -> dict[str, Any]:
     input_data = request.get("input", {}) if isinstance(request.get("input"), dict) else {}
-    return {
+    out: dict[str, Any] = {
         "operation": request.get("operation", "optimize_input"),
         "config_name": request.get("config_name"),
         "criteria_name": request.get("criteria_name"),
@@ -170,6 +194,13 @@ def _request_summary(request: dict[str, Any]) -> dict[str, Any]:
         "installation_id": request.get("installation_id")
         or (request.get("auth", {}) if isinstance(request.get("auth"), dict) else {}).get("installation_id"),
     }
+    ch = str(request.get("submission_channel", "") or "").strip()
+    surf = str(request.get("ui_surface", "") or "").strip()
+    if ch:
+        out["submission_channel"] = ch
+    if surf:
+        out["ui_surface"] = surf
+    return out
 
 
 class AsyncJobManager:
@@ -206,6 +237,12 @@ class AsyncJobManager:
             "result": None,
             "pid": None,
         }
+        ch = str(payload.get("submission_channel", "") or "").strip()
+        surf = str(payload.get("ui_surface", "") or "").strip()
+        if ch:
+            job["submission_channel"] = ch
+        if surf:
+            job["ui_surface"] = surf
         with self._lock:
             self._jobs[job_id] = job
             self._persist_job(job)
