@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 _WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
@@ -36,9 +37,15 @@ def run_local_worker_request(
     request: dict[str, Any],
     *,
     timeout_seconds: float | None = None,
+    on_spawned: Callable[[int], None] | None = None,
 ) -> dict[str, Any]:
     """
     Execute async_optimize_worker.jac with a JSON request payload.
+
+    ``on_spawned`` is invoked with the child PID immediately after ``Popen``,
+    before ``communicate()`` — so async job cancellation can ``SIGTERM`` the
+    process while it is still running. (Previously PID was only known after the
+    worker exited, so cancel could not kill the subprocess.)
 
     Returns a structured dict:
     {
@@ -72,6 +79,11 @@ def run_local_worker_request(
             stderr=subprocess.PIPE,
             text=True,
         )
+        if on_spawned is not None:
+            try:
+                on_spawned(int(proc.pid))
+            except Exception:
+                pass
         try:
             stdout, stderr = proc.communicate(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:

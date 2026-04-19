@@ -260,7 +260,6 @@ cl def:pub app -> JsxElement {
     has repoSetupCommands: str = "";
     has repoPublishPr: bool = False;
     has repoJobId: str = "";
-    has repoJobPollGen: int = 0;
     has repoJobStatus: str = "";
     has repoJobResult: str = "";
     has repoSubmitting: bool = False;
@@ -279,7 +278,6 @@ cl def:pub app -> JsxElement {
     has pasteAnalysisMode: str = "llm";
     has pasteEnableRunLog: bool = True;
     has pasteJobId: str = "";
-    has pasteJobPollGen: int = 0;
     has pasteJobStatus: str = "";
     has pasteActivityText: list = ["Submit a job to stream live status and run-log events from the server."];
     has pasteRunLogPath: str = "";
@@ -1495,8 +1493,10 @@ cl def:pub app -> JsxElement {
     }
 
     def _sync_live_activity_dom(element_id: str, text: str) -> None {
-        # getElementById only returns in-document nodes — do not require `isConnected`
-        # (some Jac/JS bridges misreport it). Only reuse liveActivityEls when connected.
+        # Target the live in-document node: id is stable; getElementById avoids a
+        # stale liveActivityEls entry pointing at a detached <pre> after remounts.
+        # Do not gate the liveActivityEls fallback on isConnected — some Jac/JS
+        # bridges misreport it and updates would never paint (see prior fix thread).
         try {
             el = None;
             try {
@@ -1504,41 +1504,45 @@ cl def:pub app -> JsxElement {
             } except Exception {
                 el = None;
             }
+            if el is None {
+                el = _value(liveActivityEls, element_id, None);
+            }
             try {
                 if el is not None and globalThis.Object.is(el, globalThis.undefined) {
                     el = None;
                 }
             } except Exception { ignored = ""; }
             if el is None {
-                cached = _value(liveActivityEls, element_id, None);
-                try {
-                    if cached is not None and (not globalThis.Object.is(cached, globalThis.undefined)) {
-                        use_cached = False;
-                        try {
-                            use_cached = bool(cached.isConnected);
-                        } except Exception {
-                            use_cached = False;
-                        }
-                        if use_cached {
-                            el = cached;
-                        } else {
-                            try {
-                                globalThis.Reflect.deleteProperty(liveActivityEls, element_id);
-                            } except Exception { ignored = ""; }
-                        }
-                    }
-                } except Exception { ignored = ""; }
-            }
-            if el is None {
-                liveActivityDomSyncPending[element_id] = True;
-                globalThis.setTimeout(lambda -> None {
-                    try { globalThis.Reflect.deleteProperty(liveActivityDomSyncPending, element_id); } except Exception { ignored = ""; }
-                    fresh = _live_activity_text(element_id, text);
-                    _sync_live_activity_dom(element_id, fresh);
-                }, 25);
+                already = False;
+                try { already = bool(_value(liveActivityDomSyncPending, element_id, False)); } except Exception { already = False; }
+                if not already {
+                    liveActivityDomSyncPending[element_id] = True;
+                    globalThis.setTimeout(lambda -> None {
+                        try { globalThis.Reflect.deleteProperty(liveActivityDomSyncPending, element_id); } except Exception { ignored = ""; }
+                        fresh = _live_activity_text(element_id, text);
+                        _sync_live_activity_dom(element_id, fresh);
+                    }, 25);
+                }
                 return;
             }
+            connected = True;
             try {
+                if el != None {
+                    connected = bool(el.isConnected);
+                }
+            } except Exception {
+                connected = True;
+            }
+            if el is None or not connected {
+                try {
+                    el = globalThis.document.getElementById(element_id);
+                } except Exception {
+                    el = None;
+                }
+            }
+            try {
+                is_conn = False;
+                try { is_conn = bool(el != None and bool(el.isConnected)); } except Exception { is_conn = False; }
                 try {
                     if el is not None and globalThis.Object.is(el, globalThis.undefined) {
                         el = None;
@@ -1586,12 +1590,6 @@ cl def:pub app -> JsxElement {
     def _set_live_activity(target_id: str, text: str, bump_version: bool = True) -> None {
         try {
             liveActivityTextById[target_id] = text;
-        } except Exception {
-            ignored = "";
-        }
-        # New content must never be blocked by a stuck pending flag (e.g. timer never ran).
-        try {
-            globalThis.Reflect.deleteProperty(liveActivityDomSyncPending, target_id);
         } except Exception {
             ignored = "";
         }
@@ -2417,10 +2415,8 @@ cl def:pub app -> JsxElement {
             } else {
                 pasteJobStatus = returned_status;
 
-                pasteJobPollGen = pasteJobPollGen + 1;
-                paste_poll_gen = pasteJobPollGen;
                 globalThis.setTimeout(lambda -> None {
-                    _poll_active_job(job_id_to_stream, "paste", paste_poll_gen);
+                    _poll_active_job(job_id_to_stream, "paste");
                 }, 1500);
             }
         } except Exception as err {
@@ -2556,13 +2552,11 @@ cl def:pub app -> JsxElement {
         return "";
     }
 
-    async def _poll_active_job(job_id: str, job_type: str, poll_gen: int) -> None {
-        if job_type == "paste" and poll_gen != pasteJobPollGen {
-            return;
-        }
-        if job_type == "repo" and poll_gen != repoJobPollGen {
-            return;
-        }
+    async def _poll_active_job(job_id: str, job_type: str) -> None {
+        # Do not read `has` state (pasteJobId, repoJobId, _active_job_id_for_type) here:
+        # the Jac client often returns "" for those inside async/setTimeout callbacks, which
+        # made `job_id != pasteJobId` always true and stopped polling after one fetch.
+        # Rely on closure `job_id` only; _apply_*_job_payload uses API payload, not guards.
         done = False;
         try {
             if str(job_id).strip() == "" or (job_type != "repo" and job_type != "paste") {
@@ -2572,31 +2566,23 @@ cl def:pub app -> JsxElement {
                 status = "running";
                 try {
                     if job_type == "repo" {
-                        if str(job_id).strip() != str(repoJobId).strip() {
-                            done = True;
+                        latest = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
+                        active_st = _extract_job_status(latest, "");
+                        if active_st == "not_found" {
+                            status = "running";
                         } else {
-                            latest = _flatten_function_job_payload(await ringtail_get_repo_agent_job(job_id));
-                            active_st = _extract_job_status(latest, "");
-                            if active_st == "not_found" {
-                                status = "running";
-                            } else {
-                                _apply_repo_job_payload(latest);
-                                status = active_st;
-                            }
+                            _apply_repo_job_payload(latest);
+                            status = active_st;
                         }
                     } elif job_type == "paste" {
-                        if str(job_id).strip() != str(pasteJobId).strip() {
-                            done = True;
+                        raw = await ringtail_get_optimization_job(job_id);
+                        flat = _flatten_function_job_payload(raw);
+                        flat_st = _extract_job_status(flat, "");
+                        if flat_st == "not_found" {
+                            status = "running";
                         } else {
-                            raw = await ringtail_get_optimization_job(job_id);
-                            flat = _flatten_function_job_payload(raw);
-                            flat_st = _extract_job_status(flat, "");
-                            if flat_st == "not_found" {
-                                status = "running";
-                            } else {
-                                _apply_paste_job_payload(raw);
-                                status = flat_st;
-                            }
+                            _apply_paste_job_payload(raw);
+                            status = flat_st;
                         }
                     }
                 } except Exception as pollErr {
@@ -2614,13 +2600,7 @@ cl def:pub app -> JsxElement {
             ignored = str(outerErr);
         }
         if not done {
-            if job_type == "paste" and poll_gen != pasteJobPollGen {
-                return;
-            }
-            if job_type == "repo" and poll_gen != repoJobPollGen {
-                return;
-            }
-            globalThis.setTimeout(lambda -> None { _poll_active_job(job_id, job_type, poll_gen); }, 1500);
+            globalThis.setTimeout(lambda -> None { _poll_active_job(job_id, job_type); }, 1500);
         }
     }
 
@@ -2993,10 +2973,8 @@ cl def:pub app -> JsxElement {
                 repoJobStatus = "failed";
                 repoJobResult = str(_value(submitted, "error", "No job ID returned"));
             } else {
-                repoJobPollGen = repoJobPollGen + 1;
-                repo_poll_gen = repoJobPollGen;
                 globalThis.setTimeout(lambda -> None {
-                    _poll_active_job(returned_repo_job_id, "repo", repo_poll_gen);
+                    _poll_active_job(returned_repo_job_id, "repo");
                 }, 250);
             }
         } except Exception as err {

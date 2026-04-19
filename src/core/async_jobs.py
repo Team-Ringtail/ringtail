@@ -340,14 +340,17 @@ class AsyncJobManager:
                 started_at=_utc_timestamp(),
                 worker_message="Worker thread started; invoking `jac run async_optimize_worker.jac`…",
             )
-            worker = run_local_worker_request(request)
+
+            def _on_worker_spawned(worker_pid: int) -> None:
+                self._update_job(job_id, pid=int(worker_pid))
+
+            worker = run_local_worker_request(request, on_spawned=_on_worker_spawned)
 
             with self._lock:
                 job = self._jobs.get(job_id)
                 if job is not None and str(job.get("status", "")) == "interrupted":
                     return
 
-            self._update_job(job_id, pid=worker.get("pid"))
             result = worker.get("result")
 
             with self._lock:
