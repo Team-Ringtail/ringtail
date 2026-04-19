@@ -1991,8 +1991,15 @@ cl def:pub app -> JsxElement {
         pasteExecutionAfterMs = str(after_exec);
         pasteTerminationReason = str(_value(result, "termination_reason", ""));
         pasteTestPassed = str(_value(result, "test_passed", ""));
-        pasteOriginalCode = pasteSubmittedSourceCode != "" and pasteSubmittedSourceCode or pasteSourceCode;
-        pasteOptimizedCode = str(_value(result, "optimized_code", ""));
+        server_orig = str(_value(result, "original_source_code", "")).strip();
+        if server_orig != "" {
+            pasteOriginalCode = _normalize_source_code(server_orig);
+        } else {
+            pasteOriginalCode = _normalize_source_code(
+                pasteSubmittedSourceCode != "" and pasteSubmittedSourceCode or pasteSourceCode
+            );
+        }
+        pasteOptimizedCode = _normalize_source_code(str(_value(result, "optimized_code", "")));
         er = _value(result, "error", None);
         fe = _format_error_display(er);
         if fe != "" {
