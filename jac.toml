@@ -12,7 +12,6 @@ react = "^18.2.0"
 react-dom = "^18.2.0"
 react-router-dom = "^6.22.0"
 react-error-boundary = "^5.0.0"
-jac-client-node = "1.0.7"
 "@codemirror/state" = "latest"
 "@codemirror/view" = "^6.0.0"
 "@codemirror/lang-python" = "^6.0.0"
@@ -21,6 +20,9 @@ jac-client-node = "1.0.7"
 "@codemirror/autocomplete" = "^6.0.0"
 "@codemirror/search" = "^6.0.0"
 "@codemirror/theme-one-dark" = "^6.0.0"
+react-hook-form = "^7.71.0"
+zod = "^4.3.6"
+"@hookform/resolvers" = "^5.2.2"
 
 [dependencies.npm.dev]
 vite = "^6.4.1"
@@ -28,7 +30,6 @@ vite = "^6.4.1"
 typescript = "^5.3.3"
 "@types/react" = "^18.2.0"
 "@types/react-dom" = "^18.2.0"
-"@jac-client/dev-deps" = "2.0.0"
 
 [plugins]
 enabled = ["byllm", "jac-client", "jac-scale", "jac-super"]

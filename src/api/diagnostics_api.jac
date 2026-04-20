@@ -44,11 +44,11 @@ def:pub list_recent_runs(limit: int = 50, kind: str = "any", surface: str = "any
 }
 
 
-def:pub hydrate_run_entry(entry: dict) -> dict {
+def:pub hydrate_run_entry(run_entry: dict) -> dict {
     mod = importlib.import_module("src.core.run_registry");
     func = getattr(mod, "hydrate_run_entry");
-    if entry is None {
+    if run_entry is None {
         return {"success": False, "error": "missing entry", "activity_log_lines": [], "run_display": {}};
     }
-    return func(entry);
+    return func(run_entry);
 }

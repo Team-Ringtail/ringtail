@@ -203,8 +203,8 @@ def:pub list_recent_runs(limit: int = 50, kind: str = "any", surface: str = "any
     return _diag_list_recent_runs(limit, kind, surface, outcome);
 }
 
-def:pub hydrate_run_entry(entry: dict) -> dict {
-    return _diag_hydrate_run_entry(entry);
+def:pub hydrate_run_entry(run_entry: dict) -> dict {
+    return _diag_hydrate_run_entry(run_entry);
 }
 
 # --- Demo / Benchmarks -------------------------------------------------------
@@ -753,8 +753,8 @@ cl def:pub app -> JsxElement {
         );
     }
 
-    async def ringtail_hydrate_run_entry(entry: dict) -> dict | list | str | int | float | bool | None {
-        return await ringtail_post_function("hydrate_run_entry", {"entry": entry});
+    async def ringtail_hydrate_run_entry(run_entry: dict) -> dict | list | str | int | float | bool | None {
+        return await ringtail_post_function("hydrate_run_entry", {"run_entry": run_entry});
     }
 
     async def ringtail_wait_job_notification(
@@ -1595,10 +1595,15 @@ cl def:pub app -> JsxElement {
         }
         _sync_live_activity_dom(target_id, text);
         try {
-            el = globalThis.document.getElementById(target_id);
-            if el is not None {
-                el.scrollTop = el.scrollHeight;
-            }
+            scroll_id = target_id;
+            globalThis.setTimeout(lambda -> None {
+                try {
+                    sel = globalThis.document.getElementById(scroll_id);
+                    if sel is not None {
+                        sel.scrollTop = sel.scrollHeight;
+                    }
+                } except Exception { ignored = ""; }
+            }, 50);
         } except Exception {
             ignored = "";
         }
@@ -3272,6 +3277,16 @@ cl def:pub app -> JsxElement {
                             <button className="secondary-button" onClick={lambda -> None { activeTab = "repository"; repoExperienceMode = "local"; }}>
                                 Optimize Project Files
                             </button>
+                        </div>
+                    </div>
+                    <div className="hero-card home-video-card">
+                        <h3>Watch Ringtail In Action</h3>
+                        <p className="hero-subtitle">A short walkthrough of the optimization workflow from paste demo to measurable runtime improvements.</p>
+                        <div className="home-video-frame">
+                            <video className="home-video-player" controls playsInline preload="metadata">
+                                <source src="/assets/ringtail_demo.mp4" type="video/mp4" />
+                                Your browser does not support the video tag.
+                            </video>
                         </div>
                     </div>
                     <div className="feature-grid">
